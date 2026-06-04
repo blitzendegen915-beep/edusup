@@ -30,24 +30,40 @@ def set_font(run, name_ja="MS Mincho", name_en="Times New Roman", size=10.5, bol
         rPr.remove(existing)
     rPr.insert(0, rFonts)
 
+def highlight_yellow(run):
+    """模範解答用：黄色ハイライト"""
+    r = run._r
+    rPr = r.get_or_add_rPr()
+    existing = rPr.find(qn('w:highlight'))
+    if existing is not None:
+        rPr.remove(existing)
+    hl = OxmlElement('w:highlight')
+    hl.set(qn('w:val'), 'yellow')
+    rPr.append(hl)
+
 def add_run(para, text, bold=False, italic=False, underline=False, size=10.5,
-            ja_font="MS Mincho", en_font="Times New Roman"):
+            ja_font="MS Mincho", en_font="Times New Roman", yellow=False):
     run = para.add_run(text)
     set_font(run, name_ja=ja_font, name_en=en_font, size=size, bold=bold, italic=italic, underline=underline)
+    if yellow:
+        highlight_yellow(run)
     return run
 
-def set_para_format(para, space_before=0, space_after=0, line_spacing=None, indent_left=0, indent_first=0):
+def set_para_format(para, align=None, space_before=0, space_after=0,
+                    line_spacing=None, line_spacing_rule=None,
+                    indent_left=0, indent_first=0):
     pf = para.paragraph_format
     pf.space_before = Pt(space_before)
     pf.space_after  = Pt(space_after)
     pf.left_indent  = Cm(indent_left)
     pf.first_line_indent = Cm(indent_first)
-    if line_spacing:
-        from docx.shared import Pt as PT
-        pf.line_spacing = PT(line_spacing)
+    if align is not None:
+        para.alignment = align
+    if line_spacing is not None:
+        pf.line_spacing = Pt(line_spacing)
 
 def add_boxed_number(para, number):
-    """□1 のような囲み数字を追加する（太字・枠線付きテキストで代替）"""
+    """□1 のような囲み数字を追加する（太字テキストで代替）"""
     run = para.add_run(f"【{number}】")
     set_font(run, size=11, bold=True)
     return run
@@ -71,7 +87,6 @@ def add_box_paragraph(doc):
 
 def set_page_layout(doc):
     """A4・余白設定"""
-    from docx.shared import Cm
     section = doc.sections[0]
     section.page_height = Cm(29.7)
     section.page_width  = Cm(21.0)
@@ -90,7 +105,6 @@ def build_exam():
     style = doc.styles['Normal']
     style.font.name = 'Times New Roman'
     style.font.size = Pt(10.5)
-    from docx.oxml.ns import qn
     style.element.rPr.rFonts.set(qn('w:eastAsia'), 'MS Mincho')
 
     # =========================================================
@@ -102,7 +116,7 @@ def build_exam():
     add_run(title, "２０２６年　２学年受験コース　英語コミュニケーションⅡ　２学期中間試験",
             bold=True, size=12)
 
-    doc.add_paragraph()  # 空行
+    doc.add_paragraph()
 
     # =========================================================
     # 大問１：空所補充
@@ -113,7 +127,7 @@ def build_exam():
         points="９")
 
     q1_data = [
-        # (日本語, 英語行, ヒント語句, 下線範囲)
+        # (番号前テキスト, 下線テキスト, 番号後テキスト, 英語行, ヒント語句)
         (
             "自転車は、温室効果ガスを",
             "排出しない",
@@ -180,21 +194,25 @@ def build_exam():
     ]
 
     for i, (pre, underline_text, post, english_line, hint) in enumerate(q1_data, 1):
-        # 日本語行
+        # 日本語行（両端揃え）
         jp_para = doc.add_paragraph()
-        set_para_format(jp_para, space_before=3, space_after=0, indent_left=0.3)
+        set_para_format(jp_para, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                        space_before=3, space_after=0, indent_left=0.3)
         add_run(jp_para, f"({i})　{pre}")
         add_run(jp_para, underline_text, underline=True)
         add_run(jp_para, post)
-        # ヒント（右端）
-        add_run(jp_para, "　" * 4)
-        add_run(jp_para, hint, bold=True)
+        # ヒントは右端に黄色ハイライト（タブで右端寄せ）
+        add_run(jp_para, "\t")
+        add_run(jp_para, hint, bold=True, yellow=True)
 
-        # 英語行
+        # 英語行（左揃え、インデント付き）
         en_para = doc.add_paragraph()
-        set_para_format(en_para, space_before=0, space_after=4, indent_left=0.8)
+        set_para_format(en_para, align=WD_ALIGN_PARAGRAPH.LEFT,
+                        space_before=0, space_after=4, indent_left=0.8)
         add_run(en_para, english_line)
 
+    # タブストップ（右端）を日本語行に設定するため、XMLを操作
+    # 簡易的に右揃えタブを全jp_paraに設定（後処理）
     doc.add_paragraph()
 
     # =========================================================
@@ -203,44 +221,34 @@ def build_exam():
     add_section_header(doc, "２",
         "Read the following text and answer the questions.", points="６")
 
-    # 枠線付きボックス（テーブルで代替）
     box_cell = add_box_paragraph(doc)
 
-    passages = [
-        ("Student: ", False, "I heard that Copenhagen has become the world's most bicycle-friendly city.", False),
-        ("Mr. Hansen: ", False, "That's right. ", False),
-        ("①", False, "The city has implemented some unique policies with the goal of becoming the best bike city. ", False),
-        ("②", False, "Let me explain one of them—the Green Wave. As long as cyclists maintain a speed of 20 kilometers per hour, the traffic lights are green all the way during rush hour on major bicycle routes. ", False),
-        ("③", False, "Copenhagen is also planning to expand its international airport to attract more business travelers. ", False),
-        ("④", False, "The road signals are operated simultaneously with the movements of the cyclists, which helped eliminate traffic congestion.", False),
-    ]
-
     box_p1 = box_cell.paragraphs[0]
-    set_para_format(box_p1, space_before=2, space_after=2)
-    add_run(box_p1, "Student: ")
+    set_para_format(box_p1, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=2, space_after=2)
+    add_run(box_p1, "Student: ", bold=True)
     add_run(box_p1, "I heard that Copenhagen has become the world's most bicycle-friendly city.")
 
     box_p2 = box_cell.add_paragraph()
-    set_para_format(box_p2, space_before=0, space_after=0)
-    add_run(box_p2, "Mr. Hansen: ")
+    set_para_format(box_p2, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=0, space_after=0)
+    add_run(box_p2, "Mr. Hansen: ", bold=True)
     add_run(box_p2, "That's right. ")
-    add_run(box_p2, "①", bold=False)
+    add_run(box_p2, "①")
     add_run(box_p2, "The city has implemented some unique policies with the goal of becoming the best bike city. ")
-    add_run(box_p2, "②", bold=False)
+    add_run(box_p2, "②")
     add_run(box_p2, "Let me explain one of them—the Green Wave. As long as cyclists maintain a speed of 20 kilometers per hour, the traffic lights are green all the way during rush hour on major bicycle routes. ")
-    add_run(box_p2, "③", bold=False)
+    add_run(box_p2, "③")
     add_run(box_p2, "Copenhagen is also planning to expand its international airport to attract more business travelers. ")
-    add_run(box_p2, "④", bold=False)
+    add_run(box_p2, "④")
     add_run(box_p2, "The road signals are operated simultaneously with the movements of the cyclists, which helped eliminate traffic congestion.")
 
     box_p3 = box_cell.add_paragraph()
-    set_para_format(box_p3, space_before=4, space_after=0)
-    add_run(box_p3, "Student: ")
+    set_para_format(box_p3, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=4, space_after=0)
+    add_run(box_p3, "Student: ", bold=True)
     add_run(box_p3, "Does everyone have to cycle at exactly 20 km/h?")
 
     box_p4 = box_cell.add_paragraph()
-    set_para_format(box_p4, space_before=0, space_after=2)
-    add_run(box_p4, "Mr. Hansen: ")
+    set_para_format(box_p4, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=0, space_after=2)
+    add_run(box_p4, "Mr. Hansen: ", bold=True)
     add_run(box_p4, "Well, ( A ) some cyclists would rather go faster, but they can be a danger to other cyclists during rush hour. The Green Wave makes them travel at a safe speed, because if they go too fast, they'll get caught at a red light. ( B ), everyone cycles at the safest speed without sacrificing efficiency.")
 
     doc.add_paragraph()
@@ -250,8 +258,8 @@ def build_exam():
     set_para_format(q2_p1, space_before=2, space_after=2, indent_left=0.3)
     add_run(q2_p1, "1. Choose one sentence from ① to ④ ", bold=True)
     add_run(q2_p1, "that does not belong in the paragraph.", bold=True, underline=True)
-    add_run(q2_p1, "　（下線部は「この段落に適さない」の意）", bold=False)
-    add_run(q2_p1, "　　③", bold=True)
+    add_run(q2_p1, "　　　　")
+    add_run(q2_p1, "③", bold=True, yellow=True)
 
     # 設問2
     q2_p2 = doc.add_paragraph()
@@ -259,27 +267,34 @@ def build_exam():
     add_run(q2_p2, "2. Choose the best option for the blanks A and B.", bold=True)
     add_run(q2_p2, "（Words in the options ")
     add_run(q2_p2, "begin with lowercase letters,", underline=True)
-    add_run(q2_p2, " even when they come at the beginning of a sentence.（下線部は「小文字ではじまっている」の意））")
+    add_run(q2_p2, " even when they come at the beginning of a sentence.）")
 
     q2_p3 = doc.add_paragraph()
-    set_para_format(q2_p3, space_before=0, space_after=4, indent_left=0.5)
+    set_para_format(q2_p3, space_before=0, space_after=2, indent_left=0.5)
     add_run(q2_p3, "[ ア it's true that ／ イ in this way ／ ウ similarly ／ エ what's more ／ オ in short ]")
-    add_run(q2_p3, "　　　　A ア　B イ", bold=True)
+
+    q2_ans = doc.add_paragraph()
+    set_para_format(q2_ans, space_before=2, space_after=4, indent_left=2)
+    add_run(q2_ans, "A　")
+    add_run(q2_ans, "ア", bold=True, yellow=True)
+    add_run(q2_ans, "　　B　")
+    add_run(q2_ans, "イ", bold=True, yellow=True)
 
     # =========================================================
     # 大問３：語句選択（ア〜エ）
     # =========================================================
     add_section_header(doc, "３",
         "Choose the best word for each blank from options ア to エ.  "
-        "All the options are given in their base form（下線は「原形で書かれている」の意）.",
+        "All the options are given in their base form.",
         points="４")
 
     q3_opt = doc.add_paragraph()
-    set_para_format(q3_opt, space_before=2, space_after=2, indent_left=0.5)
+    set_para_format(q3_opt, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=2)
     add_run(q3_opt, "ア span　　　イ prevent　　　ウ serve　　　エ connect")
 
     q3_body = doc.add_paragraph()
-    set_para_format(q3_body, space_before=2, space_after=2, indent_left=0.3, indent_first=0.3)
+    set_para_format(q3_body, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                    space_before=2, space_after=2, indent_left=0.3, indent_first=0.3)
     add_run(q3_body,
         "There is also a bicycle bridge （　1　）ning the city center called the Bicycle Snake. "
         "This bridge （　2　）s as a shortcut for cyclists and offers a striking view of the waterfront. "
@@ -288,8 +303,8 @@ def build_exam():
         "providing pleasant routes through forests and countryside.")
 
     q3_ans = doc.add_paragraph()
-    set_para_format(q3_ans, space_before=2, space_after=6, indent_left=2)
-    add_run(q3_ans, "１ア　２ウ　３イ　４エ", bold=True)
+    set_para_format(q3_ans, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=6)
+    add_run(q3_ans, "１ア　２ウ　３イ　４エ", bold=True, yellow=True)
 
     # =========================================================
     # 大問４：語句挿入位置特定
@@ -319,7 +334,8 @@ def build_exam():
 
     # 本文（語句を抜いた状態）
     body_para1 = doc.add_paragraph()
-    set_para_format(body_para1, space_before=2, space_after=0, indent_left=0.3, indent_first=0.3)
+    set_para_format(body_para1, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                    space_before=2, space_after=0, indent_left=0.3, indent_first=0.3)
     add_run(body_para1,
         "Surprisingly, Copenhagen's urban planners used to favor cars over other forms of transportation. "
         "The oil crisis of the 1970s led them to revise their transportation systems they would not have "
@@ -328,7 +344,8 @@ def build_exam():
         "That has led more people to cycle driving.")
 
     body_para2 = doc.add_paragraph()
-    set_para_format(body_para2, space_before=0, space_after=4, indent_left=0.3, indent_first=0.3)
+    set_para_format(body_para2, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                    space_before=0, space_after=4, indent_left=0.3, indent_first=0.3)
     add_run(body_para2,
         'Making cities healthier and more attractive by adopting bike-friendly policies has come to be known '
         'as "Copenhagenization." Even New York is following Copenhagen\'s example. It has started locating '
@@ -348,12 +365,12 @@ def build_exam():
         "4.（cycle）instead of（driving）",
         "5.（now）quicker（to）",
     ]
-    add_run(ans4_para, "　　".join(ans4_items), bold=True, size=9.5)
+    add_run(ans4_para, "　　".join(ans4_items), bold=True, yellow=True, size=9.5)
 
     # =========================================================
-    # 大問３（英文解釈）：空白
+    # 大問５（英文解釈）：空白
     # =========================================================
-    add_section_header(doc, "３", "以下の英文解釈に関する問題に答えなさい", points="16")
+    add_section_header(doc, "５", "以下の英文解釈に関する問題に答えなさい", points="16")
 
     blank_para = doc.add_paragraph()
     set_para_format(blank_para, space_before=4, space_after=4, indent_left=0.5)
@@ -364,15 +381,16 @@ def build_exam():
     doc.add_paragraph()
 
     # =========================================================
-    # 大問４（初見）：語句選択ア〜オ
+    # 大問６（初見）：語句選択ア〜オ
     # =========================================================
-    add_section_header(doc, "４",
+    add_section_header(doc, "６",
         "Choose the best word for each blank from options ア to オ.",
         points="１０")
 
-    q4init_body = doc.add_paragraph()
-    set_para_format(q4init_body, space_before=2, space_after=2, indent_left=0.3, indent_first=0.3)
-    add_run(q4init_body,
+    q6init_body = doc.add_paragraph()
+    set_para_format(q6init_body, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                    space_before=2, space_after=2, indent_left=0.3, indent_first=0.3)
+    add_run(q6init_body,
         "Emoticons are symbols that people around the world use to ( 1 ) their feelings in digital messages. "
         "In East Asian countries such as Japan and South Korea, horizontal emoticons like (^_^) are ( 2 ) used. "
         "These focus on the eyes. People in Western countries, on the other hand, tend to use vertical emoticons "
@@ -381,18 +399,18 @@ def build_exam():
         "Westerners pay more ( 4 ) to the mouth. As digital communication becomes more ( 5 ), understanding "
         "these cultural differences can help people from different countries communicate more effectively.")
 
-    q4init_opt = doc.add_paragraph()
-    set_para_format(q4init_opt, space_before=2, space_after=2, indent_left=1)
-    add_run(q4init_opt, "ア widespread　　イ common　　ウ express　　エ reflects　　オ attention")
+    q6init_opt = doc.add_paragraph()
+    set_para_format(q6init_opt, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=2)
+    add_run(q6init_opt, "ア widespread　　イ common　　ウ express　　エ reflects　　オ attention")
 
-    q4init_ans = doc.add_paragraph()
-    set_para_format(q4init_ans, space_before=2, space_after=6, indent_left=2)
-    add_run(q4init_ans, "１ウ　２ア　３エ　４オ　５イ", bold=True)
+    q6init_ans = doc.add_paragraph()
+    set_para_format(q6init_ans, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=6)
+    add_run(q6init_ans, "１ウ　２ア　３エ　４オ　５イ", bold=True, yellow=True)
 
     # =========================================================
-    # 大問５（初見長文読解）
+    # 大問７（初見長文読解）
     # =========================================================
-    add_section_header(doc, "５",
+    add_section_header(doc, "７",
         "以下の英文を読み、各問いに答えなさい。",
         points="１５")
 
@@ -412,13 +430,14 @@ def build_exam():
 
     for rp in reading_paras:
         p = doc.add_paragraph()
-        set_para_format(p, space_before=0, space_after=0)
+        set_para_format(p, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                        space_before=0, space_after=0, line_spacing=18)
         add_run(p, rp)
 
     doc.add_paragraph()
 
     # 設問
-    q5_items = [
+    q7_items = [
         ("(1)", "What did the research team discover?", "2",
          ["Japanese people are naturally better at reading emotions than Americans.",
           "People from different cultures focused on different parts of the face when reading emotions.",
@@ -446,11 +465,11 @@ def build_exam():
           "Children around the world learn to express emotions in fundamentally the same way."]),
     ]
 
-    for q_num, q_text, ans, choices in q5_items:
+    for q_num, q_text, ans, choices in q7_items:
         qp = doc.add_paragraph()
         set_para_format(qp, space_before=3, space_after=1, indent_left=0.3)
-        add_run(qp, f"{q_num} {q_text}")
-        add_run(qp, f"　　　　{ans}", bold=True)
+        add_run(qp, f"{q_num} {q_text}　　　　")
+        add_run(qp, ans, bold=True, yellow=True)
         for ci, choice in enumerate(choices, 1):
             cp = doc.add_paragraph()
             set_para_format(cp, space_before=0, space_after=0, indent_left=0.8)
@@ -458,40 +477,56 @@ def build_exam():
         doc.add_paragraph()
 
     # =========================================================
-    # 大問６：並べ替え
+    # 大問８：並べ替え
     # =========================================================
-    add_section_header(doc, "６",
+    add_section_header(doc, "８",
         "日本語の意味を表す英文になるように語を並べ替え，（　）内の４番目と８番目"
         "（文頭からではなく，（　）内であることに注意）に来る語を解答欄に記入しなさい。"
         "（解答欄に記入するのは１語ずつである。また，文頭に来る語も１文字目は小文字になっている）",
         points="１０")
 
-    q6_items = [
-        ("グリーンウェーブは、効率を犠牲にすることなく誰もが最も安全な速度で走れるよう保証する。",
-         "The Green Wave ensures ( that / everyone / cycles / at / the / safest / speed / without ) sacrificing efficiency.",
-         "at / without"),
-        ("サイクリングは、糖尿病や癌などの病気にかかることをあなたが防いでくれるかもしれない。",
-         "Cycling may ( prevent / you / from / getting / diseases / such / as / diabetes ) and cancer.",
-         "getting / diabetes"),
-        ("自転車で市内に行く方が、車で行くよりも早い。",
-         "It is ( now / quicker / to / go / downtown / by / bicycle / than ) by car.",
-         "go / than"),
-        ("多くの都市が、より持続可能なコミュニティを建設するため「コペンハーゲン化」するかもしれない。",
-         "Many cities ( may / well / 'Copenhagenize' / as / they / seek / to / build ) more sustainable communities.",
-         "as / build"),
-        ("石油危機により、コペンハーゲンの都市計画者は交通システムを見直すことになった。",
-         "The oil crisis ( led / Copenhagen's / urban / planners / to / revise / their / transportation ) systems.",
-         "planners / transportation"),
+    q8_items = [
+        (
+            "グリーンウェーブは、効率を犠牲にすることなく誰もが最も安全な速度で走れるよう保証する。",
+            "The Green Wave ensures ( that / everyone / cycles / at / the / safest / speed / without ) sacrificing efficiency.",
+            "at", "without"
+        ),
+        (
+            "サイクリングは、糖尿病や癌などの病気にかかることをあなたが防いでくれるかもしれない。",
+            "Cycling may ( prevent / you / from / getting / diseases / such / as / diabetes ) and cancer.",
+            "getting", "diabetes"
+        ),
+        (
+            "自転車で市内に行く方が、車で行くよりも早い。",
+            "It is ( now / quicker / to / go / downtown / by / bicycle / than ) by car.",
+            "go", "than"
+        ),
+        (
+            "多くの都市が、より持続可能なコミュニティを建設するため「コペンハーゲン化」するかもしれない。",
+            "Many cities ( may / well / 'Copenhagenize' / as / they / seek / to / build ) more sustainable communities.",
+            "as", "build"
+        ),
+        (
+            "石油危機により、コペンハーゲンの都市計画者は交通システムを見直すことになった。",
+            "The oil crisis ( led / Copenhagen's / urban / planners / to / revise / their / transportation ) systems.",
+            "planners", "transportation"
+        ),
     ]
 
-    for i, (jp, en, ans) in enumerate(q6_items, 1):
+    for i, (jp, en, ans4th, ans8th) in enumerate(q8_items, 1):
+        # 日本語行
         jp_p = doc.add_paragraph()
-        set_para_format(jp_p, space_before=4, space_after=0, indent_left=0.3)
+        set_para_format(jp_p, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                        space_before=4, space_after=0, indent_left=0.3)
         add_run(jp_p, f"　{i}．{jp}")
-        add_run(jp_p, f"　　{ans}", bold=True)
+        # 解答（4番目と8番目）を右端に黄色で
+        add_run(jp_p, "\t")
+        add_run(jp_p, f"{ans4th} / {ans8th}", bold=True, yellow=True)
 
+        # 英語並べ替え行（左揃え）
         en_p = doc.add_paragraph()
-        set_para_format(en_p, space_before=0, space_after=2, indent_left=0.8)
+        set_para_format(en_p, align=WD_ALIGN_PARAGRAPH.LEFT,
+                        space_before=0, space_after=2, indent_left=0.8)
         add_run(en_p, en)
 
     # =========================================================
