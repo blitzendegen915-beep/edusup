@@ -23,9 +23,19 @@ PRICES = {
     'ラグビーパンツ（セプター）': 4510,
 }
 
-# ショルダーガードサイズ（フォーム回答結果）
-SG_SIZES = {29:'L', 36:'L', 38:'XL', 39:'XL', 40:'L',
-            41:'3XL', 42:'L', 44:'XL', 45:'L', 47:'2XL'}
+# ショルダーガードサイズ（フォーム回答結果 2026/05/26-30）
+SG_SIZES = {
+    29: 'S',   # 竹原浩輝
+    36: 'M',   # 野村奏太
+    38: 'L',   # 藤野裕心
+    39: 'S',   # 須藤海翔
+    40: 'M',   # 中所龍之介
+    41: 'XL',  # 吉田青空
+    42: 'S',   # 阿部浩直
+    44: 'M',   # 田口輝真
+    45: 'L',   # 遠藤将来（未回答・据え置き）
+    47: 'L',   # 増喜晴也
+}
 
 def sock_size(s):
     s = str(s).replace('cm','').strip()
@@ -262,6 +272,33 @@ def add_student_page(doc, s, first=False):
     addr.paragraph_format.space_after  = Pt(2)
     add_run(addr, f'１年{s["klass"]}組　{s["num"]}番　{s["name"]}　保護者　様', size=11)
 
+    # ── 訂正・お詫び notice ────────────────────
+    notice_tbl = doc.add_table(rows=1, cols=1)
+    notice_tbl.style = 'Table Grid'
+    notice_cell = notice_tbl.cell(0, 0)
+    set_cell_bg(notice_cell, 'FFF2CC')
+    notice_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    np0 = notice_cell.paragraphs[0]
+    np0.paragraph_format.space_before = Pt(3)
+    np0.paragraph_format.space_after  = Pt(1)
+    add_run(np0, '【訂正・お詫び】', size=10.5, bold=True)
+
+    notice_lines = [
+        '先日お渡しした案内書について、下記の通り訂正いたします。ご迷惑をおかけし、誠に申し訳ございませんでした。',
+        '① ショルダーガードのサイズを修正しました。今一度ご確認ください。',
+        '② お支払いについて：三菱UFJ銀行へのお振込みは不要です。代金はミズノ担当者より各ご家庭へ個別にご連絡いたします。',
+    ]
+    for line in notice_lines:
+        np = notice_cell.add_paragraph()
+        np.paragraph_format.space_before = Pt(1)
+        np.paragraph_format.space_after  = Pt(1)
+        if line.startswith('①') or line.startswith('②'):
+            np.paragraph_format.left_indent = Pt(10)
+        add_run(np, line, size=10)
+    notice_cell.add_paragraph().paragraph_format.space_after = Pt(3)
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
     # ── 挨拶文 ────────────────────────────────
     greet = doc.add_paragraph()
     greet.paragraph_format.first_line_indent = Pt(10.5)
@@ -270,7 +307,7 @@ def add_student_page(doc, s, first=False):
     add_run(greet,
         '平素よりラグビー部の活動にご理解・ご協力をいただき、誠にありがとうございます。'
         '下記の通り、用具一式のご注文内容と金額をお知らせいたします。'
-        '内容をご確認のうえ、期日までに三菱UFJ銀行へお振込みをお願いいたします。',
+        '内容をご確認のうえ、ミズノ担当者からのご連絡をお待ちください。',
         size=10.5)
 
     # ── 品目テーブル ──────────────────────────
@@ -312,20 +349,18 @@ def add_student_page(doc, s, first=False):
     cell_text(total_row.cells[4], f'¥{total_calc:,}', size=11, bold=True,
               align=WD_ALIGN_PARAGRAPH.RIGHT, bg='1F497D', color=(0xFF,0xFF,0xFF))
 
-    # ── 振込情報 ──────────────────────────────
+    # ── お支払い案内 ──────────────────────────
     sp = doc.add_paragraph()
     sp.paragraph_format.space_before = Pt(8)
     sp.paragraph_format.space_after  = Pt(2)
-    add_run(sp, '【お振込み先】', size=10.5, bold=True)
+    add_run(sp, '【お支払いについて】', size=10.5, bold=True)
 
-    info_lines = [
-        '銀行名：三菱UFJ銀行　世田谷支店（店番130）',
-        '口座種別：普通預金　口座番号：0887504',
-        '口座名義：駒澤大学高校ラグビー部　畠山 和真',
-        f'振込依頼人名：「１ネン {s["name"].replace(" ","")}」と入力してください',
-        '振込期限：令和８年７月１日（火）',
+    pay_lines = [
+        '代金のお支払いは、ミズノ担当者より各ご家庭へ個別にご連絡いたします。',
+        '三菱UFJ銀行へのお振込みは不要です。',
+        '担当者からの連絡をお待ちください。',
     ]
-    for line in info_lines:
+    for line in pay_lines:
         p = doc.add_paragraph()
         p.paragraph_format.space_before = Pt(0)
         p.paragraph_format.space_after  = Pt(1)
