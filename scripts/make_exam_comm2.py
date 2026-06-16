@@ -325,7 +325,7 @@ def build_exam():
 
     q6init_opt = doc.add_paragraph()
     set_para_format(q6init_opt, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=2)
-    add_run(q6init_opt, "ア widespread　　イ common　　ウ express　　エ reflects　　オ attention")
+    add_run(q6init_opt, "ア widespread　　イ commonly　　ウ express　　エ reflects　　オ attention")
 
     q6init_ans = doc.add_paragraph()
     set_para_format(q6init_ans, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=6)
