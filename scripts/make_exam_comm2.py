@@ -271,7 +271,7 @@ def build_exam():
 
     q3_ans = doc.add_paragraph()
     set_para_format(q3_ans, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=6)
-    add_run(q3_ans, "１ウ　２エ　３イ　４ア", bold=True, yellow=True)
+    add_run(q3_ans, "１ア　２ウ　３イ　４エ", bold=True, yellow=True)
 
     # =========================================================
     # 大問４：語句挿入位置特定
@@ -282,48 +282,15 @@ def build_exam():
         "No.０は解答例である。１〜５を解答しなさい。",
         points="１０")
 
-    word_table = doc.add_table(rows=1, cols=6)
-    word_table.style = 'Table Grid'
-    words = ["0. are", "1. once", "2. that", "3. than", "4. driving", "5. quicker"]
-    for i, word in enumerate(words):
-        cell = word_table.cell(0, i)
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        add_run(p, word, size=10)
+    pending_para = doc.add_paragraph()
+    set_para_format(pending_para, space_before=4, space_after=4, indent_left=0.5)
+    add_run(pending_para, "（教科書原文との照合が必要：未着手）", bold=True, size=12)
 
     doc.add_paragraph()
-
-    ex_para = doc.add_paragraph()
-    set_para_format(ex_para, space_before=0, space_after=2, indent_left=0.3)
-    add_run(ex_para, "解答例　　（ cubes ） are （ widely ）")
-
-    body_para1 = doc.add_paragraph()
-    set_para_format(body_para1, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=2, space_after=0)
-    add_run(body_para1,
-        "Surprisingly, Copenhagen's urban planners used to favor cars over other forms of transportation. "
-        "The Bicycle Snake bridge, built more recently, serves as a shortcut for cyclists and offers a striking "
-        "view of the waterfront. As a result, it is now quicker to go downtown by bicycle by car. "
-        "That has led more people to cycle than .")
-
-    body_para2 = doc.add_paragraph()
-    set_para_format(body_para2, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=0, space_after=4)
-    add_run(body_para2,
-        'Making cities healthier and more attractive by adopting bike-friendly policies has come to be known '
-        'as "Copenhagenization." Even New York is following Copenhagen\'s example. It has started locating '
-        'car parking spaces in the middle of the street so vehicles cannot enter the bike lane. Consequently, '
-        'bicycle traffic has increased 1.6 times. Moreover, there are fewer accidents. The Copenhagen model '
-        'is changing the world for the better.')
-
-    ans4_para = doc.add_paragraph()
-    set_para_format(ans4_para, space_before=2, space_after=6, indent_left=0.3)
-    ans4_items = [
-        "1.（recently）built（,）",
-        "2.（quicker）to go（downtown）",
-        "3.（by）bicycle（than）",
-        "4.（cycle）than（driving）",
-        "5.（in the middle of the street）so that（vehicles）",
-    ]
-    add_run(ans4_para, "　　".join(ans4_items), bold=True, yellow=True, size=9.5)
+    doc.add_paragraph()
+    doc.add_paragraph()
+    doc.add_paragraph()
+    doc.add_paragraph()
 
     # =========================================================
     # 大問５（英文解釈）：空白
@@ -445,31 +412,31 @@ def build_exam():
         (
             "コペンハーゲンは自転車専用道路を拡大することで交通渋滞を減らしてきた。",
             "Copenhagen ( has / reduced / traffic / congestion / by / expanding / its / bicycle ) lanes.",
-            "by", "its",
+            "congestion", "bicycle",
             "has reduced traffic congestion by expanding its bicycle lanes."
         ),
         (
             "毎朝何千人もの人々が安全に職場まで自転車で通勤している。",
             "Every morning, ( thousands / of / people / commute / to / work / by / bicycle ) safely.",
-            "people", "by",
+            "commute", "bicycle",
             "thousands of people commute to work by bicycle safely."
         ),
         (
             "市が自転車専用の橋を建設したのは、利用者の便利さを考えたからだ。",
             "The city built ( a / bridge / just / for / cyclists / because / it / considered ) their convenience.",
-            "for", "it",
+            "for", "considered",
             "a bridge just for cyclists because it considered their convenience."
         ),
         (
             "より多くの都市が自転車に優しい政策を取り入れることを期待されている。",
             "More cities ( are / expected / to / adopt / policies / that / favor / cyclists ) in the future.",
-            "adopt", "favor",
+            "adopt", "cyclists",
             "are expected to adopt policies that favor cyclists in the future."
         ),
         (
             "この成功例は他の国々が見習うべきモデルとなっている。",
             "This successful example ( has / become / a / model / that / other / countries / should ) follow.",
-            "a", "should",
+            "model", "should",
             "has become a model that other countries should follow."
         ),
     ]
