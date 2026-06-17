@@ -306,33 +306,20 @@ def build_exam():
     doc.add_paragraph()
 
     # =========================================================
-    # 大問６（初見）：語句選択ア〜オ
+    # 大問６：保留（未着手）
     # =========================================================
-    add_section_header(doc, 6,
-        "Choose the best word for each blank from options ア to オ.",
-        points="１０")
+    add_section_header(doc, 6, "（保留）", points="　")
 
-    q6init_body = doc.add_paragraph()
-    set_para_format(q6init_body, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=2, space_after=2)
-    add_run(q6init_body,
-        "Emoticons are symbols that people around the world use to ( 1 ) their feelings in digital messages. "
-        "In East Asian countries such as Japan and South Korea, horizontal emoticons like (^_^) are ( 2 ) used. "
-        "These focus on the eyes. People in Western countries, on the other hand, tend to use vertical emoticons "
-        "like :-). These focus on the mouth. Researchers say that this difference ( 3 ) how people in different "
-        "cultures read emotions from faces. East Asians focus more on the eyes when interpreting emotions, while "
-        "Westerners pay more ( 4 ) to the mouth. As digital communication becomes more ( 5 ), understanding "
-        "these cultural differences can help people from different countries communicate more effectively.")
+    blank6 = doc.add_paragraph()
+    set_para_format(blank6, space_before=4, space_after=4, indent_left=0.5)
+    add_run(blank6, "（未着手・保留）", bold=True, size=12)
 
-    q6init_opt = doc.add_paragraph()
-    set_para_format(q6init_opt, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=2)
-    add_run(q6init_opt, "ア widespread　　イ commonly　　ウ express　　エ reflects　　オ attention")
-
-    q6init_ans = doc.add_paragraph()
-    set_para_format(q6init_ans, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=6)
-    add_run(q6init_ans, "１ウ　２イ　３エ　４オ　５ア", bold=True, yellow=True)
+    doc.add_paragraph()
+    doc.add_paragraph()
+    doc.add_paragraph()
 
     # =========================================================
-    # 大問７（初見長文読解）：解答は枠線囲み数字
+    # 大問７：初見長文読解「シェイクスピアの言語」（英検2級レベル・15点）
     # =========================================================
     add_section_header(doc, 7,
         "以下の英文を読み、各問いに答えなさい。",
@@ -341,14 +328,14 @@ def build_exam():
     ltitle = doc.add_paragraph()
     ltitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
     set_para_format(ltitle, space_before=2, space_after=2)
-    add_run(ltitle, "Faces, Emotions, and Emojis", bold=True)
+    add_run(ltitle, "Shakespeare and the English Language", bold=True)
 
     reading_paras = [
-        "　Have you ever sent an emoji to someone in another country and gotten an unexpected reaction? The way people express and interpret emotions can vary greatly depending on cultural background.",
-        "　A research team recently compared how Japanese and American participants read emotions from photographs showing various facial expressions. Participants were asked to judge how happy, sad, or surprised the people in the photos appeared. The results were striking: Japanese participants tended to focus on the eyes when judging emotions, while Americans paid more attention to the mouth. This difference in focus led to different interpretations of the very same facial expressions.",
-        "　These findings help explain why emoticons differ across cultures. East Asian emoticons like (^_^) and (T_T) focus on the eyes, while Western ones like :-) and :-( focus on the mouth. Each style reflects the way people in those cultures naturally read emotions from faces.",
-        "　Researchers suggest that these patterns develop early in life. Children learn to read emotions based on the expressions they see most often in their environment. Over time, these habits become deeply ingrained and affect how people communicate, even in digital spaces.",
-        "　Understanding cultural differences in emotional expression is becoming increasingly important in our connected world. By learning how people in other cultures express and interpret emotions, we can improve cross-cultural communication and reduce misunderstandings.",
+        "　William Shakespeare, who lived from 1564 to 1616, is widely considered the greatest writer in the English language. His plays and poems have been translated into every major language and are performed more often than those of any other playwright. However, many people do not realize how deeply Shakespeare has influenced the way we speak English today.",
+        "　During Shakespeare's time, the English language was going through a period of rapid change known as Early Modern English. New words were being created at an extraordinary rate to describe new ideas, places, and inventions. Shakespeare himself is believed to have invented more than 1,700 words that are still used in modern English. Words such as \"bedroom,\" \"lonely,\" \"generous,\" and \"fashionable\" all appear for the first time in Shakespeare's works.",
+        "　Shakespeare also contributed many phrases that remain common expressions today. When someone says \"break the ice\" to describe starting a conversation with a stranger, or \"all that glitters is not gold\" as a warning not to judge by appearances, they are quoting Shakespeare — often without knowing it.",
+        "　Readers today sometimes struggle with Shakespeare's language because it contains archaic forms. For example, Shakespeare often used \"thou\" and \"thee\" instead of \"you,\" and verb endings like \"-eth\" and \"-est\" are no longer part of standard English. Despite these differences, studying Shakespeare's original language can give us a unique window into how English has changed over the past 400 years.",
+        "　Today, Shakespeare's influence can be felt not only in literature but also in everyday conversation. Understanding his language helps us appreciate the rich history of English and the remarkable creativity of one of its greatest contributors.",
     ]
 
     for rp in reading_paras:
@@ -359,31 +346,31 @@ def build_exam():
     doc.add_paragraph()
 
     q7_items = [
-        ("(1)", "What did the research team discover?", "2",
-         ["Japanese people are naturally better at reading emotions than Americans.",
-          "People from different cultures focused on different parts of the face when reading emotions.",
-          "American participants found facial expressions in photographs more difficult to interpret.",
-          "Photography is the most effective tool for studying human emotions."]),
-        ("(2)", "How are East Asian emoticons different from Western ones?", "2",
-         ["East Asian emoticons use more keyboard symbols and special characters.",
-          "East Asian emoticons focus on the eyes, while Western emoticons focus on the mouth.",
-          "East Asian emoticons are more commonly used in business communication.",
-          "East Asian emoticons were invented earlier than Western emoticons."]),
-        ("(3)", "How do people develop different patterns for reading emotions?", "3",
-         ["They take special courses on emotional intelligence at school.",
-          "They are directly taught specific techniques by their parents.",
-          "They learn from the facial expressions they see most often in daily life.",
-          "They study photographs and digital media from a young age."]),
-        ("(4)", "What does the writer suggest is important in today's world?", "2",
-         ["Avoiding emoticons in any kind of professional or international communication.",
-          "Understanding how people in other cultures express and interpret emotions.",
-          "Using only the emoticons that are popular in your own country.",
-          "Ensuring that children learn multiple languages from an early age."]),
-        ("(5)", "Which statement best matches the main idea of the passage?", "3",
-         ["East Asian countries produce far more emoticons than Western countries.",
-          "Research has shown that American communication styles are more effective globally.",
-          "Cultural differences in how people read emotions are reflected in emoticons and affect cross-cultural communication.",
-          "Children around the world learn to express emotions in fundamentally the same way."]),
+        ("(1)", "What is one thing that surprises many people about Shakespeare?", "3",
+         ["He lived in a time when there were very few books available to read.",
+          "His plays are performed less often than those of other famous playwrights.",
+          "He had a deep influence on the words and expressions we use in English today.",
+          "He translated his own works into many different languages."]),
+        ("(2)", "Which of the following is NOT mentioned as a word invented by Shakespeare?", "4",
+         ["bedroom",
+          "fashionable",
+          "generous",
+          "extraordinary"]),
+        ("(3)", "What does \"break the ice\" mean, according to the passage?", "2",
+         ["To physically break something frozen in cold weather.",
+          "To start a conversation with someone you do not know well.",
+          "To perform a scene from a Shakespeare play on stage.",
+          "To warn others not to make hasty judgments."]),
+        ("(4)", "Why do modern readers sometimes find Shakespeare's language difficult?", "3",
+         ["His plays contain words that cannot be found in any dictionary.",
+          "The plots of his plays are too complicated to follow.",
+          "He used old-fashioned pronouns and verb endings no longer used today.",
+          "His works were written in a completely different language."]),
+        ("(5)", "What is the main idea of this passage?", "3",
+         ["Shakespeare's plays are the most widely performed in the world.",
+          "Early Modern English was very different from the English spoken today.",
+          "Shakespeare made lasting contributions to the English language that continue to influence us.",
+          "Studying old literature is the best way to improve your English skills."]),
     ]
 
     for q_num, q_text, ans, choices in q7_items:
