@@ -249,7 +249,7 @@ def build_exam():
     add_run(q2_p3, "イ", bold=True, yellow=True)
 
     # =========================================================
-    # 大問３：語句選択（ア〜エ）
+    # 大問３：語句選択（ア〜エ）Lesson 4（絵文字）Part 4 使用
     # =========================================================
     add_section_header(doc, 3,
         "Choose the best word for each blank from options ア to エ.  "
@@ -258,23 +258,26 @@ def build_exam():
 
     q3_opt = doc.add_paragraph()
     set_para_format(q3_opt, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=2)
-    add_run(q3_opt, "ア span　　　イ prevent　　　ウ serve　　　エ connect")
+    add_run(q3_opt, "ア recognize　　　イ baffle　　　ウ conduct　　　エ rate")
 
     q3_body = doc.add_paragraph()
     set_para_format(q3_body, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=2, space_after=2)
     add_run(q3_body,
-        "There is also a bicycle bridge （　1　）ning the city center called the Bicycle Snake. "
-        "This bridge （　2　）s as a shortcut for cyclists and offers a striking view of the waterfront. "
-        "Its gentle curves （　3　） anyone from going too fast, so everyone can cruise safely. "
-        "For longer journeys, many Cycle Superhighways （　4　） Copenhagen with surrounding communities, "
-        "providing pleasant routes through forests and countryside.")
+        "Lastly, people need to have seen some emoticons before they can understand their meanings. "
+        "An experiment was （　1　）ed in Japan, Cameroon, and Tanzania. "
+        "The participants were asked to （　2　） three different styles of emoticons by using a "
+        "'sadness-happiness' scale. "
+        "The Japanese participants easily （　3　）d the emotions in the emoticons. "
+        "On the other hand, the participants in Cameroon and Tanzania hardly understood them. "
+        "They were utterly （　4　）d by what the shape of each emoticon indicated. "
+        "In other words, emoticons do not look like facial expressions to everyone.")
 
     q3_ans = doc.add_paragraph()
     set_para_format(q3_ans, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=6)
-    add_run(q3_ans, "１ア　２ウ　３イ　４エ", bold=True, yellow=True)
+    add_run(q3_ans, "１ウ　２エ　３ア　４イ", bold=True, yellow=True)
 
     # =========================================================
-    # 大問４：語句挿入位置特定
+    # 大問４：語句挿入（Lesson 3 Part 4 Copenhagenization 使用）
     # =========================================================
     add_section_header(doc, 4,
         "この英文中には下の５つの語句が抜けている。本来入るべき場所を指摘しなさい。"
@@ -282,15 +285,54 @@ def build_exam():
         "No.０は解答例である。１〜５を解答しなさい。",
         points="１０")
 
-    pending_para = doc.add_paragraph()
-    set_para_format(pending_para, space_before=4, space_after=4, indent_left=0.5)
-    add_run(pending_para, "（教科書原文との照合が必要：未着手）", bold=True, size=12)
+    word_table = doc.add_table(rows=1, cols=6)
+    word_table.style = 'Table Grid'
+    words = ["0. once", "1. so that", "2. such as", "3. quicker", "4. instead of", "5. well"]
+    for i, word in enumerate(words):
+        cell = word_table.cell(0, i)
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        add_run(p, word, size=10)
 
     doc.add_paragraph()
-    doc.add_paragraph()
-    doc.add_paragraph()
-    doc.add_paragraph()
-    doc.add_paragraph()
+
+    ex_para = doc.add_paragraph()
+    set_para_format(ex_para, space_before=0, space_after=2, indent_left=0.3)
+    add_run(ex_para, "解答例　　（ planners ） once （ used ）")
+
+    # 語句挿入本文（Lesson 3 Part 4 そのまま・0〜5の語を削除）
+    body_para1 = doc.add_paragraph()
+    set_para_format(body_para1, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                    space_before=2, space_after=0)
+    add_run(body_para1,
+        "Surprisingly, Copenhagen's urban planners used to favor cars over other forms of "
+        "transportation. The oil crisis of the 1970s led them to revise their transportation systems "
+        "they would not have to rely on oil. Since then, the city has been installing cycling "
+        "infrastructure the Green Wave and the Bicycle Snake. As a result, it is now to go downtown "
+        "by bicycle than by car. That has led more people to cycle driving.")
+
+    body_para2 = doc.add_paragraph()
+    set_para_format(body_para2, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                    space_before=0, space_after=4)
+    add_run(body_para2,
+        "Making cities healthier and more attractive by adopting bike-friendly policies has come to "
+        "be known as \"Copenhagenization.\" Even New York is following Copenhagen's example. It has "
+        "started locating car parking spaces in the middle of the street. That approach is called the "
+        "\"Protected Bicycle Lane\" policy and it prevents vehicles from entering or parking in the "
+        "bike lane. Consequently, bicycle traffic has increased 1.6 times. Moreover, there are fewer "
+        "accidents. Many other cities may \"Copenhagenize\" as they seek to build more sustainable, "
+        "livable communities. The Copenhagen model is changing the world for the better.")
+
+    ans4_para = doc.add_paragraph()
+    set_para_format(ans4_para, space_before=2, space_after=6, indent_left=0.3)
+    ans4_items = [
+        "1.（systems）so that（they）",
+        "2.（infrastructure）such as（the）",
+        "3.（now）quicker（to）",
+        "4.（cycle）instead of（driving）",
+        "5.（may）well（\"Copenhagenize\"）",
+    ]
+    add_run(ans4_para, "　　".join(ans4_items), bold=True, yellow=True, size=9.5)
 
     # =========================================================
     # 大問５（英文解釈）：空白
