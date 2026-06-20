@@ -468,7 +468,7 @@ def build_exam():
                "our actions and achieve our goals]）.", "イ",
          "イ（間違い）：C は「a mysterious force [that...]」全体。"),
         ("7.", "S[Chopik] V[says] O〈he isn't suggesting 〈we ignore our families〉〉, "
-               "but V[says] O〈that friends make us feel better〉.", "イ",
+               "but O〈that friends make us feel better〉.", "イ",
          "イ（間違い）：says に対して O が2つ並列（but でつながれた別々の O）。"
          "「suggesting の目的語節が2つ並列」ではなく、says の O が並列されている。"),
         ("8.", "M（With friends）S[you] V[are] C[more likely to do activities] "
@@ -600,14 +600,14 @@ def build_exam():
           "generous",
           "extraordinary"]),
         ("(3)", "What does \"break the ice\" mean, according to the passage?", "2",
-         ["To physically break through a layer of ice that has formed on the surface of frozen water.",
-          "To start a conversation with someone you do not know well.",
+         ["To break through a layer of ice that has formed on the surface of a frozen lake or river.",
+          "To begin a conversation with a person whom one has not met or spoken to before.",
           "To perform a memorable scene from one of Shakespeare's famous plays in front of an audience.",
           "To caution someone who is about to judge a situation based only on its outward appearance."]),
         ("(4)", "Why do modern readers sometimes find Shakespeare's language difficult?", "3",
          ["His plays include many invented words and expressions not recorded in any modern dictionary.",
           "The storylines and plots of his plays are far too complex for today's general readers to follow.",
-          "He used old-fashioned pronouns and verb endings no longer used today.",
+          "He often used old-fashioned pronouns and verb endings that are no longer part of standard English.",
           "His original manuscripts were composed in a script that modern English speakers cannot read at all."]),
         ("(5)", "What is the main idea of this passage?", "3",
          ["Shakespeare's plays and poems are performed and translated more widely than any other writer's works.",
@@ -632,6 +632,13 @@ def build_exam():
     # =========================================================
     # 大問８：Neo現代 Unit2「Britain」本文の穴埋め問題（10点）
     # =========================================================
+    # 改ページ
+    _pb_para = doc.add_paragraph()
+    _pb_run = _pb_para.add_run()
+    _br = OxmlElement('w:br')
+    _br.set(qn('w:type'), 'page')
+    _pb_run._r.append(_br)
+
     add_section_header(doc, 8,
         "次の英文を読み，（　１　）〜（　１０　）に入る最も適切な語を下の語群から選び，"
         "記号で答えなさい。ただし，同じ語は一度しか使えない。",
