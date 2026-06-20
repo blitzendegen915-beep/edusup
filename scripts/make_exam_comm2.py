@@ -348,17 +348,62 @@ def build_exam():
     doc.add_paragraph()
 
     # =========================================================
-    # 大問６：保留（未着手）
+    # 大問６：並べ替え（動画でわかる英文法 例文51〜60より・10点）
     # =========================================================
-    add_section_header(doc, 6, "（保留）", points="　")
+    add_section_header(doc, 6,
+        "日本語の意味を表す英文になるように語を並べ替え，（　）内の４番目と８番目"
+        "（文頭からではなく，（　）内であることに注意）に来る語を解答欄に記入しなさい。"
+        "（解答欄に記入するのは１語ずつである。また，文頭に来る語も１文字目は小文字になっている）",
+        points="１０")
 
-    blank6 = doc.add_paragraph()
-    set_para_format(blank6, space_before=4, space_after=4, indent_left=0.5)
-    add_run(blank6, "（未着手・保留）", bold=True, size=12)
+    q6_items = [
+        (
+            "定期的に運動する人々は自分自身により満足している。",
+            "( those / who / exercise / regularly / feel / better / about / themselves ).",
+            "regularly", "themselves",
+            "Those who exercise regularly feel better about themselves."
+        ),
+        (
+            "今日できることを明日に延期するな。",
+            "Don't ( put / off / until / tomorrow / what / you / can / do ) today.",
+            "tomorrow", "do",
+            "Don't put off until tomorrow what you can do today."
+        ),
+        (
+            "彼女は、その賞を取ると私が思っている女の子だ。",
+            "She ( is / the / girl / who / I / think / will / win ) the prize.",
+            "who", "win",
+            "She is the girl who I think will win the prize."
+        ),
+        (
+            "あなたに必要なのは十分な睡眠だ。",
+            "( what / you / need / is / to / get / enough / sleep ).",
+            "is", "sleep",
+            "What you need is to get enough sleep."
+        ),
+        (
+            "新しい経験を共有することができる人たちと友だちになることが重要だ。",
+            "It is important ( to / make / friends / with / people / with / whom / you ) can share new experiences.",
+            "with", "you",
+            "It is important to make friends with people with whom you can share new experiences."
+        ),
+    ]
 
-    doc.add_paragraph()
-    doc.add_paragraph()
-    doc.add_paragraph()
+    for i, (jp, en, ans4th, ans8th, full_sentence) in enumerate(q6_items, 1):
+        jp_p = doc.add_paragraph()
+        set_para_format(jp_p, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=4, space_after=0,
+                        indent_left=0.3, right_tab_at=RIGHT_MARGIN_TAB)
+        add_run(jp_p, f"　{i}．{jp}")
+        add_run(jp_p, "\t")
+        add_run(jp_p, f"{ans4th} / {ans8th}", bold=True, yellow=True)
+
+        en_p = doc.add_paragraph()
+        set_para_format(en_p, align=WD_ALIGN_PARAGRAPH.LEFT, space_before=0, space_after=0, indent_left=0.8)
+        add_run(en_p, en)
+
+        ans_p = doc.add_paragraph()
+        set_para_format(ans_p, align=WD_ALIGN_PARAGRAPH.LEFT, space_before=0, space_after=4, indent_left=0.8)
+        add_run(ans_p, full_sentence, size=9.5)
 
     # =========================================================
     # 大問７：初見長文読解「シェイクスピアの言語」（英検2級レベル・15点）
