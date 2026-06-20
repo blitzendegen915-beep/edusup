@@ -252,24 +252,23 @@ def build_exam():
     # 大問３：語句選択（ア〜エ）Lesson 4（絵文字）Part 4 使用
     # =========================================================
     add_section_header(doc, 3,
-        "Choose the best word for each blank from options ア to エ.  "
-        "All the options are given in their base form.",
+        "Choose the best word for each blank from options ア to エ.",
         points="４")
 
     q3_opt = doc.add_paragraph()
     set_para_format(q3_opt, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=2)
-    add_run(q3_opt, "ア recognize　　　イ baffle　　　ウ conduct　　　エ rate")
+    add_run(q3_opt, "ア recognized　　　イ baffled　　　ウ conducted　　　エ rated")
 
     q3_body = doc.add_paragraph()
     set_para_format(q3_body, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=2, space_after=2)
     add_run(q3_body,
         "Lastly, people need to have seen some emoticons before they can understand their meanings. "
-        "An experiment was （　1　）ed in Japan, Cameroon, and Tanzania. "
-        "The participants were asked to （　2　） three different styles of emoticons by using a "
+        "An experiment was （　1　） in Japan, Cameroon, and Tanzania. "
+        "The participants （　2　） three different styles of emoticons using a "
         "'sadness-happiness' scale. "
-        "The Japanese participants easily （　3　）d the emotions in the emoticons. "
+        "The Japanese participants easily （　3　） the emotions in the emoticons. "
         "On the other hand, the participants in Cameroon and Tanzania hardly understood them. "
-        "They were utterly （　4　）d by what the shape of each emoticon indicated. "
+        "They were utterly （　4　） by what the shape of each emoticon indicated. "
         "In other words, emoticons do not look like facial expressions to everyone.")
 
     q3_ans = doc.add_paragraph()
@@ -287,7 +286,7 @@ def build_exam():
 
     word_table = doc.add_table(rows=1, cols=6)
     word_table.style = 'Table Grid'
-    words = ["0. once", "1. so that", "2. such as", "3. quicker", "4. instead of", "5. well"]
+    words = ["0. once", "1. so that", "2. such as", "3. quicker", "4. from", "5. well"]
     for i, word in enumerate(words):
         cell = word_table.cell(0, i)
         p = cell.paragraphs[0]
@@ -309,7 +308,7 @@ def build_exam():
         "transportation. The oil crisis of the 1970s led them to revise their transportation systems "
         "they would not have to rely on oil. Since then, the city has been installing cycling "
         "infrastructure the Green Wave and the Bicycle Snake. As a result, it is now to go downtown "
-        "by bicycle than by car. That has led more people to cycle driving.")
+        "by bicycle than by car. That has led more people to cycle instead of driving.")
 
     body_para2 = doc.add_paragraph()
     set_para_format(body_para2, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
@@ -318,7 +317,7 @@ def build_exam():
         "Making cities healthier and more attractive by adopting bike-friendly policies has come to "
         "be known as \"Copenhagenization.\" Even New York is following Copenhagen's example. It has "
         "started locating car parking spaces in the middle of the street. That approach is called the "
-        "\"Protected Bicycle Lane\" policy and it prevents vehicles from entering or parking in the "
+        "\"Protected Bicycle Lane\" policy and it prevents vehicles entering or parking in the "
         "bike lane. Consequently, bicycle traffic has increased 1.6 times. Moreover, there are fewer "
         "accidents. Many other cities may \"Copenhagenize\" as they seek to build more sustainable, "
         "livable communities. The Copenhagen model is changing the world for the better.")
@@ -329,7 +328,7 @@ def build_exam():
         "1.（systems）so that（they）",
         "2.（infrastructure）such as（the）",
         "3.（now）quicker（to）",
-        "4.（cycle）instead of（driving）",
+        "4.（vehicles）from（entering）",
         "5.（may）well（\"Copenhagenize\"）",
     ]
     add_run(ans4_para, "　　".join(ans4_items), bold=True, yellow=True, size=9.5)
@@ -591,30 +590,30 @@ def build_exam():
 
     q7_items = [
         ("(1)", "What is one thing that surprises many people about Shakespeare?", "3",
-         ["He lived in a time when there were very few books available to read.",
-          "His plays are performed less often than those of other famous playwrights.",
+         ["He lived during a period when printed books were not yet widely available to ordinary people.",
+          "His plays are now staged far less frequently than those of other well-known dramatists worldwide.",
           "He had a deep influence on the words and expressions we use in English today.",
-          "He translated his own works into many different languages."]),
+          "He personally translated many of his own plays and poems into several foreign languages."]),
         ("(2)", "Which of the following is NOT mentioned as a word invented by Shakespeare?", "4",
          ["bedroom",
           "fashionable",
           "generous",
           "extraordinary"]),
         ("(3)", "What does \"break the ice\" mean, according to the passage?", "2",
-         ["To physically break something frozen in cold weather.",
+         ["To physically break through a layer of ice that has formed on the surface of frozen water.",
           "To start a conversation with someone you do not know well.",
-          "To perform a scene from a Shakespeare play on stage.",
-          "To warn others not to make hasty judgments."]),
+          "To perform a memorable scene from one of Shakespeare's famous plays in front of an audience.",
+          "To caution someone who is about to judge a situation based only on its outward appearance."]),
         ("(4)", "Why do modern readers sometimes find Shakespeare's language difficult?", "3",
-         ["His plays contain words that cannot be found in any dictionary.",
-          "The plots of his plays are too complicated to follow.",
+         ["His plays include many invented words and expressions not recorded in any modern dictionary.",
+          "The storylines and plots of his plays are far too complex for today's general readers to follow.",
           "He used old-fashioned pronouns and verb endings no longer used today.",
-          "His works were written in a completely different language."]),
+          "His original manuscripts were composed in a script that modern English speakers cannot read at all."]),
         ("(5)", "What is the main idea of this passage?", "3",
-         ["Shakespeare's plays are the most widely performed in the world.",
-          "Early Modern English was very different from the English spoken today.",
+         ["Shakespeare's plays and poems are performed and translated more widely than any other writer's works.",
+          "Early Modern English, spoken in Shakespeare's era, differed greatly from the language we use today.",
           "Shakespeare made lasting contributions to the English language that continue to influence us.",
-          "Studying old literature is the best way to improve your English skills."]),
+          "Reading classic literature such as Shakespeare is considered the most reliable path to improving English."]),
     ]
 
     for q_num, q_text, ans, choices in q7_items:
@@ -643,9 +642,9 @@ def build_exam():
     set_para_format(word_box_p, space_before=2, space_after=4, indent_left=0.3)
     add_run(word_box_p, "【語群】　", bold=True)
     add_run(word_box_p,
-        "ア image　　イ curry　　ウ famous　　エ herbs　　オ Industrial\n"
-        "カ factories　　キ colonies　　ク preserve　　ケ traditions　　コ culture\n"
-        "※ サ ancient　　シ export　（使わないものが２つある）")
+        "ア colonies　　イ culture　　ウ preserve　　エ famous　　オ factories\n"
+        "カ ancient　　キ curry　　ク traditions　　ケ herbs　　コ Industrial\n"
+        "※ サ image　　シ export　（使わないものが２つある）")
 
     # 本文（穴埋め）
     neo_paras = [
@@ -680,7 +679,7 @@ def build_exam():
     neo_ans = doc.add_paragraph()
     set_para_format(neo_ans, space_before=4, space_after=4, indent_left=0.3)
     add_run(neo_ans,
-        "１ア　２イ　３ウ　４エ　５オ　６カ　７キ　８ク　９ケ　１０コ",
+        "１サ　２キ　３エ　４ケ　５コ　６オ　７ア　８ウ　９ク　１０イ",
         bold=True, yellow=True)
 
     # =========================================================
