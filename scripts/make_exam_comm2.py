@@ -468,9 +468,8 @@ def build_exam():
                "our actions and achieve our goals]）.", "イ",
          "イ（間違い）：C は「a mysterious force [that...]」全体。"),
         ("7.", "S[Chopik] V[says] O〈he isn't suggesting 〈we ignore our families〉〉, "
-               "but O〈that friends make us feel better〉.", "イ",
-         "イ（間違い）：says に対して O が2つ並列（but でつながれた別々の O）。"
-         "「suggesting の目的語節が2つ並列」ではなく、says の O が並列されている。"),
+               "but O〈that friends make us feel better〉.", "ア",
+         "ア（正しい）：says に対して二つの目的語節が but で並列されている。"),
         ("8.", "M（With friends）S[you] V[are] C[more likely to do activities] "
                "M（— they provide an outlet）.", "イ",
          "イ（間違い）：ダッシュ以降の「they provide an outlet」は独立した節。"),
@@ -501,7 +500,7 @@ def build_exam():
     ans_row = doc.add_paragraph()
     set_para_format(ans_row, space_before=6, space_after=6,
                     align=WD_ALIGN_PARAGRAPH.CENTER)
-    add_run(ans_row, "５ア　６イ　７イ　８イ", bold=True, yellow=True)
+    add_run(ans_row, "５ア　６イ　７ア　８イ", bold=True, yellow=True)
 
     # =========================================================
     # 大問６：並べ替え（動画でわかる英文法 例文51〜60より・10点）
