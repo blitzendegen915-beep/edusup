@@ -474,62 +474,57 @@ def build_exam():
         doc.add_paragraph()
 
     # =========================================================
-    # 大問８：並べ替え（過去問の出典文と重複しない独立した5文）
+    # 大問８：Neo現代 Unit2「Britain」本文の穴埋め問題（10点）
     # =========================================================
     add_section_header(doc, 8,
-        "日本語の意味を表す英文になるように語を並べ替え，（　）内の４番目と８番目"
-        "（文頭からではなく，（　）内であることに注意）に来る語を解答欄に記入しなさい。"
-        "（解答欄に記入するのは１語ずつである。また，文頭に来る語も１文字目は小文字になっている）",
+        "次の英文を読み，（　１　）〜（　１０　）に入る最も適切な語を下の語群から選び，"
+        "記号で答えなさい。ただし，同じ語は一度しか使えない。",
         points="１０")
 
-    q8_items = [
-        (
-            "コペンハーゲンは自転車専用道路を拡大することで交通渋滞を減らしてきた。",
-            "Copenhagen ( has / reduced / traffic / congestion / by / expanding / its / bicycle ) lanes.",
-            "congestion", "bicycle",
-            "has reduced traffic congestion by expanding its bicycle lanes."
-        ),
-        (
-            "毎朝何千人もの人々が安全に職場まで自転車で通勤している。",
-            "Every morning, ( thousands / of / people / commute / to / work / by / bicycle ) safely.",
-            "commute", "bicycle",
-            "thousands of people commute to work by bicycle safely."
-        ),
-        (
-            "市が自転車専用の橋を建設したのは、利用者の便利さを考えたからだ。",
-            "The city built ( a / bridge / just / for / cyclists / because / it / considered ) their convenience.",
-            "for", "considered",
-            "a bridge just for cyclists because it considered their convenience."
-        ),
-        (
-            "より多くの都市が自転車に優しい政策を取り入れることを期待されている。",
-            "More cities ( are / expected / to / adopt / policies / that / favor / cyclists ) in the future.",
-            "adopt", "cyclists",
-            "are expected to adopt policies that favor cyclists in the future."
-        ),
-        (
-            "この成功例は他の国々が見習うべきモデルとなっている。",
-            "This successful example ( has / become / a / model / that / other / countries / should ) follow.",
-            "model", "should",
-            "has become a model that other countries should follow."
-        ),
+    # 語群
+    word_box_p = doc.add_paragraph()
+    set_para_format(word_box_p, space_before=2, space_after=4, indent_left=0.3)
+    add_run(word_box_p, "【語群】　", bold=True)
+    add_run(word_box_p,
+        "ア image　　イ curry　　ウ famous　　エ herbs　　オ Industrial\n"
+        "カ factories　　キ colonies　　ク preserve　　ケ traditions　　コ culture\n"
+        "※ サ ancient　　シ export　（使わないものが２つある）")
+
+    # 本文（穴埋め）
+    neo_paras = [
+        ("　Britain has an （　１　） problem when it comes to food. Every other country seems to "
+         "have its own special dishes: Italy has pizza and pasta, India has （　２　）, and France "
+         "has haute cuisine. Britain, it seems, has nothing to offer."),
+        ("　However, this is not entirely true. Britain was once （　３　） for its food. Back in "
+         "the time of Queen Elizabeth I (1558–1603), people really knew how to eat well. Country "
+         "houses had kitchens full of rosemary, parsley, thyme, and other （　４　）. Chefs used "
+         "to travel around Europe to find new ideas and ingredients."),
+        ("　Things changed dramatically around the end of the 19th century. The （　５　） "
+         "Revolution forced many families to move from the countryside into crowded new cities "
+         "like Manchester and Birmingham. Men, women, and even children worked long hours in "
+         "（　６　）. They no longer had the time or energy to cook properly at home."),
+        ("　In the 20th century, many people came to the UK from Britain's former （　７　） — "
+         "including India, Pakistan, West Africa, the Caribbean, and Hong Kong. Other immigrants, "
+         "such as the Irish, Jews, and Italians, were already living in Britain. These people did "
+         "not simply give up their own ways of eating. They tried to （　８　） their food "
+         "（　９　）."),
+        ("　Food is one of the most powerful parts of a （　１０　）. You may forget your language "
+         "or stop wearing traditional clothes. But when you see and smell a dish that your "
+         "grandmother used to make, you immediately feel connected to your roots."),
     ]
 
-    for i, (jp, en, ans4th, ans8th, full_sentence) in enumerate(q8_items, 1):
-        jp_p = doc.add_paragraph()
-        set_para_format(jp_p, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=4, space_after=0,
-                        indent_left=0.3, right_tab_at=RIGHT_MARGIN_TAB)
-        add_run(jp_p, f"　{i}．{jp}")
-        add_run(jp_p, "\t")
-        add_run(jp_p, f"{ans4th} / {ans8th}", bold=True, yellow=True)
+    for text in neo_paras:
+        p = doc.add_paragraph()
+        set_para_format(p, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                        space_before=0, space_after=2, line_spacing=18)
+        add_run(p, text)
 
-        en_p = doc.add_paragraph()
-        set_para_format(en_p, align=WD_ALIGN_PARAGRAPH.LEFT, space_before=0, space_after=0, indent_left=0.8)
-        add_run(en_p, en)
-
-        ans_p = doc.add_paragraph()
-        set_para_format(ans_p, align=WD_ALIGN_PARAGRAPH.LEFT, space_before=0, space_after=4, indent_left=0.8)
-        add_run(ans_p, full_sentence, size=9.5)
+    # 解答
+    neo_ans = doc.add_paragraph()
+    set_para_format(neo_ans, space_before=4, space_after=4, indent_left=0.3)
+    add_run(neo_ans,
+        "１ア　２イ　３ウ　４エ　５オ　６カ　７キ　８ク　９ケ　１０コ",
+        bold=True, yellow=True)
 
     # =========================================================
     # 保存
