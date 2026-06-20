@@ -86,17 +86,17 @@ def build_scope():
     sp(label1, sb=4, sa=2)
     add_box_text(label1, "出題テキスト")
 
-    items = [
-        "・Heartening Ⅱ L3,4：　教科書本文/ワークブック",
-        "・入門英文問題精講（入門）：",
-        "　　授業で扱ったもの（問題番号　33,34,37,38,41,42）",
-        "・Neo現代 Unit2",
-        "・Unit 2（授業で扱った長文）",
+    items_text = [
+        ("・Heartening Ⅱ L3,4：　教科書本文/ワークブック", False),
+        ("・入門英文問題精講（入門）：", False),
+        ("　　授業で扱ったもの（問題番号　25,26,29,30,33,34,37,38,41,42）", False),
+        ("　　※加えて 27,28,31,32,35 からも出題します。", False),
+        ("・Neo現代 Unit2", False),
     ]
-    for item in items:
+    for text, bold in items_text:
         p = doc.add_paragraph()
         sp(p, sb=0, sa=0)
-        add_run(p, item)
+        add_run(p, text, bold=bold)
 
     # ======================================================
     # 出題内容・配点
@@ -104,16 +104,23 @@ def build_scope():
     label2 = doc.add_paragraph()
     sp(label2, sb=10, sa=2)
     add_box_text(label2, "出題内容・配点（予定）")
-    add_run(label2, "　テストは９０点満点")
+
+    total_p = doc.add_paragraph()
+    sp(total_p, sb=0, sa=2)
+    add_run(total_p, "テストは８０点満点（＋Speaking １０点＋Listening １０点　＝　１００点）")
+
+    listen_p = doc.add_paragraph()
+    sp(listen_p, sb=0, sa=4)
+    add_run(listen_p, "※リスニングは６月２９日（月）に実施します。")
 
     scores = [
-        ("ワークブック　１０点：", "　穴埋め問題"),
-        ("HearteningⅡ　２０点：", "　※どこにあったの問題など"),
-        ("入門　　　　　１６点：", "　与えられた文に記号を振り構造を示す。それに基づいた日本語訳をする。\n"
-                                    "　　　　　　　　　　（＜名詞句・節＞, [形容詞句・節], (副詞句・節)。SVOCM）"),
-        ("Neo現代　　　１０点：", "　並び替え問題"),
-        ("Unit 2　　　　１０点：", "　本文の穴埋め問題（※Unit 2未着手のため要確認）"),
-        ("初見問題　　　１５点：", "　英検２級レベル　リーディング"),
+        ("ワークブック　　　　１０点：", "　穴埋め問題"),
+        ("HearteningⅡ　　　　２０点：", "　※どこにあったの問題など"),
+        ("入門　　　　　　　　１５点：", "　与えられた文に記号を振り構造を示す。それに基づいた日本語訳をする。\n"
+                                         "　　　　　　　　　　　　　（＜名詞句・節＞, [形容詞句・節], (副詞句・節)。SVOCM）"),
+        ("動画　　　　　　　　１０点：", "　並び替え問題"),
+        ("Neo現代 Unit2　　　１０点：", "　本文の穴埋め問題"),
+        ("初見問題　　　　　　１５点：", "　英検２級レベル　リーディング"),
     ]
 
     for label, content in scores:
