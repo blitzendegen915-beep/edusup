@@ -335,17 +335,166 @@ def build_exam():
     add_run(ans4_para, "　　".join(ans4_items), bold=True, yellow=True, size=9.5)
 
     # =========================================================
-    # 大問５（英文解釈）：空白
+    # 大問５：英文解釈（入門英文問題精講 33,37,38,41 より）
     # =========================================================
-    add_section_header(doc, 5, "以下の英文解釈に関する問題に答えなさい", points="16")
+    add_section_header(doc, 5, "以下の英文解釈に関する問題に答えなさい。", points="１６")
 
-    blank_para = doc.add_paragraph()
-    set_para_format(blank_para, space_before=4, space_after=4, indent_left=0.5)
-    add_run(blank_para, "（空白）", bold=True, size=12)
+    # Part 1 指示文
+    inst1 = doc.add_paragraph()
+    set_para_format(inst1, space_before=4, space_after=2, indent_left=0.3)
+    add_run(inst1,
+        "下の例にならい、次の文１〜４に SVOCM の記号を振り構造を表しなさい。また、それにもとづいた英文の"
+        "日本語訳を書きなさい。ただし、1 つの単語につき 2 つ以上の記号・下線は付さなくて良い。"
+        "文全体の大きな構造がわかるように図示すること。")
 
-    doc.add_paragraph()
-    doc.add_paragraph()
-    doc.add_paragraph()
+    ex_label = doc.add_paragraph()
+    set_para_format(ex_label, space_before=2, space_after=0, indent_left=0.3)
+    add_run(ex_label, "例", bold=True, size=9)
+
+    ex_key = doc.add_paragraph()
+    set_para_format(ex_key, space_before=0, space_after=2, indent_left=0.5)
+    add_run(ex_key,
+        "（記号）S → 四角　、V → 下線　、O → 二重下線　、C → 波線　、M → （まるカッコ）", size=9)
+
+    ex_sent = doc.add_paragraph()
+    set_para_format(ex_sent, space_before=0, space_after=6, indent_left=0.5)
+    add_run(ex_sent,
+        "Developing nations were under-represented, (with competitors facing obstacles "
+        "ranging from prejudice against disability to the high cost of wheelchairs).", size=9.5)
+
+    def add_char_border_run(para, text, size=9.5):
+        run = para.add_run(text)
+        set_font(run, size=size)
+        highlight_yellow(run)
+        return run
+
+    problems_p1 = [
+        (
+            "She also saw the poverty of her people and the hard lives of so many women "
+            "who were fighting against such basic problems as lack of food, firewood and water, "
+            "and against unemployment.",
+            "S[She] V[saw] O[the poverty of her people] and O[the hard lives of so many women "
+            "[who were fighting against (such basic problems as lack of food, firewood and water), "
+            "and against unemployment]].",
+            "彼女はまた、自分の民の貧困と、食料・薪・水の不足や失業といった基本的な問題と闘う数多くの女性たちの"
+            "苦しい生活を目の当たりにした。",
+            None, None
+        ),
+        (
+            "In March, the AI-based computer program AlphaGo, developed by DeepMind, shocked the world "
+            "when it defeated South Korean go grandmaster Lee Sedol in a five-game match of the ancient "
+            "board game that requires deep insight.",
+            "M(In March), S[the AI-based computer program AlphaGo, (developed by DeepMind),] "
+            "V[shocked] O[the world] M(when it defeated South Korean go grandmaster Lee Sedol "
+            "in a five-game match of the ancient board game [that requires deep insight]).",
+            "3月、DeepMindが開発したAIベースのコンピュータプログラム AlphaGo は、深い洞察力を必要とする"
+            "この古代ボードゲームの5番勝負で韓国の囲碁の名人、李世乭を破り、世界に衝撃を与えた。",
+            "下線部が示す内容を日本語で具体的に答えなさい。",
+            "AlphaGoが人間のプロ棋士（李世乭）との5番勝負に勝利したこと。"
+        ),
+        (
+            "Although we know that the earth revolves around the sun, we cannot recite "
+            "the astronomical observations and calculations that led to that conclusion.",
+            "M(Although S[we] V[know] O〈that the earth revolves around the sun〉), "
+            "S[we] V[cannot recite] O[the astronomical observations and calculations "
+            "[that led to that conclusion]].",
+            "地球が太陽の周りを公転していることは知っていても、私たちはその結論に至った天文学的な観測や"
+            "計算を暗唱することはできない。",
+            None, None
+        ),
+        (
+            "Psychologists who believe that willpower is a limited resource say using up "
+            "our willpower is the main reason that some of us fail to achieve our goals.",
+            "S[Psychologists [who believe 〈that willpower is a limited resource〉]] "
+            "V[say] O〈using up our willpower is the main reason [that some of us fail to achieve our goals]〉.",
+            "意志力は限られた資源だと考える心理学者たちは、意志力を使い果たすことが、"
+            "私たちの一部が目標を達成できない主な理由だと言う。",
+            None, None
+        ),
+    ]
+
+    for i, (sentence, answer, translation, sub_q, sub_ans) in enumerate(problems_p1, 1):
+        p_num = doc.add_paragraph()
+        set_para_format(p_num, space_before=6, space_after=0, indent_left=0.3)
+        add_run(p_num, f"　{i}．", bold=True)
+        add_run(p_num, sentence)
+
+        label_s = doc.add_paragraph()
+        set_para_format(label_s, space_before=1, space_after=0, indent_left=0.5)
+        add_run(label_s, "（記号）", size=9.5)
+
+        blank_s = doc.add_paragraph()
+        set_para_format(blank_s, space_before=0, space_after=0, indent_left=0.5)
+        add_run(blank_s, answer, yellow=True, size=9.5)
+
+        label_t = doc.add_paragraph()
+        set_para_format(label_t, space_before=2, space_after=0, indent_left=0.5)
+        add_run(label_t, "（訳）", size=9.5)
+
+        blank_t = doc.add_paragraph()
+        set_para_format(blank_t, space_before=0, space_after=0, indent_left=0.5)
+        add_run(blank_t, translation, yellow=True, size=9.5)
+
+        if sub_q:
+            sq_p = doc.add_paragraph()
+            set_para_format(sq_p, space_before=2, space_after=0, indent_left=0.5)
+            add_run(sq_p, "（問）", bold=True, size=9.5)
+            add_run(sq_p, sub_q, size=9.5)
+            sa_p = doc.add_paragraph()
+            set_para_format(sa_p, space_before=0, space_after=0, indent_left=0.7)
+            add_run(sa_p, sub_ans, yellow=True, size=9.5)
+
+        doc.add_paragraph()
+
+    # Part 2 指示文（正誤判定）
+    inst2 = doc.add_paragraph()
+    set_para_format(inst2, space_before=8, space_after=2, indent_left=0.3)
+    add_run(inst2,
+        "下の５〜８の構文解釈が正しければア、間違っていればイを書きなさい。"
+        "５〜６は SVOCM について、７〜８は句・節について（記号は"
+        "〈名詞句・節〉　［形容詞句・節］　（副詞句・節））である。")
+
+    problems_p2 = [
+        ("5.", "S[X-rays] V[allowed] O[them] C[to look into their patients, "
+               "identify where there were problems, and cure them].", "ア",
+         "ア（正しい）：allow O to do = SVOC の構造。"),
+        ("6.", "S[Willpower] V[is] C[a mysterious] M（force [that helps us control "
+               "our actions and achieve our goals]）.", "イ",
+         "イ（間違い）：C は「a mysterious force [that...]」全体。"),
+        ("7.", "S[Chopik] V[says] O〈he isn't suggesting 〈we ignore our families〉, "
+               "but 〈that friends make us feel better〉〉.", "ア",
+         "ア（正しい）：says の目的語節の中に suggesting の目的語節が2つ並列。"),
+        ("8.", "M（With friends）S[you] V[are] C[more likely to do activities] "
+               "M（— they provide an outlet）.", "イ",
+         "イ（間違い）：ダッシュ以降の「they provide an outlet」は独立した節。"),
+    ]
+
+    sentences_p2 = [
+        "X-rays allowed them to look into their patients, identify where there were problems, and cure them.",
+        "Willpower is a mysterious force that helps us control our actions and achieve our goals.",
+        "Chopik says he isn't suggesting we ignore our families, but that friends make us feel better.",
+        "With friends you are more likely to do activities — they provide an outlet.",
+    ]
+
+    for (num, analysis, ans, explanation), sentence in zip(problems_p2, sentences_p2):
+        p_sent = doc.add_paragraph()
+        set_para_format(p_sent, space_before=4, space_after=0, indent_left=0.3)
+        add_run(p_sent, f"　{num}　", bold=True)
+        add_run(p_sent, sentence)
+
+        p_ana = doc.add_paragraph()
+        set_para_format(p_ana, space_before=1, space_after=0, indent_left=0.7)
+        add_run(p_ana, analysis, size=9.5)
+
+        p_ans = doc.add_paragraph()
+        set_para_format(p_ans, space_before=1, space_after=4, indent_left=0.7)
+        add_run(p_ans, ans, bold=True, yellow=True)
+        add_run(p_ans, "　" + explanation, size=9, yellow=True)
+
+    ans_row = doc.add_paragraph()
+    set_para_format(ans_row, space_before=6, space_after=6,
+                    align=WD_ALIGN_PARAGRAPH.CENTER)
+    add_run(ans_row, "５ア　６イ　７ア　８イ", bold=True, yellow=True)
 
     # =========================================================
     # 大問６：並べ替え（動画でわかる英文法 例文51〜60より・10点）
