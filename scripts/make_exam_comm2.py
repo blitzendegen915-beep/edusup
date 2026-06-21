@@ -128,7 +128,7 @@ def set_page_layout(doc):
 
 # ========== 本体 ==========
 
-def build_exam():
+def build_exam(student=False):
     doc = Document()
     set_page_layout(doc)
 
@@ -184,8 +184,9 @@ def build_exam():
         add_run(jp_para, f"({i})　{pre}")
         add_run(jp_para, underline_text, underline=True)
         add_run(jp_para, post)
-        add_run(jp_para, "\t")
-        add_run(jp_para, hint, bold=True, yellow=True)
+        if not student:
+            add_run(jp_para, "\t")
+            add_run(jp_para, hint, bold=True, yellow=True)
 
         en_para = doc.add_paragraph()
         set_para_format(en_para, align=WD_ALIGN_PARAGRAPH.LEFT,
@@ -228,8 +229,9 @@ def build_exam():
                     right_tab_at=RIGHT_MARGIN_TAB)
     add_run(q2_p1, "1. Choose one sentence from ① to ④ ", bold=True)
     add_run(q2_p1, "that does not belong in the paragraph.", bold=True, underline=True)
-    add_run(q2_p1, "\t")
-    add_run(q2_p1, "③", bold=True, yellow=True)
+    if not student:
+        add_run(q2_p1, "\t")
+        add_run(q2_p1, "③", bold=True, yellow=True)
 
     q2_p2 = doc.add_paragraph()
     set_para_format(q2_p2, space_before=2, space_after=2, indent_left=0.3)
@@ -242,11 +244,12 @@ def build_exam():
     set_para_format(q2_p3, space_before=0, space_after=2, indent_left=0.5,
                     right_tab_at=RIGHT_MARGIN_TAB)
     add_run(q2_p3, "[ ア it's true that ／ イ in this way ／ ウ similarly ／ エ what's more ／ オ in short ]")
-    add_run(q2_p3, "\t")
-    add_run(q2_p3, "A", bold=True)
-    add_run(q2_p3, "ア", bold=True, yellow=True)
-    add_run(q2_p3, " B", bold=True)
-    add_run(q2_p3, "イ", bold=True, yellow=True)
+    if not student:
+        add_run(q2_p3, "\t")
+        add_run(q2_p3, "A", bold=True)
+        add_run(q2_p3, "ア", bold=True, yellow=True)
+        add_run(q2_p3, " B", bold=True)
+        add_run(q2_p3, "イ", bold=True, yellow=True)
 
     # =========================================================
     # 大問３：語句選択（ア〜エ）Lesson 4（絵文字）Part 4 使用
@@ -273,7 +276,8 @@ def build_exam():
 
     q3_ans = doc.add_paragraph()
     set_para_format(q3_ans, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=2, space_after=6)
-    add_run(q3_ans, "１ウ　２エ　３ア　４イ", bold=True, yellow=True)
+    if not student:
+        add_run(q3_ans, "１ウ　２エ　３ア　４イ", bold=True, yellow=True)
 
     # =========================================================
     # 大問４：語句挿入（Lesson 3 Part 4 Copenhagenization 使用）
@@ -331,7 +335,8 @@ def build_exam():
         "4.（vehicles）from（entering）",
         "5.（may）well（\"Copenhagenize\"）",
     ]
-    add_run(ans4_para, "　　".join(ans4_items), bold=True, yellow=True, size=9.5)
+    if not student:
+        add_run(ans4_para, "　　".join(ans4_items), bold=True, yellow=True, size=9.5)
 
     # =========================================================
     # 大問５：英文解釈（入門英文問題精講 33,37,38,41 より）
@@ -429,26 +434,29 @@ def build_exam():
         set_para_format(label_s, space_before=1, space_after=0, indent_left=0.5)
         add_run(label_s, "（記号）", size=9.5)
 
-        blank_s = doc.add_paragraph()
-        set_para_format(blank_s, space_before=0, space_after=0, indent_left=0.5)
-        add_run(blank_s, answer, yellow=True, size=9.5)
+        if not student:
+            blank_s = doc.add_paragraph()
+            set_para_format(blank_s, space_before=0, space_after=0, indent_left=0.5)
+            add_run(blank_s, answer, yellow=True, size=9.5)
 
         label_t = doc.add_paragraph()
         set_para_format(label_t, space_before=2, space_after=0, indent_left=0.5)
         add_run(label_t, "（訳）", size=9.5)
 
-        blank_t = doc.add_paragraph()
-        set_para_format(blank_t, space_before=0, space_after=0, indent_left=0.5)
-        add_run(blank_t, translation, yellow=True, size=9.5)
+        if not student:
+            blank_t = doc.add_paragraph()
+            set_para_format(blank_t, space_before=0, space_after=0, indent_left=0.5)
+            add_run(blank_t, translation, yellow=True, size=9.5)
 
         if sub_q:
             sq_p = doc.add_paragraph()
             set_para_format(sq_p, space_before=2, space_after=0, indent_left=0.5)
             add_run(sq_p, "（問）", bold=True, size=9.5)
             add_run(sq_p, sub_q, size=9.5)
-            sa_p = doc.add_paragraph()
-            set_para_format(sa_p, space_before=0, space_after=0, indent_left=0.7)
-            add_run(sa_p, sub_ans, yellow=True, size=9.5)
+            if not student:
+                sa_p = doc.add_paragraph()
+                set_para_format(sa_p, space_before=0, space_after=0, indent_left=0.7)
+                add_run(sa_p, sub_ans, yellow=True, size=9.5)
 
         doc.add_paragraph()
 
@@ -492,15 +500,17 @@ def build_exam():
         set_para_format(p_ana, space_before=1, space_after=0, indent_left=0.7)
         add_run(p_ana, analysis, size=9.5)
 
-        p_ans = doc.add_paragraph()
-        set_para_format(p_ans, space_before=1, space_after=4, indent_left=0.7)
-        add_run(p_ans, ans, bold=True, yellow=True)
-        add_run(p_ans, "　" + explanation, size=9, yellow=True)
+        if not student:
+            p_ans = doc.add_paragraph()
+            set_para_format(p_ans, space_before=1, space_after=4, indent_left=0.7)
+            add_run(p_ans, ans, bold=True, yellow=True)
+            add_run(p_ans, "　" + explanation, size=9, yellow=True)
 
-    ans_row = doc.add_paragraph()
-    set_para_format(ans_row, space_before=6, space_after=6,
-                    align=WD_ALIGN_PARAGRAPH.CENTER)
-    add_run(ans_row, "５ア　６イ　７ア　８イ", bold=True, yellow=True)
+    if not student:
+        ans_row = doc.add_paragraph()
+        set_para_format(ans_row, space_before=6, space_after=6,
+                        align=WD_ALIGN_PARAGRAPH.CENTER)
+        add_run(ans_row, "５ア　６イ　７ア　８イ", bold=True, yellow=True)
 
     # =========================================================
     # 大問６：並べ替え（動画でわかる英文法 例文51〜60より・10点）
@@ -549,16 +559,19 @@ def build_exam():
         set_para_format(jp_p, align=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before=4, space_after=0,
                         indent_left=0.3, right_tab_at=RIGHT_MARGIN_TAB)
         add_run(jp_p, f"　{i}．{jp}")
-        add_run(jp_p, "\t")
-        add_run(jp_p, f"{ans4th} / {ans8th}", bold=True, yellow=True)
+        if not student:
+            add_run(jp_p, "\t")
+            add_run(jp_p, f"{ans4th} / {ans8th}", bold=True, yellow=True)
 
         en_p = doc.add_paragraph()
-        set_para_format(en_p, align=WD_ALIGN_PARAGRAPH.LEFT, space_before=0, space_after=0, indent_left=0.8)
+        set_para_format(en_p, align=WD_ALIGN_PARAGRAPH.LEFT, space_before=0,
+                        space_after=4 if student else 0, indent_left=0.8)
         add_run(en_p, en)
 
-        ans_p = doc.add_paragraph()
-        set_para_format(ans_p, align=WD_ALIGN_PARAGRAPH.LEFT, space_before=0, space_after=4, indent_left=0.8)
-        add_run(ans_p, full_sentence, size=9.5)
+        if not student:
+            ans_p = doc.add_paragraph()
+            set_para_format(ans_p, align=WD_ALIGN_PARAGRAPH.LEFT, space_before=0, space_after=4, indent_left=0.8)
+            add_run(ans_p, full_sentence, size=9.5)
 
     # =========================================================
     # 大問７：初見長文読解「シェイクスピアの言語」（英検2級レベル・15点）
@@ -620,8 +633,9 @@ def build_exam():
         set_para_format(qp, space_before=3, space_after=1, indent_left=0.3,
                         right_tab_at=RIGHT_MARGIN_TAB)
         add_run(qp, f"{q_num} {q_text}")
-        add_run(qp, "\t")
-        add_run(qp, ans, bold=True, boxed=True)
+        if not student:
+            add_run(qp, "\t")
+            add_run(qp, ans, bold=True, boxed=True)
         for ci, choice in enumerate(choices, 1):
             cp = doc.add_paragraph()
             set_para_format(cp, space_before=0, space_after=0, indent_left=0.8)
@@ -682,20 +696,25 @@ def build_exam():
         add_run(p, text)
 
     # 解答
-    neo_ans = doc.add_paragraph()
-    set_para_format(neo_ans, space_before=4, space_after=4, indent_left=0.3)
-    add_run(neo_ans,
-        "１サ　２キ　３エ　４ケ　５コ　６オ　７ア　８ウ　９ク　１０イ",
-        bold=True, yellow=True)
+    if not student:
+        neo_ans = doc.add_paragraph()
+        set_para_format(neo_ans, space_before=4, space_after=4, indent_left=0.3)
+        add_run(neo_ans,
+            "１サ　２キ　３エ　４ケ　５コ　６オ　７ア　８ウ　９ク　１０イ",
+            bold=True, yellow=True)
 
     # =========================================================
     # 保存
     # =========================================================
-    out_path = "/home/user/teacher-automation-lab/output/exam_comm2_final.docx"
     import os
     os.makedirs("/home/user/teacher-automation-lab/output", exist_ok=True)
+    if student:
+        out_path = "/home/user/teacher-automation-lab/output/exam_comm2_student.docx"
+    else:
+        out_path = "/home/user/teacher-automation-lab/output/exam_comm2_final.docx"
     doc.save(out_path)
     print(f"保存完了: {out_path}")
 
 if __name__ == "__main__":
-    build_exam()
+    build_exam(student=False)   # 教員用（解答入り）
+    build_exam(student=True)    # 生徒配布用（解答なし）
