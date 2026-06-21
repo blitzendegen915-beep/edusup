@@ -130,15 +130,15 @@ def build(model=False):
     doc = Document(TEMPLATE)
 
     # --------------------------------------------------
-    # T0: ヘッダー変更
+    # T0: ヘッダー変更（runが分割されているため個別に置換）
     # --------------------------------------------------
     t0 = doc.tables[0]
     p = t0.cell(0, 0).paragraphs[0]
     for run in p.runs:
-        if "中間試験" in run.text:
-            run.text = run.text.replace("中間試験", "期末試験")
-        if "1学期" in run.text:
-            run.text = run.text.replace("1学期", "１学期")
+        if run.text == "中間":
+            run.text = "期末"
+        elif "中間" in run.text:
+            run.text = run.text.replace("中間", "期末")
 
     # --------------------------------------------------
     # 段落ラベル修正（P13：大問8の点数）
@@ -152,18 +152,65 @@ def build(model=False):
                 run.text = run.text.replace("２点×４】【 ２点×４", "Part1 ８点】【Part2 ８")
 
     # --------------------------------------------------
-    # T1: 大問1（9問）
+    # T1: 大問1（9問）結合セル構造のため raw tc を走査し、
+    #     番号セル(1〜9)の直後のtcに解答を入れる
     # --------------------------------------------------
     t1 = doc.tables[1]
     answers_q1 = ANSWERS['q1'] if model else [""] * 9
-    idx = 0
-    for ri, row in enumerate(t1.rows):
-        for ci, cell in enumerate(row.cells):
-            txt = cell.paragraphs[0].text.strip()
-            if txt == '' and idx < 9:
-                # 前セルが数字かどうかで判断 → 空セルに答えを入れる
-                cell_text(cell, answers_q1[idx] if model else "", size=9, align=WD_ALIGN_PARAGRAPH.CENTER)
-                idx += 1
+
+    def set_tc_text(tc, text, size=9):
+        # 既存の段落のrunをクリアして書き込む
+        for p_elem in tc.findall(qn('w:p')):
+            for r in p_elem.findall(qn('w:r')):
+                p_elem.remove(r)
+        p_elem = tc.find(qn('w:p'))
+        if p_elem is None:
+            p_elem = OxmlElement('w:p')
+            tc.append(p_elem)
+        pPr = p_elem.find(qn('w:pPr'))
+        if pPr is None:
+            pPr = OxmlElement('w:pPr')
+            p_elem.insert(0, pPr)
+        jc = pPr.find(qn('w:jc'))
+        if jc is None:
+            jc = OxmlElement('w:jc')
+            pPr.append(jc)
+        jc.set(qn('w:val'), 'center')
+        if text:
+            r = OxmlElement('w:r')
+            rPr = OxmlElement('w:rPr')
+            rFonts = OxmlElement('w:rFonts')
+            rFonts.set(qn('w:eastAsia'), 'MS Mincho')
+            rFonts.set(qn('w:ascii'), 'Times New Roman')
+            rFonts.set(qn('w:hAnsi'), 'Times New Roman')
+            rPr.append(rFonts)
+            sz = OxmlElement('w:sz')
+            sz.set(qn('w:val'), str(int(size * 2)))
+            rPr.append(sz)
+            r.append(rPr)
+            t_e = OxmlElement('w:t')
+            t_e.text = text
+            t_e.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+            r.append(t_e)
+            p_e_run_target = p_elem
+            p_e_run_target.append(r)
+
+    def tc_text(tc):
+        return ''.join(t.text for t in tc.iter(qn('w:t'))).strip()
+
+    # 全tcを文書順に集める
+    all_tcs = []
+    for tr in t1._tbl.findall(qn('w:tr')):
+        for tc in tr.findall(qn('w:tc')):
+            all_tcs.append(tc)
+
+    # 番号セル(1〜9)を見つけ、その直後のtcに解答
+    for i in range(len(all_tcs)):
+        label = tc_text(all_tcs[i])
+        if label in [str(n) for n in range(1, 10)]:
+            qnum = int(label)
+            if i + 1 < len(all_tcs):
+                set_tc_text(all_tcs[i + 1], answers_q1[qnum - 1] if model else "", size=9)
 
     # --------------------------------------------------
     # T2: 大問2（1, 2A, 2B）
