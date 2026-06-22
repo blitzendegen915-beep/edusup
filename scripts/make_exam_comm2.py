@@ -283,10 +283,10 @@ def build_exam(student=False):
         ("睡眠不足が健康に悪いことは", "言うまでもない", "。",
          "It （　　　　）（　　　　　　　） saying that lack of sleep is bad for your health.",
          "goes / without"),
-        # (8) L4 Part1①(1) ―「顔認識」のうち facial を与え、recognition を答えさせる
-        ("そのシステムは顔", "認識", "技術を使用している。",
-         "The system uses facial （　　　　　　　　　） technology.",
-         "recognition"),
+        # (8) L4 Part1①(1) ―「顔認識」のうち recognition を与え、facial を答えさせる
+        ("そのシステムは", "顔", "認識技術を使用している。",
+         "The system uses （　　　　　　） recognition technology.",
+         "facial"),
         # (9) L3 Part3①(4)
         ("彼らはキャンパーたちが山から", "安全に", "戻ってくるのを助けた。",
          "They helped the campers come back from the mountain （　　　　　　）.",

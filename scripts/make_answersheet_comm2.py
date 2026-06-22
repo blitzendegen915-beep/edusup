@@ -88,7 +88,7 @@ ANSWERS = {
     'q1': [
         "commute", "universal", "must have left",
         "greenhouse", "nuance", "conduct",
-        "goes without", "recognition", "safely"
+        "goes without", "facial", "safely"
     ],
     'q2': {"1": "③", "2A": "ア", "2B": "イ"},
     'q3': {"1": "ウ", "2": "エ", "3": "ア", "4": "イ"},
