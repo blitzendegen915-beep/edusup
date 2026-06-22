@@ -101,24 +101,17 @@ ANSWERS = {
     ],
     'q5_sentences': [
         "She also saw the poverty of her people and the hard lives of so many women who were fighting against such basic problems as lack of food, firewood and water, and against unemployment.",
-        "In March, the AI-based computer program AlphaGo, developed by DeepMind, shocked the world when it defeated South Korean go grandmaster Lee Sedol in a five-game match of the ancient board game that requires deep insight.",
         "Although we know that the earth revolves around the sun, we cannot recite the astronomical observations and calculations that led to that conclusion.",
-        "Psychologists who believe that willpower is a limited resource say using up our willpower is the main reason that some of us fail to achieve our goals.",
     ],
     'q5_svocm': [
         "S[She] V[saw] O[the poverty of her people] and O[the hard lives of so many women [who were fighting against (such basic problems as...) and against unemployment]].",
-        "M(In March), S[the AI-based computer program AlphaGo, [developed by DeepMind],] V[shocked] O[the world] M(when it defeated...).",
         "M(Although S[we] V[know] O〈that the earth revolves around the sun〉), S[we] V[cannot recite] O[the astronomical observations and calculations [that led to that conclusion]].",
-        "S[Psychologists [who believe 〈that willpower is a limited resource〉]] V[say] O〈using up our willpower is the main reason [that some of us fail to achieve our goals]〉.",
     ],
     'q5_trans': [
         "彼女はまた、自分の民の貧困と、食料・薪・水の不足や失業といった基本的な問題と闘う数多くの女性たちの苦しい生活を目の当たりにした。",
-        "3月、DeepMindが開発したAlphaGoは、深い洞察力を必要とするこの古代ボードゲームの5番勝負で韓国の囲碁の名人、李世乭を破り、世界に衝撃を与えた。",
         "地球が太陽の周りを公転していることは知っていても、私たちはその結論に至った天文学的な観測や計算を暗唱することはできない。",
-        "意志力は限られた資源だと考える心理学者たちは、意志力を使い果たすことが、私たちの一部が目標を達成できない主な理由だと言う。",
     ],
-    'q5_sub': "AlphaGoが人間のプロ棋士（李世乭）との5番勝負に勝利したこと。",
-    'q5_part2': {"5": "ア", "6": "イ", "7": "ア", "8": "イ"},
+    'q5_part2': {"3": "ア", "4": "イ", "5": "ア", "6": "イ"},
     'q6': [("regularly", "themselves"), ("tomorrow", "do"), ("who", "win"), ("is", "sleep"), ("with", "you")],
     'q7': ["3", "4", "2", "3", "3"],
     'q8': ["サ", "キ", "エ", "ケ", "コ", "オ", "ア", "ウ", "ク", "イ"],
@@ -423,11 +416,10 @@ def build(model=False):
         tbl_xml.append(tr)
 
     sents = ANSWERS['q5_sentences']
-    svocms = ANSWERS['q5_svocm'] if model else [""] * 4
-    trans = ANSWERS['q5_trans'] if model else [""] * 4
-    sub_ans = ANSWERS['q5_sub'] if model else ""
+    svocms = ANSWERS['q5_svocm'] if model else [""] * 2
+    trans = ANSWERS['q5_trans'] if model else [""] * 2
 
-    for i in range(4):
+    for i in range(2):
         num = str(i + 1)
         # 英文行
         add_q5_row(tbl5_xml, num, "", sents[i], size=8)
@@ -435,14 +427,11 @@ def build(model=False):
         add_q5_row(tbl5_xml, "", "記号", svocms[i], size=8)
         # 訳行
         add_q5_row(tbl5_xml, "", "訳", trans[i], size=8)
-        # 問2のみ補足問
-        if i == 1:
-            add_q5_row(tbl5_xml, "", "（問）", sub_ans, size=8)
 
     # Part2 正誤（5〜8）
-    p2 = ANSWERS['q5_part2'] if model else {str(k): "" for k in range(5, 9)}
+    p2 = ANSWERS['q5_part2'] if model else {str(k): "" for k in range(3, 7)}
     add_q5_part2_row(tbl5_xml, [
-        ("5", p2["5"]), ("6", p2["6"]), ("7", p2["7"]), ("8", p2["8"])
+        ("3", p2["3"]), ("4", p2["4"]), ("5", p2["5"]), ("6", p2["6"])
     ])
 
     # --------------------------------------------------

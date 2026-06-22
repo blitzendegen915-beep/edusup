@@ -365,7 +365,7 @@ def build_exam(student=False):
     inst1 = doc.add_paragraph()
     set_para_format(inst1, space_before=4, space_after=2, indent_left=0.3)
     add_run(inst1,
-        "下の例にならい、次の文１〜４に SVOCM の記号を振り構造を表しなさい。また、それにもとづいた英文の"
+        "下の例にならい、次の文１〜２に SVOCM の記号を振り構造を表しなさい。また、それにもとづいた英文の"
         "日本語訳を書きなさい。ただし、1 つの単語につき 2 つ以上の記号・下線は付さなくて良い。"
         "文全体の大きな構造がわかるように図示すること。")
 
@@ -403,21 +403,6 @@ def build_exam(student=False):
             None, None
         ),
         (
-            [
-                ("In March, the AI-based computer program AlphaGo, developed by DeepMind, ", False),
-                ("shocked the world", True),
-                (" when it defeated South Korean go grandmaster Lee Sedol in a five-game match of the ancient "
-                 "board game that requires deep insight.", False),
-            ],
-            "M(In March), S[the AI-based computer program AlphaGo, [developed by DeepMind],] "
-            "V[shocked] O[the world] M(when it defeated South Korean go grandmaster Lee Sedol "
-            "in a five-game match of the ancient board game [that requires deep insight]).",
-            "3月、DeepMindが開発したAIベースのコンピュータプログラム AlphaGo は、深い洞察力を必要とする"
-            "この古代ボードゲームの5番勝負で韓国の囲碁の名人、李世乭を破り、世界に衝撃を与えた。",
-            "下線部が示す内容を日本語で具体的に答えなさい。",
-            "AlphaGoが人間のプロ棋士（李世乭）との5番勝負に勝利したこと。"
-        ),
-        (
             "Although we know that the earth revolves around the sun, we cannot recite "
             "the astronomical observations and calculations that led to that conclusion.",
             "M(Although S[we] V[know] O〈that the earth revolves around the sun〉), "
@@ -425,15 +410,6 @@ def build_exam(student=False):
             "[that led to that conclusion]].",
             "地球が太陽の周りを公転していることは知っていても、私たちはその結論に至った天文学的な観測や"
             "計算を暗唱することはできない。",
-            None, None
-        ),
-        (
-            "Psychologists who believe that willpower is a limited resource say using up "
-            "our willpower is the main reason that some of us fail to achieve our goals.",
-            "S[Psychologists [who believe 〈that willpower is a limited resource〉]] "
-            "V[say] O〈using up our willpower is the main reason [that some of us fail to achieve our goals]〉.",
-            "意志力は限られた資源だと考える心理学者たちは、意志力を使い果たすことが、"
-            "私たちの一部が目標を達成できない主な理由だと言う。",
             None, None
         ),
     ]
@@ -497,21 +473,21 @@ def build_exam(student=False):
     inst2 = doc.add_paragraph()
     set_para_format(inst2, space_before=8, space_after=2, indent_left=0.3)
     add_run(inst2,
-        "下の５〜８の構文解釈が正しければア、間違っていればイを書きなさい。"
-        "５〜６は SVOCM について、７〜８は句・節について（記号は"
+        "下の３〜６の構文解釈が正しければア、間違っていればイを書きなさい。"
+        "３〜４は SVOCM について、５〜６は句・節について（記号は"
         "〈名詞句・節〉　［形容詞句・節］　（副詞句・節））である。")
 
     problems_p2 = [
-        ("5.", "S[X-rays] V[allowed] O[them] C[to look into their patients, "
+        ("3.", "S[X-rays] V[allowed] O[them] C[to look into their patients, "
                "identify where there were problems, and cure them].", "ア",
          "ア（正しい）：allow O to do = SVOC の構造。"),
-        ("6.", "S[Willpower] V[is] C[a mysterious] M（force [that helps us control "
+        ("4.", "S[Willpower] V[is] C[a mysterious] M（force [that helps us control "
                "our actions and achieve our goals]）.", "イ",
          "イ（間違い）：C は「a mysterious force [that...]」全体。"),
-        ("7.", "S[Chopik] V[says] O〈he isn't suggesting 〈we ignore our families〉〉, "
+        ("5.", "S[Chopik] V[says] O〈he isn't suggesting 〈we ignore our families〉〉, "
                "but O〈that friends make us feel better〉.", "ア",
          "ア（正しい）：says に対して二つの目的語節が but で並列されている。"),
-        ("8.", "M（With friends）S[you] V[are] C[more likely to do activities] "
+        ("6.", "M（With friends）S[you] V[are] C[more likely to do activities] "
                "M（— they provide an outlet）.", "イ",
          "イ（間違い）：ダッシュ以降の「they provide an outlet」は独立した節。"),
     ]
@@ -546,7 +522,7 @@ def build_exam(student=False):
         ans_row = doc.add_paragraph()
         set_para_format(ans_row, space_before=6, space_after=6,
                         align=WD_ALIGN_PARAGRAPH.CENTER)
-        add_run(ans_row, "５ア　６イ　７ア　８イ", bold=True, yellow=True)
+        add_run(ans_row, "３ア　４イ　５ア　６イ", bold=True, yellow=True)
 
     # =========================================================
     # 大問６：並べ替え（動画でわかる英文法 例文51〜60より・10点）
