@@ -523,48 +523,19 @@ def build_exam(student=False):
         else:
             add_run(p_num, sentence)
 
-        label_s = doc.add_paragraph()
-        set_para_format(label_s, space_before=1, space_after=0, indent_left=0.5)
-        add_run(label_s, "（記号）", size=9.5)
-
         if not student:
+            label_s = doc.add_paragraph()
+            set_para_format(label_s, space_before=1, space_after=0, indent_left=0.5)
+            add_run(label_s, "（記号）", size=9.5)
             blank_s = doc.add_paragraph()
             set_para_format(blank_s, space_before=0, space_after=0, indent_left=0.5)
             add_svocm_text(blank_s, answer, size=9.5, yellow=True)
-        else:
-            for _ in range(2):
-                sp = doc.add_paragraph()
-                set_para_format(sp, space_before=0, space_after=0, indent_left=0.5)
-                add_run(sp, "　")
-
-        label_t = doc.add_paragraph()
-        set_para_format(label_t, space_before=2, space_after=0, indent_left=0.5)
-        add_run(label_t, "（訳）", size=9.5)
-
-        if not student:
+            label_t = doc.add_paragraph()
+            set_para_format(label_t, space_before=2, space_after=0, indent_left=0.5)
+            add_run(label_t, "（訳）", size=9.5)
             blank_t = doc.add_paragraph()
             set_para_format(blank_t, space_before=0, space_after=0, indent_left=0.5)
             add_run(blank_t, translation, yellow=True, size=9.5)
-        else:
-            for _ in range(3):
-                sp = doc.add_paragraph()
-                set_para_format(sp, space_before=0, space_after=0, indent_left=0.5)
-                add_run(sp, "　")
-
-        if sub_q:
-            sq_p = doc.add_paragraph()
-            set_para_format(sq_p, space_before=2, space_after=0, indent_left=0.5)
-            add_run(sq_p, "（問）", bold=True, size=9.5)
-            add_run(sq_p, sub_q, size=9.5)
-            if not student:
-                sa_p = doc.add_paragraph()
-                set_para_format(sa_p, space_before=0, space_after=0, indent_left=0.7)
-                add_run(sa_p, sub_ans, yellow=True, size=9.5)
-            else:
-                for _ in range(2):
-                    sp = doc.add_paragraph()
-                    set_para_format(sp, space_before=0, space_after=0, indent_left=0.7)
-                    add_run(sp, "　")
 
         doc.add_paragraph()
 
