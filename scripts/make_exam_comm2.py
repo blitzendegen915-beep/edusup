@@ -157,42 +157,42 @@ def build_exam(student=False):
         points="９")
 
     q1_data = [
-        # (1) L3 Part4①(1)
-        ("", "意外なことに", "、私の息子は遊園地に行きたくないと言った。",
-         "（　　　　　　　　　）, my son said he didn't want to go to the amusement park.",
-         "Surprisingly"),
-        # (2) L3 Part2①(4)
-        ("この地域の", "渋滞", "は朝が一番ひどい。",
-         "The （　　　　　　　　　） in this area is the worst in the morning.",
-         "congestion"),
-        # (3) L4 Grammar G1③(1)
-        ("エリザベスは友だちから", "ベスと呼ばれるのが好き", "だ。",
-         "Elizabeth （　　　　）（　　　　）（　　　　　　　）Beth by her friends.",
-         "likes / to be / called"),
-        # (4) L3 Grammar G1③(1)
-        ("その少年は窓を割った人を", "見たかもしれない", "。",
-         "The boy （　　　）（　　　　　）（　　　）the person who broke the window.",
-         "may have seen"),
-        # (5) L3 Part3①(5)
-        ("地元の", "住民", "たちは子どもたちのために公園を作った。",
-         "The local （　　　　　　　　） created a park for children.",
-         "residents"),
-        # (6) L3 Part1①(2)
-        ("その5台のうち、この自転車は", "比較的高価", "だと思います。",
-         "I think this bicycle is （ r　　　　　　　　） expensive among the five.",
-         "relatively"),
-        # (7) L4 Part3①(5)
-        ("それらの古銭を", "評価する", "のは難しい。",
-         "It is difficult to （ e　　　　　　　　） these old coins.",
-         "evaluate"),
-        # (8) L3 Part1③(3)
-        ("兄は", "以前", "サンフランシスコに住んでいた。彼は今ヒューストンに住んでいる。",
-         "My brother （　　　　）（　　） live in San Francisco. He lives in Houston now.",
-         "used to"),
-        # (9) L4 Grammar G2③(2)
-        ("私はその問題は", "議論する価値がある", "とは思えない。",
-         "I don't think that the matter is （　　　　　）（　　　　　　　　　）.",
-         "worth discussing"),
+        # (1) L3 Part3①(6)
+        ("この地域の多くの人は名古屋に", "通勤している", "。",
+         "Many people in this area （　　　　　　　　　） to Nagoya.",
+         "commute"),
+        # (2) L3 Part4①(2)
+        ("彼らの政府は深刻な", "財政危機", "にある。",
+         "Their government is in a serious financial （　　　　　　）.",
+         "crisis"),
+        # (3) L3 Grammar G1③(2)
+        ("鍵が見つからない。家の中に", "置いてきてしまったにちがいない", "。",
+         "I can't find my key. I （　　　）（　　　　　）（　　　） it in the house.",
+         "must / have / left"),
+        # (4) L3 Part1①(5)
+        ("私のおじは農家で、", "温室", "でイチゴを育てている。",
+         "My uncle is a farmer and he grows strawberries in a （　　　　　　　　　）.",
+         "greenhouse"),
+        # (5) L4 Part1①(8)
+        ("私にはこの英語の語の", "ニュアンス", "がわからない。",
+         "I don't understand the （　　　　　　　　　） of this English word.",
+         "nuance"),
+        # (6) L3 Part2①(2)
+        ("彼女は", "ラッシュアワーの", "渋滞に巻き込まれて会議に遅れた。",
+         "She was caught in （　　　　） hour traffic and was late for the meeting.",
+         "rush"),
+        # (7) L4 Grammar G2③(1)
+        ("睡眠不足が健康に悪いことは", "言うまでもない", "。",
+         "It （　　　　）（　　　　　　　） saying that lack of sleep is bad for your health.",
+         "goes / without"),
+        # (8) L4 Part1①(1)
+        ("そのシステムは", "顔認識", "技術を使用している。",
+         "The system uses （　　　　） recognition technology.",
+         "facial"),
+        # (9) L3 Part3①(4)
+        ("彼らはキャンパーたちが山から", "安全に", "戻ってくるのを助けた。",
+         "They helped the campers come back from the mountain （　　　　　　）.",
+         "safely"),
     ]
 
     for i, (pre, underline_text, post, english_line, hint) in enumerate(q1_data, 1):
