@@ -491,14 +491,14 @@ def build_exam(student=False):
 
     problems_p1 = [
         (
-            "She also saw the poverty of her people and the hard lives of so many women "
-            "who were fighting against such basic problems as lack of food, firewood and water, "
-            "and against unemployment.",
-            "S[She] V[saw] O[the poverty of her people] and O[the hard lives of so many women "
-            "[who were fighting against (such basic problems as lack of food, firewood and water), "
-            "and against unemployment]].",
-            "彼女はまた、自分の民の貧困と、食料・薪・水の不足や失業といった基本的な問題と闘う数多くの女性たちの"
-            "苦しい生活を目の当たりにした。",
+            "Becoming an adult is a step-by-step process, and just when the young are finally "
+            "wise enough to be treated as young adults is not the time to give them free access "
+            "to the drinks bar.",
+            "S〈Becoming an adult〉 V[is] C[a step-by-step process], and "
+            "S〈just when the young are finally wise enough to be treated as young adults〉 "
+            "V[is] not C[the time [to give them free access to the drinks bar]].",
+            "大人になることは段階的なプロセスであり、若者たちがようやく若い大人として扱われるほど賢くなった"
+            "まさにその時こそ、彼らにお酒を自由に飲ませる時ではない。",
             None, None
         ),
         (

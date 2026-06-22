@@ -100,15 +100,15 @@ ANSWERS = {
         "（may）well（Copenhagenize）",
     ],
     'q5_sentences': [
-        "She also saw the poverty of her people and the hard lives of so many women who were fighting against such basic problems as lack of food, firewood and water, and against unemployment.",
+        "Becoming an adult is a step-by-step process, and just when the young are finally wise enough to be treated as young adults is not the time to give them free access to the drinks bar.",
         "Although we know that the earth revolves around the sun, we cannot recite the astronomical observations and calculations that led to that conclusion.",
     ],
     'q5_svocm': [
-        "S[She] V[saw] O[the poverty of her people] and O[the hard lives of so many women [who were fighting against (such basic problems as...) and against unemployment]].",
+        "S〈Becoming an adult〉 V[is] C[a step-by-step process], and S〈just when the young are finally wise enough to be treated as young adults〉 V[is] not C[the time [to give them free access to the drinks bar]].",
         "M(Although S[we] V[know] O〈that the earth revolves around the sun〉), S[we] V[cannot recite] O[the astronomical observations and calculations [that led to that conclusion]].",
     ],
     'q5_trans': [
-        "彼女はまた、自分の民の貧困と、食料・薪・水の不足や失業といった基本的な問題と闘う数多くの女性たちの苦しい生活を目の当たりにした。",
+        "大人になることは段階的なプロセスであり、若者たちがようやく若い大人として扱われるほど賢くなったまさにその時こそ、彼らにお酒を自由に飲ませる時ではない。",
         "地球が太陽の周りを公転していることは知っていても、私たちはその結論に至った天文学的な観測や計算を暗唱することはできない。",
     ],
     'q5_part2': {"3": "ア", "4": "イ", "5": "ア", "6": "イ"},
