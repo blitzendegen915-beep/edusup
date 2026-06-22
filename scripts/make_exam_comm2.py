@@ -259,10 +259,10 @@ def build_exam(student=False):
         ("この地域の多くの人は名古屋に", "通勤している", "。",
          "Many people in this area （　　　　　　　　　） to Nagoya.",
          "commute"),
-        # (2) L3 Part4①(2)
-        ("彼らの政府は深刻な", "財政危機", "にある。",
-         "Their government is in a serious financial （　　　　　　）.",
-         "crisis"),
+        # (2) L4 Part4①(6)
+        ("平和への願いは", "万国共通", "です。",
+         "Hope for peace is （　　　　　　　　）.",
+         "universal"),
         # (3) L3 Grammar G1③(2)
         ("鍵が見つからない。家の中に", "置いてきてしまったにちがいない", "。",
          "I can't find my key. I （　　　）（　　　　　）（　　　） it in the house.",
@@ -275,18 +275,18 @@ def build_exam(student=False):
         ("私にはこの英語の語の", "ニュアンス", "がわからない。",
          "I don't understand the （　　　　　　　　　） of this English word.",
          "nuance"),
-        # (6) L3 Part2①(2)
-        ("彼女は", "ラッシュアワーの", "渋滞に巻き込まれて会議に遅れた。",
-         "She was caught in （　　　　） hour traffic and was late for the meeting.",
-         "rush"),
+        # (6) L4 Part4①(2)
+        ("生徒会は全生徒に", "調査を行う", "つもりです。",
+         "The student council is going to （　　　　　　　） a survey of all the students.",
+         "conduct"),
         # (7) L4 Grammar G2③(1)
         ("睡眠不足が健康に悪いことは", "言うまでもない", "。",
          "It （　　　　）（　　　　　　　） saying that lack of sleep is bad for your health.",
          "goes / without"),
-        # (8) L4 Part1①(1)
-        ("そのシステムは", "顔認識", "技術を使用している。",
-         "The system uses （　　　　） recognition technology.",
-         "facial"),
+        # (8) L4 Part1①(1) ―「顔認識」のうち facial を与え、recognition を答えさせる
+        ("そのシステムは顔", "認識", "技術を使用している。",
+         "The system uses facial （　　　　　　　　　） technology.",
+         "recognition"),
         # (9) L3 Part3①(4)
         ("彼らはキャンパーたちが山から", "安全に", "戻ってくるのを助けた。",
          "They helped the campers come back from the mountain （　　　　　　）.",
@@ -359,7 +359,7 @@ def build_exam(student=False):
     q2_p3 = doc.add_paragraph()
     set_para_format(q2_p3, space_before=0, space_after=2, indent_left=0.5,
                     right_tab_at=RIGHT_MARGIN_TAB)
-    add_run(q2_p3, "[ ア it's true that ／ イ in this way ／ ウ similarly ／ エ what's more ／ オ in short ]")
+    add_run(q2_p3, "[ ア it's true that ／ イ in this way ／ ウ similarly ／ エ what's more ／ オ nevertheless ]")
     if not student:
         add_run(q2_p3, "\t")
         add_run(q2_p3, "A", bold=True)
@@ -371,7 +371,7 @@ def build_exam(student=False):
     # 大問３：語句選択（ア〜エ）Lesson 4（絵文字）Part 4 使用
     # =========================================================
     add_section_header(doc, 3,
-        "Choose the best word for each blank from options ア to エ.",
+        "Choose the best word for each blank from options ア to エ. 記号で答えなさい。",
         points="４")
 
     q3_opt = doc.add_paragraph()
@@ -457,7 +457,7 @@ def build_exam(student=False):
     # =========================================================
     # 大問５：英文解釈（入門英文問題精講 33,37,38,41 より）
     # =========================================================
-    add_section_header(doc, 5, "以下の英文解釈に関する問題に答えなさい。", points="１６")
+    add_section_header(doc, 5, "以下の英文解釈に関する問題に答えなさい。（各4点：構造2点・和訳2点）", points="１６")
 
     # Part 1 指示文
     inst1 = doc.add_paragraph()
@@ -605,10 +605,10 @@ def build_exam(student=False):
 
     q6_items = [
         (
-            "定期的に運動する人々は自分自身により満足している。",
-            "( those / who / exercise / regularly / feel / better / about / themselves ).",
-            "regularly", "themselves",
-            "Those who exercise regularly feel better about themselves."
+            "毎日運動する人々は自分自身により満足している。",
+            "( those / who / exercise / every / day / feel / better / about ) themselves.",
+            "every", "about",
+            "Those who exercise every day feel better about themselves."
         ),
         (
             "今日できることを明日に延期するな。",
@@ -623,10 +623,10 @@ def build_exam(student=False):
             "She is the girl who I think will win the prize."
         ),
         (
-            "あなたに必要なのは十分な睡眠だ。",
-            "( what / you / need / is / to / get / enough / sleep ).",
-            "is", "sleep",
-            "What you need is to get enough sleep."
+            "十分な睡眠をとることが、あなたに本当に必要なことだ。",
+            "( getting / enough / sleep / is / what / you / really / need ).",
+            "is", "need",
+            "Getting enough sleep is what you really need."
         ),
         (
             "新しい経験を共有することができる人たちと友だちになることが重要だ。",
@@ -659,7 +659,7 @@ def build_exam(student=False):
     # 大問７：初見長文読解「シェイクスピアの言語」（英検2級レベル・15点）
     # =========================================================
     add_section_header(doc, 7,
-        "以下の英文を読み、各問いに答えなさい。",
+        "以下の英文を読み、各問いに答えなさい。番号で答えなさい。",
         points="１５")
 
     ltitle = doc.add_paragraph()

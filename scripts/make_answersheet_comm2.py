@@ -86,9 +86,9 @@ def rebuild_table(doc, table_index, rows, cols, col_widths=None):
 
 ANSWERS = {
     'q1': [
-        "commute", "crisis", "must have left",
-        "greenhouse", "nuance", "rush",
-        "goes without", "facial", "safely"
+        "commute", "universal", "must have left",
+        "greenhouse", "nuance", "conduct",
+        "goes without", "recognition", "safely"
     ],
     'q2': {"1": "③", "2A": "ア", "2B": "イ"},
     'q3': {"1": "ウ", "2": "エ", "3": "ア", "4": "イ"},
@@ -112,7 +112,7 @@ ANSWERS = {
         "地球が太陽の周りを公転していることは知っていても、私たちはその結論に至った天文学的な観測や計算を暗唱することはできない。",
     ],
     'q5_part2': {"3": "ア", "4": "イ", "5": "ア", "6": "イ"},
-    'q6': [("regularly", "themselves"), ("tomorrow", "do"), ("who", "win"), ("is", "sleep"), ("with", "you")],
+    'q6': [("every", "about"), ("tomorrow", "do"), ("who", "win"), ("is", "need"), ("with", "you")],
     'q7': ["3", "4", "2", "3", "3"],
     'q8': ["サ", "キ", "エ", "ケ", "コ", "オ", "ア", "ウ", "ク", "イ"],
 }
