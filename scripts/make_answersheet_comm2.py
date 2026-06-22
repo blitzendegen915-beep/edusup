@@ -86,9 +86,9 @@ def rebuild_table(doc, table_index, rows, cols, col_widths=None):
 
 ANSWERS = {
     'q1': [
-        "be added to", "steadily", "fundamental",
-        "Regardless of", "evolved", "consists of",
-        "is known as", "reflection(s)", "was registered"
+        "Surprisingly", "congestion", "likes / to be / called",
+        "may have seen", "residents", "relatively",
+        "evaluate", "used to", "worth discussing"
     ],
     'q2': {"1": "③", "2A": "ア", "2B": "イ"},
     'q3': {"1": "ウ", "2": "エ", "3": "ア", "4": "イ"},

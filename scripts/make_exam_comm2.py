@@ -157,24 +157,42 @@ def build_exam(student=False):
         points="９")
 
     q1_data = [
-        ("彼の名前はそのリストに", "加えられる", "だろう。",
-         "His name will （　　　）（　　　）（　　　） the list.", "be added to"),
-        ("彼の学校の成績は", "着実に", "良くなっている。",
-         "His school work is （ s　　　　） getting better.", "steadily"),
-        ("一生懸命働くことがあなたが成功するための", "基本", "である。",
-         "Working hard is （ f　　　　　） for your success.", "fundamental"),
-        ("年齢性別に", "関わらず", "、身体のトレーニングはとても重要です。",
-         "（　　　）（　　　） your age or gender, physical training is very important.", "Regardless of"),
-        ("彼女がパリで始めた小さな店は、巨大な世界企業へと", "進化した", "。",
-         "The small shop she started in Paris has （　　　） into a huge global company.", "evolved"),
-        ("私たちのグループは10人のメンバーで", "構成されている", "。",
-         "Our group （　　　）（　　　） ten members.", "consists of"),
-        ("ワーズワースはイギリスの偉大な詩人として", "知られている", "。",
-         "Wordsworth （　　　）（　　　）（　　　） a great English poet.", "is known as"),
-        ("よく考えた末、私はその仕事の依頼を", "受けることにした", "。",
-         "After some （ r　　　　　）, I decided to accept the job offer.", "reflection(s)"),
-        ("2004年、熊野古道は世界遺産に", "登録された", "。",
-         "In 2004, Kumano-kodo （　　　）（　　　） as a World Heritage Site.", "was registered"),
+        # (1) L3 Part4①(1)
+        ("", "意外なことに", "、私の息子は遊園地に行きたくないと言った。",
+         "（　　　　　　　　　）, my son said he didn't want to go to the amusement park.",
+         "Surprisingly"),
+        # (2) L3 Part2①(4)
+        ("この地域の", "渋滞", "は朝が一番ひどい。",
+         "The （　　　　　　　　　） in this area is the worst in the morning.",
+         "congestion"),
+        # (3) L4 Grammar G1③(1)
+        ("エリザベスは友だちから", "ベスと呼ばれるのが好き", "だ。",
+         "Elizabeth （　　　　）（　　　　）（　　　　　　　）Beth by her friends.",
+         "likes / to be / called"),
+        # (4) L3 Grammar G1③(1)
+        ("その少年は窓を割った人を", "見たかもしれない", "。",
+         "The boy （　　　）（　　　　　）（　　　）the person who broke the window.",
+         "may have seen"),
+        # (5) L3 Part3①(5)
+        ("地元の", "住民", "たちは子どもたちのために公園を作った。",
+         "The local （　　　　　　　　） created a park for children.",
+         "residents"),
+        # (6) L3 Part1①(2)
+        ("その5台のうち、この自転車は", "比較的高価", "だと思います。",
+         "I think this bicycle is （ r　　　　　　　　） expensive among the five.",
+         "relatively"),
+        # (7) L4 Part3①(5)
+        ("それらの古銭を", "評価する", "のは難しい。",
+         "It is difficult to （ e　　　　　　　　） these old coins.",
+         "evaluate"),
+        # (8) L3 Part1③(3)
+        ("兄は", "以前", "サンフランシスコに住んでいた。彼は今ヒューストンに住んでいる。",
+         "My brother （　　　　）（　　） live in San Francisco. He lives in Houston now.",
+         "used to"),
+        # (9) L4 Grammar G2③(2)
+        ("私はその問題は", "議論する価値がある", "とは思えない。",
+         "I don't think that the matter is （　　　　　）（　　　　　　　　　）.",
+         "worth discussing"),
     ]
 
     for i, (pre, underline_text, post, english_line, hint) in enumerate(q1_data, 1):
