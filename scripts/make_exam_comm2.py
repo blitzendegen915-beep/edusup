@@ -598,40 +598,41 @@ def build_exam(student=False):
     # 大問６：並べ替え（動画でわかる英文法 例文51〜60より・10点）
     # =========================================================
     add_section_header(doc, 6,
-        "日本語の意味を表す英文になるように語を並べ替え，（　）内の４番目と８番目"
-        "（文頭からではなく，（　）内であることに注意）に来る語を解答欄に記入しなさい。"
-        "（解答欄に記入するのは１語ずつである。また，文頭に来る語も１文字目は小文字になっている）",
+        "日本語の意味を表す英文になるように（　）内の語句を並べ替え，（　）内で２番目と５番目"
+        "に来る語句を解答欄に記入しなさい。解答欄には１語句ずつ記入すること。"
+        "なお，複数の単語からなる選択肢も一つの語句として数える。"
+        "また，文頭に来る語も１文字目は小文字になっている。",
         points="１０")
 
     q6_items = [
         (
-            "毎日運動する人々は自分自身により満足している。",
-            "( those / who / exercise / every / day / feel / better / about ) themselves.",
-            "every", "about",
-            "Those who exercise every day feel better about themselves."
+            "定期的に運動する人々は自分自身により満足している。",
+            "( those / who / exercise regularly / feel / better / about / themselves ).",
+            "who", "better",
+            "Those who exercise regularly feel better about themselves."
         ),
         (
             "今日できることを明日に延期するな。",
             "Don't ( put / off / until / tomorrow / what / you / can / do ) today.",
-            "tomorrow", "do",
+            "off", "what",
             "Don't put off until tomorrow what you can do today."
         ),
         (
             "彼女は、その賞を取ると私が思っている女の子だ。",
             "She ( is / the / girl / who / I / think / will / win ) the prize.",
-            "who", "win",
+            "the", "I",
             "She is the girl who I think will win the prize."
         ),
         (
-            "十分な睡眠をとることが、あなたに本当に必要なことだ。",
-            "( getting / enough / sleep / is / what / you / really / need ).",
-            "is", "need",
-            "Getting enough sleep is what you really need."
+            "十分な睡眠をとることが、あなたに必要なことだ。",
+            "( what / you / need / is to get / enough / sleep ).",
+            "you", "enough",
+            "What you need is to get enough sleep."
         ),
         (
             "新しい経験を共有することができる人たちと友だちになることが重要だ。",
             "It is important ( to / make / friends / with / people / with / whom / you ) can share new experiences.",
-            "with", "you",
+            "make", "people",
             "It is important to make friends with people with whom you can share new experiences."
         ),
     ]
@@ -643,7 +644,7 @@ def build_exam(student=False):
         add_run(jp_p, f"　{i}．{jp}")
         if not student:
             add_run(jp_p, "\t")
-            add_run(jp_p, f"{ans4th} / {ans8th}", bold=True, yellow=True)
+            add_run(jp_p, f"2番目:{ans4th} / 5番目:{ans8th}", bold=True, yellow=True)
 
         en_p = doc.add_paragraph()
         set_para_format(en_p, align=WD_ALIGN_PARAGRAPH.LEFT, space_before=0,

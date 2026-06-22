@@ -112,7 +112,7 @@ ANSWERS = {
         "地球が太陽の周りを公転していることは知っていても、私たちはその結論に至った天文学的な観測や計算を暗唱することはできない。",
     ],
     'q5_part2': {"3": "ア", "4": "イ", "5": "ア", "6": "イ"},
-    'q6': [("every", "about"), ("tomorrow", "do"), ("who", "win"), ("is", "need"), ("with", "you")],
+    'q6': [("who", "better"), ("off", "what"), ("the", "I"), ("you", "enough"), ("make", "people")],
     'q7': ["3", "4", "2", "3", "3"],
     'q8': ["サ", "キ", "エ", "ケ", "コ", "オ", "ア", "ウ", "ク", "イ"],
 }
@@ -446,8 +446,8 @@ def build(model=False):
         if txt in ['1','2','3','4','5']:
             pass
         elif txt == '' and ans_idx < 5:
-            a4, a8 = ans_q6[ans_idx]
-            cell_text(cell, f"{a4} / {a8}" if model else "", size=9, bold=model)
+            a2, a5 = ans_q6[ans_idx]
+            cell_text(cell, f"2番目:{a2} / 5番目:{a5}" if model else "", size=9, bold=model)
             ans_idx += 1
 
     # --------------------------------------------------
