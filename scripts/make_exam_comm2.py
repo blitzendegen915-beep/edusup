@@ -456,6 +456,11 @@ def build_exam(student=False):
             blank_s = doc.add_paragraph()
             set_para_format(blank_s, space_before=0, space_after=0, indent_left=0.5)
             add_run(blank_s, answer, yellow=True, size=9.5)
+        else:
+            for _ in range(2):
+                sp = doc.add_paragraph()
+                set_para_format(sp, space_before=0, space_after=0, indent_left=0.5)
+                add_run(sp, "　")
 
         label_t = doc.add_paragraph()
         set_para_format(label_t, space_before=2, space_after=0, indent_left=0.5)
@@ -465,6 +470,11 @@ def build_exam(student=False):
             blank_t = doc.add_paragraph()
             set_para_format(blank_t, space_before=0, space_after=0, indent_left=0.5)
             add_run(blank_t, translation, yellow=True, size=9.5)
+        else:
+            for _ in range(3):
+                sp = doc.add_paragraph()
+                set_para_format(sp, space_before=0, space_after=0, indent_left=0.5)
+                add_run(sp, "　")
 
         if sub_q:
             sq_p = doc.add_paragraph()
@@ -475,6 +485,11 @@ def build_exam(student=False):
                 sa_p = doc.add_paragraph()
                 set_para_format(sa_p, space_before=0, space_after=0, indent_left=0.7)
                 add_run(sa_p, sub_ans, yellow=True, size=9.5)
+            else:
+                for _ in range(2):
+                    sp = doc.add_paragraph()
+                    set_para_format(sp, space_before=0, space_after=0, indent_left=0.7)
+                    add_run(sp, "　")
 
         doc.add_paragraph()
 
@@ -510,9 +525,13 @@ def build_exam(student=False):
 
     for (num, analysis, ans, explanation), sentence in zip(problems_p2, sentences_p2):
         p_sent = doc.add_paragraph()
-        set_para_format(p_sent, space_before=4, space_after=0, indent_left=0.3)
+        set_para_format(p_sent, space_before=4, space_after=0, indent_left=0.3,
+                        right_tab_at=RIGHT_MARGIN_TAB)
         add_run(p_sent, f"　{num}　", bold=True)
         add_run(p_sent, sentence)
+        if not student:
+            add_run(p_sent, "\t")
+            add_run(p_sent, ans, bold=True, yellow=True)
 
         p_ana = doc.add_paragraph()
         set_para_format(p_ana, space_before=1, space_after=0, indent_left=0.7)
@@ -521,7 +540,6 @@ def build_exam(student=False):
         if not student:
             p_ans = doc.add_paragraph()
             set_para_format(p_ans, space_before=1, space_after=4, indent_left=0.7)
-            add_run(p_ans, ans, bold=True, yellow=True)
             add_run(p_ans, "　" + explanation, size=9, yellow=True)
 
     if not student:
