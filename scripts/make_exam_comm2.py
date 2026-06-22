@@ -126,6 +126,104 @@ def set_page_layout(doc):
     section.left_margin   = Cm(2.5)
     section.right_margin  = Cm(2.5)
 
+# ========== SVOCM パーサー・レンダラー ==========
+
+def parse_svocm(text):
+    """SVOCM記法の文字列を (content, tag) のリストに変換する。
+    tag: 'S'=□囲み, 'V'=下線, 'O'=二重下線, 'C'=波線, None=平文
+    M(...)・M（...）は"M"プレフィックスを除去して平文として返す。
+    """
+    result = []
+    i = 0
+    n = len(text)
+    while i < n:
+        found = False
+        for tag in ['S', 'V', 'O', 'C']:
+            for ob, cb in [('[', ']'), ('〈', '〉')]:
+                if text[i:i+2] == f'{tag}{ob}':
+                    depth = 1
+                    j = i + 2
+                    while j < n and depth > 0:
+                        if text[j] == ob:
+                            depth += 1
+                        elif text[j] == cb:
+                            depth -= 1
+                        j += 1
+                    result.append((text[i+2:j-1], tag))
+                    i = j
+                    found = True
+                    break
+            if found:
+                break
+        if not found:
+            # M(...)・M（...）: Mを除いてカッコごと平文
+            m_found = False
+            for ob, cb in [('(', ')'), ('（', '）')]:
+                if text[i:i+2] == f'M{ob}':
+                    depth = 1
+                    j = i + 1
+                    while j < n and depth > 0:
+                        if text[j] == ob:
+                            depth += 1
+                        elif text[j] == cb:
+                            depth -= 1
+                        j += 1
+                    result.append((text[i+1:j], None))
+                    i = j
+                    m_found = True
+                    break
+            if not m_found:
+                # 平文：次のタグ開始まで
+                j = i + 1
+                while j < n:
+                    hit = False
+                    for tag in ['S', 'V', 'O', 'C']:
+                        for ob in ['[', '〈']:
+                            if text[j:j+2] == f'{tag}{ob}':
+                                hit = True
+                                break
+                        if hit:
+                            break
+                    for ob in ['(', '（']:
+                        if text[j:j+2] == f'M{ob}':
+                            hit = True
+                            break
+                    if hit:
+                        break
+                    j += 1
+                result.append((text[i:j], None))
+                i = j
+    return result
+
+
+def add_svocm_text(para, analysis_str, size=9.5, yellow=False):
+    """SVOCM記法文字列を視覚書式付きでパラグラフに追加する。"""
+    for content, tag in parse_svocm(analysis_str):
+        run = para.add_run(content)
+        set_font(run, size=size)
+        if yellow:
+            highlight_yellow(run)
+        r = run._r
+        rPr = r.get_or_add_rPr()
+        if tag == 'S':
+            bdr = OxmlElement('w:bdr')
+            bdr.set(qn('w:val'), 'single')
+            bdr.set(qn('w:sz'), '4')
+            bdr.set(qn('w:space'), '1')
+            bdr.set(qn('w:color'), 'auto')
+            rPr.append(bdr)
+        elif tag == 'V':
+            run.font.underline = True
+        elif tag == 'O':
+            u = OxmlElement('w:u')
+            u.set(qn('w:val'), 'double')
+            rPr.append(u)
+        elif tag == 'C':
+            u = OxmlElement('w:u')
+            u.set(qn('w:val'), 'wave')
+            rPr.append(u)
+
+
 # ========== 本体 ==========
 
 def build_exam(student=False):
@@ -380,9 +478,10 @@ def build_exam(student=False):
 
     ex_sent = doc.add_paragraph()
     set_para_format(ex_sent, space_before=0, space_after=6, indent_left=0.5)
-    add_run(ex_sent,
-        "Developing nations were under-represented, (with competitors facing obstacles "
-        "ranging from prejudice against disability to the high cost of wheelchairs).", size=9.5)
+    add_svocm_text(ex_sent,
+        "S[Developing nations] V[were] C[under-represented] "
+        "M(, with competitors facing obstacles ranging from prejudice against disability "
+        "to the high cost of wheelchairs).", size=9.5)
 
     def add_char_border_run(para, text, size=9.5):
         run = para.add_run(text)
@@ -431,7 +530,7 @@ def build_exam(student=False):
         if not student:
             blank_s = doc.add_paragraph()
             set_para_format(blank_s, space_before=0, space_after=0, indent_left=0.5)
-            add_run(blank_s, answer, yellow=True, size=9.5)
+            add_svocm_text(blank_s, answer, size=9.5, yellow=True)
         else:
             for _ in range(2):
                 sp = doc.add_paragraph()
@@ -511,7 +610,7 @@ def build_exam(student=False):
 
         p_ana = doc.add_paragraph()
         set_para_format(p_ana, space_before=1, space_after=0, indent_left=0.7)
-        add_run(p_ana, analysis, size=9.5)
+        add_svocm_text(p_ana, analysis, size=9.5)
 
         if not student:
             p_ans = doc.add_paragraph()
