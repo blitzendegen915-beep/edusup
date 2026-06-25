@@ -417,7 +417,7 @@ def build_exam(student=False):
 
     ex_para = doc.add_paragraph()
     set_para_format(ex_para, space_before=0, space_after=2, indent_left=0.3)
-    add_run(ex_para, "解答例　　（ planners ） once （ used ）")
+    add_run(ex_para, "解答例　　（ once ） used（ to ）")
 
     # 語句挿入本文（Lesson 3 Part 4 そのまま・0〜5の語を削除）
     body_para1 = doc.add_paragraph()
@@ -551,21 +551,21 @@ def build_exam(student=False):
         ("3.", "S[X-rays] V[allowed] O[them] C[to look into their patients, "
                "identify where there were problems, and cure them].", "ア",
          "ア（正しい）：allow O to do = SVOC の構造。"),
-        ("4.", "S[Willpower] V[is] C[a mysterious] M（force [that helps us control "
-               "our actions and achieve our goals]）.", "イ",
-         "イ（間違い）：C は「a mysterious force [that...]」全体。"),
-        ("5.", "S[Chopik] V[says] O〈he isn't suggesting 〈we ignore our families〉〉, "
+        ("4.", "S[Chopik] V[says] O〈he isn't suggesting 〈we ignore our families〉〉, "
                "but O〈that friends make us feel better〉.", "ア",
          "ア（正しい）：says に対して二つの目的語節が but で並列されている。"),
-        ("6.", "M（With friends）S[you] V[are] C[more likely to do activities] "
-               "M（— they provide an outlet）.", "イ",
+        ("5.", "Willpower is a mysterious （force [that helps us control "
+               "our actions and achieve our goals]）.", "イ",
+         "イ（間違い）：C は「a mysterious force [that...]」全体。"),
+        ("6.", "（With friends）you are [more likely to do activities] "
+               "（— they provide an outlet）.", "イ",
          "イ（間違い）：ダッシュ以降の「they provide an outlet」は独立した節。"),
     ]
 
     sentences_p2 = [
         "X-rays allowed them to look into their patients, identify where there were problems, and cure them.",
-        "Willpower is a mysterious force that helps us control our actions and achieve our goals.",
         "Chopik says he isn't suggesting we ignore our families, but that friends make us feel better.",
+        "Willpower is a mysterious force that helps us control our actions and achieve our goals.",
         "With friends you are more likely to do activities — they provide an outlet.",
     ]
 
@@ -592,7 +592,7 @@ def build_exam(student=False):
         ans_row = doc.add_paragraph()
         set_para_format(ans_row, space_before=6, space_after=6,
                         align=WD_ALIGN_PARAGRAPH.CENTER)
-        add_run(ans_row, "３ア　４イ　５ア　６イ", bold=True, yellow=True)
+        add_run(ans_row, "３ア　４ア　５イ　６イ", bold=True, yellow=True)
 
     # =========================================================
     # 大問６：並べ替え（動画でわかる英文法 例文51〜60より・10点）
@@ -607,32 +607,32 @@ def build_exam(student=False):
     q6_items = [
         (
             "定期的に運動する人々は自分自身により満足している。",
-            "( those / who / exercise regularly / feel / better / about / themselves ).",
-            "who", "better",
+            "（ themselves / exercise regularly / better / those / about / feel / who ）.",
+            "exercise regularly", "about",
             "Those who exercise regularly feel better about themselves."
         ),
         (
             "今日できることを明日に延期するな。",
-            "Don't ( put / off / until / tomorrow / what / you / can / do ) today.",
-            "off", "what",
+            "Don't（ tomorrow / do / put / you / off / what / until / can ）today.",
+            "do", "off",
             "Don't put off until tomorrow what you can do today."
         ),
         (
             "彼女は、その賞を取ると私が思っている女の子だ。",
-            "She ( is / the / girl / who / I / think / will / win ) the prize.",
-            "the", "I",
+            "She（ will / girl / think / is / win / I / the / who ）the prize.",
+            "girl", "win",
             "She is the girl who I think will win the prize."
         ),
         (
             "十分な睡眠をとることが、あなたに必要なことだ。",
-            "( what / you / need / is to get / enough / sleep ).",
-            "you", "enough",
+            "（ enough / need / sleep / what / is to get / you ）",
+            "need", "is to get",
             "What you need is to get enough sleep."
         ),
         (
             "新しい経験を共有することができる人たちと友だちになることが重要だ。",
-            "It is important ( to / make / friends / with / people / with / whom / you ) can share new experiences.",
-            "make", "people",
+            "It is important（ whom / people / to / you / with / make / can share new experiences / friends / with ）.",
+            "people", "with",
             "It is important to make friends with people with whom you can share new experiences."
         ),
     ]
@@ -745,9 +745,9 @@ def build_exam(student=False):
     set_para_format(word_box_p, space_before=2, space_after=4, indent_left=0.3)
     add_run(word_box_p, "【語群】　", bold=True)
     add_run(word_box_p,
-        "ア colonies　　イ culture　　ウ preserve　　エ famous　　オ factories\n"
+        "ア colonies　　イ culture　　ウ preserve　　エ renowned　　オ factories\n"
         "カ ancient　　キ curry　　ク traditions　　ケ herbs　　コ Industrial\n"
-        "※ サ image　　シ export　（使わないものが２つある）")
+        "サ image　　シ export　（使わないものが２つある）")
 
     # 本文（穴埋め）
     neo_paras = [
