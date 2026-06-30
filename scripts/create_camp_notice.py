@@ -1,265 +1,214 @@
 from docx import Document
-from docx.shared import Pt, Cm, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Pt
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
-import os
+import copy, os, shutil
 
-doc = Document()
+SRC = '/root/.claude/uploads/5767506c-4b71-528d-8561-fcd86f45b58e/7139d3fe-_________________.docx'
+OUT = '/home/user/teacher-automation-lab/output/2026_夏合宿のご案内.docx'
 
-section = doc.sections[0]
-section.page_height = Cm(29.7)
-section.page_width  = Cm(21.0)
-section.top_margin    = Cm(2.0)
-section.bottom_margin = Cm(2.0)
-section.left_margin   = Cm(2.5)
-section.right_margin  = Cm(2.5)
-
-doc.styles['Normal'].font.name = '游明朝'
-doc.styles['Normal']._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
-
-def add_run(para, text, size=11, bold=False, color=None, highlight=None):
-    r = para.add_run(text)
-    r.font.name = '游明朝'
-    r.font.size = Pt(size)
-    r.bold = bold
-    r._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
-    if color:
-        r.font.color.rgb = RGBColor(*color)
-    if highlight:
-        rPr = r._element.get_or_add_rPr()
-        shd = OxmlElement('w:shd')
-        shd.set(qn('w:val'), 'clear')
-        shd.set(qn('w:color'), 'auto')
-        shd.set(qn('w:fill'), highlight)
-        rPr.append(shd)
-    return r
-
-def para(text='', align=WD_ALIGN_PARAGRAPH.LEFT, size=11, bold=False, space_before=0, space_after=0, color=None, highlight=None):
-    p = doc.add_paragraph()
-    p.alignment = align
-    p.paragraph_format.space_before = Pt(space_before)
-    p.paragraph_format.space_after  = Pt(space_after)
-    if text:
-        add_run(p, text, size=size, bold=bold, color=color, highlight=highlight)
-    return p
+shutil.copy2(SRC, OUT)
+doc = Document(OUT)
 
 YELLOW = 'FFFF00'
 
-# ── 宛名・日付・差出人 ──
-p = para('ラグビー部保護者各位', size=11, space_after=0)
+def highlight_run(run, color=YELLOW):
+    rPr = run._element.get_or_add_rPr()
+    for old in rPr.findall(qn('w:shd')):
+        rPr.remove(old)
+    shd = OxmlElement('w:shd')
+    shd.set(qn('w:val'), 'clear')
+    shd.set(qn('w:color'), 'auto')
+    shd.set(qn('w:fill'), color)
+    rPr.append(shd)
 
-p_date = para(align=WD_ALIGN_PARAGRAPH.RIGHT, space_before=0, space_after=0)
-add_run(p_date, '2026年　　月　　日', size=11, highlight=YELLOW)
+def set_all_runs_text(para, new_text, highlight=False):
+    for r in para.runs[1:]:
+        r._element.getparent().remove(r._element)
+    if para.runs:
+        para.runs[0].text = new_text
+        if highlight:
+            highlight_run(para.runs[0])
 
-para('駒澤大学高等学校', align=WD_ALIGN_PARAGRAPH.RIGHT, size=11, space_after=0)
+def replace_in_para(para, old, new, highlight=False):
+    for run in para.runs:
+        if old in run.text:
+            run.text = run.text.replace(old, new)
+            if highlight:
+                highlight_run(run)
 
-p_principal = para(align=WD_ALIGN_PARAGRAPH.RIGHT, space_after=0)
-add_run(p_principal, '校長　井上誠二', size=11)
+p = doc.paragraphs
 
-para('ラグビー部顧問　占部涼也　畠山和真', align=WD_ALIGN_PARAGRAPH.RIGHT, size=11, space_after=6)
+# [0] 宛名＋日付行 → 2026年版に
+for r in p[0].runs:
+    r.text = ''
+p[0].runs[0].text = 'ラグビー部保護者各位'
+last_run = p[0].add_run('　' * 33 + '2026年　　月　　日')
+last_run.font.size = Pt(10)
+last_run.font.name = '游明朝'
+last_run._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+highlight_run(last_run)
 
-# ── タイトル ──
-para('ラグビー部　夏合宿のご案内', align=WD_ALIGN_PARAGRAPH.CENTER, size=14, bold=True, space_before=6, space_after=8)
+# [3] 顧問名
+for r in p[3].runs:
+    r.text = ''
+p[3].runs[0].text = 'ラグビー部顧問　占部涼也　畠山和真'
 
-# ── 挨拶文 ──
-greet = doc.add_paragraph()
-greet.paragraph_format.first_line_indent = Pt(11)
-greet.paragraph_format.space_before = Pt(0)
-greet.paragraph_format.space_after  = Pt(4)
-add_run(greet,
-    '保護者各位におかれましては、平素より本校の教育活動にご理解とご協力を賜り、'
-    '心より御礼申し上げます。まもなく夏休みとなりますが、夏合宿のご案内をさせて頂きます。'
-    'ラグビー部においては、今年もメンバーの強化とチームの団結力を高めるため、'
-    '夏合宿を下記の要領にて実施致します。奮ってご参加下さいますよう、よろしくお願い致します。',
-    size=10.5)
+# [10] 期間
+for r in p[10].runs:
+    r.text = ''
+p[10].runs[0].text = '期間'
+r_period = p[10].add_run('　８月１日（土）～８月７日（金）　６泊７日')
+r_period.font.size = p[10].runs[0].font.size
+r_period.font.name = '游明朝'
+r_period._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
 
-greet2 = doc.add_paragraph()
-greet2.paragraph_format.first_line_indent = Pt(11)
-greet2.paragraph_format.space_before = Pt(0)
-greet2.paragraph_format.space_after  = Pt(4)
-add_run(greet2,
-    'なお引率指導コーチの宿泊費・交通費に関しましては、部員負担となります。'
-    '何卒ご理解とご了承を下さいますよう、合わせてよろしくお願い申し上げます。',
-    size=10.5)
+# [11] 日程 初日
+for r in p[11].runs:
+    r.text = ''
+p[11].runs[0].text = '日程　８月１日（土）午前　移動（高校7時半集合）　　　　／　午後　練習'
 
-greet3 = doc.add_paragraph()
-greet3.paragraph_format.first_line_indent = Pt(11)
-greet3.paragraph_format.space_before = Pt(0)
-greet3.paragraph_format.space_after  = Pt(4)
-add_run(greet3,
-    'また、今年の夏は例年よりも更に暑くなることが想定されます。'
-    '熱中症や怪我にはスタッフ一同気を付けますが、万が一の場合に備えて、'
-    'こちらからの連絡が取れるよう、よろしくお願い致します。',
-    size=10.5)
-
-greet4 = doc.add_paragraph()
-greet4.paragraph_format.first_line_indent = Pt(11)
-greet4.paragraph_format.space_before = Pt(0)
-greet4.paragraph_format.space_after  = Pt(6)
-add_run(greet4,
-    '体調不良やケガなどで急遽不参加になる場合は、可能な限り返金しますが、'
-    '交通費やグラウンド使用料など人数割の部分に関しては返金致しかねますのでご了承ください。',
-    size=10.5)
-
-# ── 記 ──
-para('記', align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size=12, space_before=2, space_after=6)
-
-# ── 期間 ──
-p_period = doc.add_paragraph()
-p_period.paragraph_format.space_after = Pt(2)
-add_run(p_period, '期間　', size=11, bold=True)
-add_run(p_period, '８月１日（土）～８月７日（金）　６泊７日', size=11)
-
-# ── 日程 ──
-p_sched = doc.add_paragraph()
-p_sched.paragraph_format.space_after = Pt(1)
-add_run(p_sched, '日程　', size=11, bold=True)
-add_run(p_sched, '８月１日（土）午前　移動（高校7時半集合）　／　午後　練習', size=10.5)
-
-schedule_lines = [
-    ('８月２日（日）', '午前　　　　　　　　　　　　／　午後　'),
-    ('８月３日（月）', '午前　　　　　　　　　　　　／　午後　'),
-    ('８月４日（火）', '午前　　　　　　　　　　　　／　午後　'),
-    ('８月５日（水）', '午前　　　　　　　　　　　　／　午後　'),
-    ('８月６日（木）', '午前　　　　　　　　　　　　／　午後　帰京'),
+# [12]-[16] 対戦校スケジュール
+schedule = [
+    ('　　　８月２日（日）', '対戦校未定'),
+    ('　　　８月３日（月）', '対戦校未定'),
+    ('　　　８月４日（火）', '対戦校未定'),
+    ('　　　８月５日（水）', '対戦校未定'),
+    ('　　　８月６日（木）', '対戦校未定'),
 ]
-# Note: 8/7 is departure day (last day checkout + travel back)
-# Actually 8/1-8/7, 8/7 afternoon is 帰京
-# Let me fix: 8/1 arrive, 8/2-6 practice/games, 8/7 morning practice + afternoon 帰京
+for i, (date, content) in enumerate(schedule):
+    pi = 12 + i
+    for r in p[pi].runs:
+        r.text = ''
+    p[pi].runs[0].text = date + '　'
+    r_content = p[pi].add_run(content)
+    r_content.font.size = p[pi].runs[0].font.size
+    r_content.font.name = '游明朝'
+    r_content._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+    highlight_run(r_content)
 
-schedule_data = [
-    ('８月２日（日）', '対戦校未定'),
-    ('８月３日（月）', '対戦校未定'),
-    ('８月４日（火）', '対戦校未定'),
-    ('８月５日（水）', '対戦校未定'),
-    ('８月６日（木）', '対戦校未定'),
-    ('８月７日（金）', '午前　練習　／　午後　帰京'),
-]
-for date, content in schedule_data:
-    ps = doc.add_paragraph()
-    ps.paragraph_format.space_before = Pt(0)
-    ps.paragraph_format.space_after  = Pt(1)
-    ps.paragraph_format.left_indent = Pt(42)
-    add_run(ps, f'{date}', size=10.5)
-    if '未定' in content:
-        add_run(ps, f'　{content}', size=10.5, highlight=YELLOW)
-    else:
-        add_run(ps, f'　{content}', size=10.5)
+# [16] 最終日 → 8/7帰京
+for r in p[16].runs:
+    r.text = ''
+p[16].runs[0].text = '　　　８月７日（金）午前　練習　　　　　　　　　　　　／　午後　帰京'
 
-p_note_ig = doc.add_paragraph()
-p_note_ig.paragraph_format.space_before = Pt(2)
-p_note_ig.paragraph_format.space_after = Pt(4)
-add_run(p_note_ig, '※グラウンドNo.については、Instagramの投稿をご確認ください。', size=10)
+# [22] 宿泊費
+for r in p[22].runs:
+    r.text = ''
+p[22].runs[0].text = '・宿泊費　￥５５，０２０　（￥９，１７０（一泊3食税込）×６泊分）'
 
-# ── 宿泊 ──
-p_hotel = doc.add_paragraph()
-p_hotel.paragraph_format.space_after = Pt(2)
-add_run(p_hotel, '宿泊　', size=11, bold=True)
-add_run(p_hotel, '菅平ホテル：〒386-2204　長野県上田市菅平高原1262-4　　電話：0268-74-2001', size=10.5)
+# [23] 増昼食
+for r in p[23].runs:
+    r.text = ''
+p[23].runs[0].text = '・増昼食代（最終日の１日分）　￥１，１００　　　'
 
-# ── 持物 ──
-p_items = doc.add_paragraph()
-p_items.paragraph_format.space_after = Pt(2)
-add_run(p_items, '持物　', size=11, bold=True)
-add_run(p_items, '保険証、部活着等（詳しくはマネージャー経由でお伝えします）', size=10.5)
+# [24] BBQ
+for r in p[24].runs:
+    r.text = ''
+p[24].runs[0].text = '・ＢＢＱ代　　　　　　　　　　￥１，１００'
 
-# ── 費用 ──
-p_cost_header = doc.add_paragraph()
-p_cost_header.paragraph_format.space_before = Pt(4)
-p_cost_header.paragraph_format.space_after = Pt(2)
-add_run(p_cost_header, '費用', size=11, bold=True)
+# [25] グラウンド使用料
+for r in p[25].runs:
+    r.text = ''
+p[25].runs[0].text = '　　　・グラウンド使用料　￥２，１５２（グラウンド使用料合計￥９９，０００を46人で割る）'
 
-p_cost_note = doc.add_paragraph()
-p_cost_note.paragraph_format.space_after = Pt(4)
-p_cost_note.paragraph_format.left_indent = Pt(14)
-add_run(p_cost_note,
-    '※ 近年の物価高の影響により、宿泊代・食事代等が値上がりしております。'
-    '保護者の皆様にはご負担をおかけしてしまいますが、何卒ご理解いただきたくお願い申し上げます。',
-    size=10)
+# [26] 交通費
+for r in p[26].runs:
+    r.text = ''
+p[26].runs[0].text = '・交通費　￥９，６７８（バス往復手配￥４４５，２００を46人で割る）'
 
-cost_items = [
-    ('・宿泊費（1泊3食×6泊）', '￥55,020', '（￥9,170×6泊分）', None),
-    ('・増昼食代（最終日1日分）', '￥1,100', '', None),
-    ('・BBQ代', '￥1,100', '', None),
-    ('・グラウンド使用料', '￥2,152', '（グラウンド使用料合計￥99,000を46人で割る）', None),
-    ('・交通費', '￥9,678', '（バス往復手配￥445,200を46人で割る）', None),
-    ('・雑費', '￥6,000', '（雑費1人1日1,000円×6日分）', YELLOW),
-    ('・コーチ謝礼・宿泊・交通費', '未定', '（選手のみ負担）', YELLOW),
-    ('・予備費', '未定', '', YELLOW),
-]
+# [27] 雑費
+for r in p[27].runs:
+    r.text = ''
+p[27].runs[0].text = '　　　・雑費　　'
+r27 = p[27].add_run('￥６，０００（雑費１人１日１，０００円×６日分）')
+r27.font.size = Pt(10)
+r27.font.name = '游明朝'
+r27._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+highlight_run(r27)
 
-for label, amount, note, hl in cost_items:
-    p_c = doc.add_paragraph()
-    p_c.paragraph_format.space_before = Pt(0)
-    p_c.paragraph_format.space_after  = Pt(1)
-    p_c.paragraph_format.left_indent = Pt(14)
-    add_run(p_c, label, size=10.5)
-    add_run(p_c, f'　{amount}', size=10.5, bold=True, highlight=hl)
-    if note:
-        add_run(p_c, f'　{note}', size=10, highlight=hl)
+# [28] 雑費余った場合の注記 → そのまま
 
-# ── 合計 ──
-p_total = doc.add_paragraph()
-p_total.paragraph_format.space_before = Pt(6)
-p_total.paragraph_format.space_after = Pt(2)
-p_total.paragraph_format.left_indent = Pt(14)
-add_run(p_total, '★合宿費合計　', size=11, bold=True)
-add_run(p_total, '￥75,050＋コーチ謝礼等＋予備費（確定後ご案内します）', size=11, bold=True, highlight=YELLOW)
+# [29] コーチ謝礼
+for r in p[29].runs:
+    r.text = ''
+p[29].runs[0].text = '　　　・コーチ謝礼・宿泊・交通費　'
+r29 = p[29].add_run('未定（選手のみ負担・確定後ご案内します）')
+r29.font.size = Pt(10)
+r29.font.name = '游明朝'
+r29._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+highlight_run(r29)
 
-p_total_note = doc.add_paragraph()
-p_total_note.paragraph_format.space_after = Pt(6)
-p_total_note.paragraph_format.left_indent = Pt(14)
-add_run(p_total_note, '※確定分のみの小計：￥75,050（宿泊費＋増昼食＋BBQ＋グラウンド＋交通費＋雑費）', size=10)
+# [30]-[31] 予備費
+for r in p[30].runs:
+    r.text = ''
+p[30].runs[0].text = '　　　・予備費　'
+r30 = p[30].add_run('未定')
+r30.font.size = Pt(10)
+r30.font.name = '游明朝'
+r30._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+highlight_run(r30)
 
-# ── 振込先 ──
-p_bank_header = doc.add_paragraph()
-p_bank_header.paragraph_format.space_before = Pt(2)
-p_bank_header.paragraph_format.space_after = Pt(2)
-add_run(p_bank_header, '振込　', size=11, bold=True)
-add_run(p_bank_header, '三菱UFJ銀行　世田谷支店　普通預金', size=10.5)
+for r in p[31].runs:
+    r.text = ''
 
-p_bank_detail = doc.add_paragraph()
-p_bank_detail.paragraph_format.space_after = Pt(2)
-p_bank_detail.paragraph_format.left_indent = Pt(42)
-add_run(p_bank_detail, '店番130　口座番号0887504　駒澤大学高校　ラグビー部　畠山和真', size=10.5)
+# [32] 合計
+for r in p[32].runs:
+    r.text = ''
+p[32].runs[0].text = '　　'
+r32a = p[32].add_run('★合宿費合計　')
+r32a.font.size = Pt(16)
+r32a.font.name = '游明朝'
+r32a._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+r32b = p[32].add_run('￥７５，０５０＋コーチ謝礼等＋予備費（確定後ご案内）')
+r32b.font.size = Pt(16)
+r32b.font.name = '游明朝'
+r32b._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+highlight_run(r32b)
 
-p_bank_note = doc.add_paragraph()
-p_bank_note.paragraph_format.space_after = Pt(4)
-p_bank_note.paragraph_format.left_indent = Pt(42)
-add_run(p_bank_note, '※お振込みの際には、ご依頼人名の欄に「学年（生徒氏名）」のご入力をお願いいたします。', size=10)
+# [37] 締切
+for r in p[37].runs:
+    r.text = ''
+p[37].runs[0].text = '締切　'
+r37 = p[37].add_run('　月　　日（　　）')
+r37.font.size = Pt(10)
+r37.font.name = '游明朝'
+r37._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+highlight_run(r37)
 
-# ── 締切 ──
-p_deadline = doc.add_paragraph()
-p_deadline.paragraph_format.space_after = Pt(4)
-add_run(p_deadline, '締切　', size=11, bold=True)
-add_run(p_deadline, '　月　　日（　　）', size=11, highlight=YELLOW)
+# [40] 引率・人数
+for r in p[40].runs:
+    r.text = ''
+p[40].runs[0].text = '引率顧問２名　外部コーチ'
+r40 = p[40].add_run('　名')
+r40.font.size = Pt(13.5)
+r40.font.name = '游明朝'
+r40.bold = True
+r40._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+highlight_run(r40)
+r40b = p[40].add_run('　参加生徒42名')
+r40b.font.size = Pt(13.5)
+r40b.font.name = '游明朝'
+r40b.bold = True
+r40b._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
 
-# ── 引率 ──
-p_escort = doc.add_paragraph()
-p_escort.paragraph_format.space_after = Pt(2)
-add_run(p_escort, '引率顧問', size=11, bold=True)
-add_run(p_escort, '　占部涼也・畠山和真', size=10.5)
+# [41] 合計人数
+for r in p[41].runs:
+    r.text = ''
+p[41].runs[0].text = '計'
+r41 = p[41].add_run('　名')
+r41.font.size = Pt(13.5)
+r41.font.name = '游明朝'
+r41.bold = True
+r41._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+highlight_run(r41)
 
-p_coach = doc.add_paragraph()
-p_coach.paragraph_format.space_after = Pt(2)
-add_run(p_coach, '外部コーチ', size=11, bold=True)
-add_run(p_coach, '　　名', size=10.5, highlight=YELLOW)
+# [43]-[44] 途中合流情報 → クリア（今年は未定）
+for r in p[43].runs:
+    r.text = ''
+for r in p[44].runs:
+    r.text = ''
 
-p_student = doc.add_paragraph()
-p_student.paragraph_format.space_after = Pt(2)
-add_run(p_student, '参加生徒', size=11, bold=True)
-add_run(p_student, '　42名（選手38名・マネージャー4名）', size=10.5)
-
-p_total_people = doc.add_paragraph()
-p_total_people.paragraph_format.space_after = Pt(6)
-add_run(p_total_people, '計　', size=11, bold=True)
-add_run(p_total_people, '　名', size=11, highlight=YELLOW)
-
-# ── 以上 ──
-para('以　上', align=WD_ALIGN_PARAGRAPH.RIGHT, size=11, space_before=4)
-
-os.makedirs('/home/user/teacher-automation-lab/output', exist_ok=True)
-out = '/home/user/teacher-automation-lab/output/2026_夏合宿のご案内.docx'
-doc.save(out)
-print(f'完了: {out}')
+os.makedirs(os.path.dirname(OUT), exist_ok=True)
+doc.save(OUT)
+print(f'完了: {OUT}')
