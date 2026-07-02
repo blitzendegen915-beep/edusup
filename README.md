@@ -12,6 +12,17 @@
 
 実装時は `AGENTS.md` の方針に従います。完了後は、必要に応じて `README.md` と `docs/` も更新します。
 
+## ディレクトリ構成
+
+- `gas/`: Google Apps Script のコード
+- `vba/`: Excel / Word 用の VBA マクロ（未着手）
+- `web/`: 校務用の小さな Web ツール（未着手）
+- `aviutl/`: AviUtl 関連のスクリプト・素材（未着手）
+- `samples/`: 動作確認用のダミーデータ（未着手）
+- `docs/`: 各ツールの使い方ドキュメント
+- `tasks/`: タスク指示書（上記の作業レーン）
+- `.claude/skills/`: Claude Code 用の作業手順（テスト問題の検品、納品報告）
+
 ## ツール
 
 ### Google Forms 小テスト自動作成
