@@ -1,0 +1,46 @@
+# 教材ストアを GitHub Pages に自動デプロイするワークフロー
+# web/shop/ 配下を変更して main に push すると自動で公開されます。
+# 初回のみ、リポジトリの Settings → Pages → Source を「GitHub Actions」にしてください。
+name: Deploy shop to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/shop/**"
+      - ".github/workflows/deploy-shop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: サイトを生成
+        run: node web/shop/build.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/shop/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
