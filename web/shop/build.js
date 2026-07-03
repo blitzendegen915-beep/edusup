@@ -87,9 +87,19 @@ function writeFile(relPath, content) {
  * 全ページ共通のHTML枠を返す。
  * rootPath はそのページから見たサイトルートへの相対パス（例: "./" や "../../"）。
  */
-function pageShell({ site, title, description, canonicalUrl, rootPath, jsonLd, bodyHtml }) {
+function pageShell({ site, title, description, canonicalUrl, rootPath, jsonLd, bodyHtml, ogImage }) {
   const jsonLdTag = jsonLd
     ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`
+    : "";
+  // SNSでシェアされたときに画像つきカードで表示するためのタグ
+  const ogImageTags = ogImage
+    ? `<meta property="og:image" content="${esc(ogImage)}">
+<meta name="twitter:card" content="summary_large_image">`
+    : `<meta name="twitter:card" content="summary">`;
+  // Google Analytics（site.jsonのgoogleAnalyticsIdが空なら何も入れない）
+  const gaTag = site.googleAnalyticsId
+    ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${esc(site.googleAnalyticsId)}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${esc(site.googleAnalyticsId)}');</script>`
     : "";
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -104,9 +114,10 @@ function pageShell({ site, title, description, canonicalUrl, rootPath, jsonLd, b
 <meta property="og:type" content="website">
 <meta property="og:url" content="${esc(canonicalUrl)}">
 <meta property="og:site_name" content="${esc(site.siteName)}">
-<meta name="twitter:card" content="summary">
+${ogImageTags}
 <link rel="stylesheet" href="${rootPath}assets/style.css">
 ${jsonLdTag}
+${gaTag}
 </head>
 <body>
 <header class="site-header">
@@ -119,7 +130,9 @@ ${bodyHtml}
 <footer class="site-footer">
   <nav>
     <a href="${rootPath}index.html">商品一覧</a>
+    <a href="${rootPath}about.html">制作者について</a>
     <a href="${rootPath}tokushoho.html">特定商取引法に基づく表記</a>
+    <a href="${rootPath}privacy.html">プライバシーポリシー</a>
     <a href="mailto:${esc(site.contactEmail)}">お問い合わせ</a>
   </nav>
   <p class="payment-methods">対応決済: ${esc((site.paymentMethods || []).join(" / "))}</p>
@@ -153,7 +166,12 @@ function productCardHtml(product) {
   const audienceHtml = audience.length
     ? `<p class="product-audience">対象: ${audience.map((a) => esc(a)).join("・")}</p>`
     : "";
+  const firstImage = (product.images || [])[0];
+  const thumbHtml = firstImage
+    ? `<a class="product-thumb" href="products/${esc(product.id)}/index.html"><img src="images/${esc(firstImage)}" alt="${esc(product.title)}のサンプル画像" loading="lazy"></a>`
+    : "";
   return `<article class="product-card" data-category="${esc(product.category)}" data-audience="${esc(audience.join(","))}">
+  ${thumbHtml}
   <p class="product-category">${esc(product.category)} / ${esc(product.fileType)}</p>
   <h2 class="product-title"><a href="products/${esc(product.id)}/index.html">${esc(product.title)}</a></h2>
   ${audienceHtml}
@@ -161,6 +179,19 @@ function productCardHtml(product) {
   <p class="product-price">${esc(priceLabel(product.price))}</p>
   <a class="product-link" href="products/${esc(product.id)}/index.html">詳細を見る →</a>
 </article>`;
+}
+
+/** 無料コンテンツ（英単語ゲームなど）への誘導セクション */
+function freeContentHtml(site) {
+  const fc = site.freeContent;
+  if (!fc || !fc.url) {
+    return "";
+  }
+  return `<section class="free-content">
+  <h2>${esc(fc.heading)}</h2>
+  <p>${esc(fc.description)}</p>
+  <a class="free-content-button" href="${esc(fc.url)}">${esc(fc.name)}で遊んでみる →</a>
+</section>`;
 }
 
 function buildIndexPage(site, products) {
@@ -205,6 +236,7 @@ function buildIndexPage(site, products) {
 ${products.map(productCardHtml).join("\n")}
   </div>
 </section>
+${freeContentHtml(site)}
 <script>
 // 「対象」×「種類」の2軸絞り込み（表示/非表示を切り替えるだけの簡易フィルタ）
 var activeCategory = "すべて";
@@ -240,6 +272,8 @@ document.querySelectorAll("[data-audience-filter]").forEach(function (button) {
 });
 </script>`;
 
+  // トップページのシェア画像は最初の商品の画像を使う
+  const firstImage = products.flatMap((p) => p.images || [])[0];
   writeFile(
     "index.html",
     pageShell({
@@ -250,6 +284,7 @@ document.querySelectorAll("[data-audience-filter]").forEach(function (button) {
       rootPath: "./",
       jsonLd,
       bodyHtml,
+      ogImage: firstImage ? `${site.baseUrl}/images/${firstImage}` : null,
     })
   );
 }
@@ -257,6 +292,8 @@ document.querySelectorAll("[data-audience-filter]").forEach(function (button) {
 function buildProductPage(site, product) {
   const rootPath = "../../";
   const url = `${site.baseUrl}/products/${product.id}/`;
+  const images = product.images || [];
+  const imageUrls = images.map((img) => `${site.baseUrl}/images/${img}`);
 
   // Google検索のリッチリザルト用の構造化データ（Product + Offer）
   const jsonLd = {
@@ -265,6 +302,7 @@ function buildProductPage(site, product) {
     name: product.title,
     description: product.summary,
     category: product.category,
+    image: imageUrls,
     url: url,
     offers: {
       "@type": "Offer",
@@ -283,6 +321,17 @@ function buildProductPage(site, product) {
   const audienceHtml = audience.length
     ? `<p class="product-audience">こんな方におすすめ: ${audience.map((a) => esc(a)).join("・")}</p>`
     : "";
+  const galleryHtml = images.length
+    ? `<div class="product-gallery">
+    ${images
+      .map(
+        (img, i) =>
+          `<a href="${rootPath}images/${esc(img)}" target="_blank" rel="noopener"><img src="${rootPath}images/${esc(img)}" alt="${esc(product.title)}のサンプル画像${images.length > 1 ? i + 1 : ""}"${i > 0 ? ' loading="lazy"' : ""}></a>`
+      )
+      .join("\n    ")}
+  </div>
+  <p class="gallery-note">画像をタップすると拡大表示されます</p>`
+    : "";
 
   const bodyHtml = `<nav class="breadcrumb"><a href="${rootPath}index.html">商品一覧</a> › ${esc(product.category)}</nav>
 <article class="product-detail">
@@ -290,6 +339,7 @@ function buildProductPage(site, product) {
   <h1>${esc(product.title)}</h1>
   ${audienceHtml}
   <p class="product-price product-price-large">${esc(priceLabel(product.price))}</p>
+  ${galleryHtml}
   <p class="product-summary">${esc(product.summary)}</p>
   <h2>内容</h2>
   <ul>
@@ -311,6 +361,80 @@ function buildProductPage(site, product) {
       canonicalUrl: url,
       rootPath,
       jsonLd,
+      bodyHtml,
+      ogImage: imageUrls[0] || null,
+    })
+  );
+}
+
+/** 制作者紹介ページ（信頼性とSEOのE-E-A-T向上のため） */
+function buildAboutPage(site) {
+  const about = site.about;
+  if (!about) {
+    return;
+  }
+  const paragraphs = (about.paragraphs || []).map((p) => `<p>${esc(p)}</p>`).join("\n  ");
+  const specialties = (about.specialties || []).map((s) => `<li>${esc(s)}</li>`).join("\n    ");
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: site.authorName,
+    description: about.lead,
+    url: `${site.baseUrl}/about.html`,
+    knowsAbout: about.specialties || [],
+  };
+  const bodyHtml = `<article class="product-detail">
+  <h1>${esc(about.title)}</h1>
+  <p class="about-lead">${esc(about.lead)}</p>
+  ${paragraphs}
+  <h2>得意分野</h2>
+  <ul>
+    ${specialties}
+  </ul>
+  <h2>連絡先</h2>
+  <p>不具合の報告・教材のリクエストは <a href="mailto:${esc(site.contactEmail)}">${esc(site.contactEmail)}</a> までお気軽にどうぞ。</p>
+</article>`;
+  writeFile(
+    "about.html",
+    pageShell({
+      site,
+      title: `${about.title}｜${site.siteName}`,
+      description: `${site.siteName}の制作者紹介です。${about.lead}`,
+      canonicalUrl: `${site.baseUrl}/about.html`,
+      rootPath: "./",
+      jsonLd,
+      bodyHtml,
+    })
+  );
+}
+
+/** プライバシーポリシーページ */
+function buildPrivacyPage(site) {
+  const gaSection = `<h2>アクセス解析について</h2>
+  <p>当サイトでは、サービス向上のためGoogle Analyticsを利用する場合があります。Google Analyticsはトラフィックデータの収集のためにCookieを使用します。このデータは匿名で収集されており、個人を特定するものではありません。Cookieを無効にすることで収集を拒否できますので、お使いのブラウザの設定をご確認ください。</p>`;
+  const bodyHtml = `<article class="product-detail">
+  <h1>プライバシーポリシー</h1>
+  <p>${esc(site.siteName)}（以下「当サイト」）は、お客様の個人情報を以下の方針で取り扱います。</p>
+  <h2>取得する情報と利用目的</h2>
+  <ul>
+    <li>お問い合わせの際にいただくメールアドレス・お名前は、返信のためにのみ利用します。</li>
+    <li>商品の決済はStripe社のシステムを通じて行われ、当サイトがクレジットカード番号等の決済情報を保持することはありません。詳細は<a href="https://stripe.com/jp/privacy" rel="noopener" target="_blank">Stripeのプライバシーポリシー</a>をご確認ください。</li>
+  </ul>
+  ${gaSection}
+  <h2>第三者への提供</h2>
+  <p>法令に基づく場合を除き、取得した個人情報を本人の同意なく第三者に提供することはありません。</p>
+  <h2>お問い合わせ</h2>
+  <p>本ポリシーに関するお問い合わせは <a href="mailto:${esc(site.contactEmail)}">${esc(site.contactEmail)}</a> までお願いします。</p>
+</article>`;
+  writeFile(
+    "privacy.html",
+    pageShell({
+      site,
+      title: `プライバシーポリシー｜${site.siteName}`,
+      description: `${site.siteName}のプライバシーポリシーです。`,
+      canonicalUrl: `${site.baseUrl}/privacy.html`,
+      rootPath: "./",
+      jsonLd: null,
       bodyHtml,
     })
   );
@@ -374,7 +498,9 @@ function build404Page(site) {
 function buildSitemapAndRobots(site, products) {
   const urls = [
     `${site.baseUrl}/`,
+    `${site.baseUrl}/about.html`,
     `${site.baseUrl}/tokushoho.html`,
+    `${site.baseUrl}/privacy.html`,
     ...products.map((p) => `${site.baseUrl}/products/${p.id}/`),
   ];
   const today = new Date().toISOString().slice(0, 10);
@@ -409,6 +535,7 @@ function buildAdminPage(site) {
     branch: site.github.branch,
     productsPath: "web/shop/products.json",
     filesDir: "web/shop/files",
+    imagesDir: "web/shop/images",
     siteName: site.siteName,
   };
   const html = fs
@@ -417,9 +544,9 @@ function buildAdminPage(site) {
   writeFile("admin/index.html", html);
 }
 
-/** assets/（CSS）と files/（無料配布物）を dist/ にコピーする */
+/** assets/（CSS）、files/（無料配布物）、images/（商品画像）を dist/ にコピーする */
 function copyStaticDirs() {
-  for (const dir of ["assets", "files"]) {
+  for (const dir of ["assets", "files", "images"]) {
     const src = path.join(SHOP_DIR, dir);
     if (fs.existsSync(src)) {
       fs.cpSync(src, path.join(DIST_DIR, dir), { recursive: true });
@@ -447,7 +574,9 @@ function main() {
   for (const product of products) {
     buildProductPage(site, product);
   }
+  buildAboutPage(site);
   buildTokushohoPage(site);
+  buildPrivacyPage(site);
   build404Page(site);
   buildSitemapAndRobots(site, products);
   buildAdminPage(site);

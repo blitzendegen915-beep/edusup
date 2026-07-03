@@ -167,6 +167,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
         <label for="f_tags">タグ <span class="hint">（カンマ区切り。例: 高校英語, 文法, 仮定法）</span></label>
         <input type="text" id="f_tags">
 
+        <label>サンプル画像 <span class="hint">（教材の1ページ目などを画像にして載せると購入率が大きく上がります）</span></label>
+        <input type="text" id="f_images" placeholder="例: my-worksheet-1.png, my-worksheet-2.png">
+        <input type="file" id="f_imageUpload" accept="image/png,image/jpeg,image/webp" style="margin-top:8px;">
+        <div class="toolbar">
+          <button id="uploadImageButton">この画像をアップロード</button>
+        </div>
+
         <label for="f_paymentLink">Stripe支払いリンク <span class="hint">（https://buy.stripe.com/... を貼ると「購入する」ボタンになります）</span></label>
         <input type="text" id="f_paymentLink">
 
@@ -399,6 +406,8 @@ function selectProduct(index) {
   $("f_summary").value = p.summary || "";
   $("f_details").value = (p.details || []).join("\n");
   $("f_tags").value = (p.tags || []).join(", ");
+  $("f_images").value = (p.images || []).join(", ");
+  $("f_imageUpload").value = "";
   $("f_paymentLink").value = p.paymentLink || "";
   $("f_downloadFile").value = p.downloadFile || "";
   $("f_upload").value = "";
@@ -444,6 +453,7 @@ function readForm() {
     summary: $("f_summary").value.trim(),
     details: $("f_details").value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean),
     tags: $("f_tags").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean),
+    images: $("f_images").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean),
     paymentLink: $("f_paymentLink").value.trim(),
     downloadFile: $("f_downloadFile").value.trim(),
     updated: new Date().toISOString().slice(0, 10),
@@ -474,37 +484,51 @@ $("deleteButton").addEventListener("click", function () {
 });
 
 // ---------------------------------------------------------------------------
-// 無料配布ファイルのアップロード
+// ファイルアップロード（無料配布ファイル・サンプル画像）
 // ---------------------------------------------------------------------------
 
-$("uploadButton").addEventListener("click", async function () {
-  var input = $("f_upload");
+async function uploadFileTo(dir, inputId, commitPrefix) {
+  var input = $(inputId);
   if (!input.files || !input.files[0]) {
-    setStatus("error", "アップロードするファイルを選んでください。");
-    return;
+    throw new Error("アップロードするファイルを選んでください。");
   }
   var file = input.files[0];
   if (!/^[A-Za-z0-9._-]+$/.test(file.name)) {
-    setStatus("error", "ファイル名は半角英数字・ドット・ハイフン・アンダースコアにしてください（日本語名は不可）。");
-    return;
+    throw new Error("ファイル名は半角英数字・ドット・ハイフン・アンダースコアにしてください（日本語名は不可）。");
   }
   if (file.size > 20 * 1024 * 1024) {
-    setStatus("error", "20MBを超えるファイルはアップロードできません。");
-    return;
+    throw new Error("20MBを超えるファイルはアップロードできません。");
   }
+  setStatus("busy", "アップロード中...");
+  var base64 = await new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () { resolve(String(reader.result).split(",")[1]); };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  var path = dir + "/" + file.name;
+  var existing = await apiGetFile(path);   // 同名ファイルがあれば上書き
+  await apiPutFile(path, base64, commitPrefix + ": " + file.name, existing && existing.sha);
+  return file.name;
+}
+
+$("uploadButton").addEventListener("click", async function () {
   try {
-    setStatus("busy", "アップロード中...");
-    var base64 = await new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () { resolve(String(reader.result).split(",")[1]); };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    var path = CONFIG.filesDir + "/" + file.name;
-    var existing = await apiGetFile(path);   // 同名ファイルがあれば上書き
-    await apiPutFile(path, base64, "無料配布ファイルを追加: " + file.name, existing && existing.sha);
-    $("f_downloadFile").value = file.name;
+    var name = await uploadFileTo(CONFIG.filesDir, "f_upload", "無料配布ファイルを追加");
+    $("f_downloadFile").value = name;
     setStatus("ok", "アップロードしました。「この内容を一覧に反映」→「保存して公開」で公開されます。");
+  } catch (err) {
+    setStatus("error", err.message);
+  }
+});
+
+$("uploadImageButton").addEventListener("click", async function () {
+  try {
+    var name = await uploadFileTo(CONFIG.imagesDir, "f_imageUpload", "商品画像を追加");
+    var current = $("f_images").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+    if (current.indexOf(name) === -1) { current.push(name); }
+    $("f_images").value = current.join(", ");
+    setStatus("ok", "画像をアップロードしました。「この内容を一覧に反映」→「保存して公開」で公開されます。");
   } catch (err) {
     setStatus("error", err.message);
   }
