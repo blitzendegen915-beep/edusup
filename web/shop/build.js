@@ -46,6 +46,10 @@ function validateProducts(products) {
       console.error(`エラー: 商品 "${p.id}" に title または price（数値）がありません。`);
       process.exit(1);
     }
+    if (p.audience && !Array.isArray(p.audience)) {
+      console.error(`エラー: 商品 "${p.id}" の audience は配列で指定してください。例: ["高校生", "教員"]`);
+      process.exit(1);
+    }
   }
 }
 
@@ -118,6 +122,7 @@ ${bodyHtml}
     <a href="${rootPath}tokushoho.html">特定商取引法に基づく表記</a>
     <a href="mailto:${esc(site.contactEmail)}">お問い合わせ</a>
   </nav>
+  <p class="payment-methods">対応決済: ${esc((site.paymentMethods || []).join(" / "))}</p>
   <p>&copy; ${new Date().getFullYear()} ${esc(site.authorName)}</p>
 </footer>
 </body>
@@ -130,10 +135,11 @@ ${bodyHtml}
 // ---------------------------------------------------------------------------
 
 /** 購入ボタン。決済リンク → 無料DL → 準備中 の順で出し分ける */
-function buyButtonHtml(product, rootPath) {
+function buyButtonHtml(site, product, rootPath) {
+  const methods = (site.paymentMethods || []).join("・");
   if (product.paymentLink) {
     return `<a class="buy-button" href="${esc(product.paymentLink)}" rel="nofollow">購入する（${esc(priceLabel(product.price))}）</a>
-<p class="buy-note">Stripeの安全な決済ページに移動します。決済後すぐにダウンロードできます。</p>`;
+<p class="buy-note">${esc(methods)}が使えます。Stripeの安全な決済ページに移動し、決済後すぐにダウンロードできます。</p>`;
   }
   if (product.price === 0 && product.downloadFile) {
     return `<a class="buy-button buy-button-free" href="${rootPath}files/${esc(product.downloadFile)}" download>無料ダウンロード</a>`;
@@ -143,9 +149,14 @@ function buyButtonHtml(product, rootPath) {
 }
 
 function productCardHtml(product) {
-  return `<article class="product-card" data-category="${esc(product.category)}">
+  const audience = product.audience || [];
+  const audienceHtml = audience.length
+    ? `<p class="product-audience">対象: ${audience.map((a) => esc(a)).join("・")}</p>`
+    : "";
+  return `<article class="product-card" data-category="${esc(product.category)}" data-audience="${esc(audience.join(","))}">
   <p class="product-category">${esc(product.category)} / ${esc(product.fileType)}</p>
   <h2 class="product-title"><a href="products/${esc(product.id)}/index.html">${esc(product.title)}</a></h2>
+  ${audienceHtml}
   <p class="product-summary">${esc(product.summary)}</p>
   <p class="product-price">${esc(priceLabel(product.price))}</p>
   <a class="product-link" href="products/${esc(product.id)}/index.html">詳細を見る →</a>
@@ -154,8 +165,12 @@ function productCardHtml(product) {
 
 function buildIndexPage(site, products) {
   const categories = [...new Set(products.map((p) => p.category))];
-  const filterButtons = ["すべて", ...categories]
-    .map((c) => `<button class="filter-button" data-filter="${esc(c)}">${esc(c)}</button>`)
+  const audiences = [...new Set(products.flatMap((p) => p.audience || []))];
+  const categoryButtons = ["すべて", ...categories]
+    .map((c) => `<button class="filter-button" data-category-filter="${esc(c)}">${esc(c)}</button>`)
+    .join("\n    ");
+  const audienceButtons = ["すべて", ...audiences]
+    .map((a) => `<button class="filter-button" data-audience-filter="${esc(a)}">${esc(a)}</button>`)
     .join("\n    ");
 
   const jsonLd = {
@@ -174,24 +189,53 @@ function buildIndexPage(site, products) {
   <p>${esc(site.description)}</p>
 </section>
 <section>
-  <div class="filter-bar">
-    ${filterButtons}
+  <div class="filter-group">
+    <span class="filter-label">対象で選ぶ</span>
+    <div class="filter-bar">
+    ${audienceButtons}
+    </div>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">種類で選ぶ</span>
+    <div class="filter-bar">
+    ${categoryButtons}
+    </div>
   </div>
   <div class="product-grid">
 ${products.map(productCardHtml).join("\n")}
   </div>
 </section>
 <script>
-// カテゴリ絞り込み（表示/非表示を切り替えるだけの簡易フィルタ）
-document.querySelectorAll(".filter-button").forEach(function (button) {
+// 「対象」×「種類」の2軸絞り込み（表示/非表示を切り替えるだけの簡易フィルタ）
+var activeCategory = "すべて";
+var activeAudience = "すべて";
+
+function applyFilter() {
+  document.querySelectorAll(".product-card").forEach(function (card) {
+    var okCategory = activeCategory === "すべて" || card.dataset.category === activeCategory;
+    var audiences = (card.dataset.audience || "").split(",");
+    var okAudience = activeAudience === "すべて" || audiences.indexOf(activeAudience) !== -1;
+    card.style.display = okCategory && okAudience ? "" : "none";
+  });
+}
+
+document.querySelectorAll("[data-category-filter]").forEach(function (button) {
   button.addEventListener("click", function () {
-    var filter = button.dataset.filter;
-    document.querySelectorAll(".filter-button").forEach(function (b) {
+    activeCategory = button.dataset.categoryFilter;
+    document.querySelectorAll("[data-category-filter]").forEach(function (b) {
       b.classList.toggle("is-active", b === button);
     });
-    document.querySelectorAll(".product-card").forEach(function (card) {
-      card.style.display = (filter === "すべて" || card.dataset.category === filter) ? "" : "none";
+    applyFilter();
+  });
+});
+
+document.querySelectorAll("[data-audience-filter]").forEach(function (button) {
+  button.addEventListener("click", function () {
+    activeAudience = button.dataset.audienceFilter;
+    document.querySelectorAll("[data-audience-filter]").forEach(function (b) {
+      b.classList.toggle("is-active", b === button);
     });
+    applyFilter();
   });
 });
 </script>`;
@@ -235,11 +279,16 @@ function buildProductPage(site, product) {
 
   const detailItems = (product.details || []).map((d) => `<li>${esc(d)}</li>`).join("\n    ");
   const tagItems = (product.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join(" ");
+  const audience = product.audience || [];
+  const audienceHtml = audience.length
+    ? `<p class="product-audience">こんな方におすすめ: ${audience.map((a) => esc(a)).join("・")}</p>`
+    : "";
 
   const bodyHtml = `<nav class="breadcrumb"><a href="${rootPath}index.html">商品一覧</a> › ${esc(product.category)}</nav>
 <article class="product-detail">
   <p class="product-category">${esc(product.category)} / ${esc(product.fileType)}</p>
   <h1>${esc(product.title)}</h1>
+  ${audienceHtml}
   <p class="product-price product-price-large">${esc(priceLabel(product.price))}</p>
   <p class="product-summary">${esc(product.summary)}</p>
   <h2>内容</h2>
@@ -247,7 +296,7 @@ function buildProductPage(site, product) {
     ${detailItems}
   </ul>
   <div class="buy-area">
-    ${buyButtonHtml(product, rootPath)}
+    ${buyButtonHtml(site, product, rootPath)}
   </div>
   <p class="product-meta">形式: ${esc(product.fileType)}｜最終更新: ${esc(product.updated || "")}</p>
   <p class="product-tags">${tagItems}</p>
@@ -338,10 +387,34 @@ ${urls.map((u) => `  <url><loc>${esc(u)}</loc><lastmod>${today}</lastmod></url>`
 
   const robots = `User-agent: *
 Allow: /
+Disallow: /admin/
 
 Sitemap: ${site.baseUrl}/sitemap.xml
 `;
   writeFile("robots.txt", robots);
+}
+
+/**
+ * 管理画面（admin/index.html）を dist/ にコピーする。
+ * リポジトリ情報などの設定は site.json から埋め込む。
+ */
+function buildAdminPage(site) {
+  const srcPath = path.join(SHOP_DIR, "admin", "index.html");
+  if (!fs.existsSync(srcPath)) {
+    return;
+  }
+  const config = {
+    owner: site.github.owner,
+    repo: site.github.repo,
+    branch: site.github.branch,
+    productsPath: "web/shop/products.json",
+    filesDir: "web/shop/files",
+    siteName: site.siteName,
+  };
+  const html = fs
+    .readFileSync(srcPath, "utf8")
+    .replace("__SHOP_CONFIG__", JSON.stringify(config));
+  writeFile("admin/index.html", html);
 }
 
 /** assets/（CSS）と files/（無料配布物）を dist/ にコピーする */
@@ -377,6 +450,7 @@ function main() {
   buildTokushohoPage(site);
   build404Page(site);
   buildSitemapAndRobots(site, products);
+  buildAdminPage(site);
 
   console.log(`完了: 商品${products.length}件のサイトを web/shop/dist/ に生成しました。`);
 }

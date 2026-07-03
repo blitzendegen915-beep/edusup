@@ -1,10 +1,16 @@
 {
   "siteName": "先生の教材ストア",
   "tagline": "高校英語教員が作った、そのまま使える教材・校務テンプレート",
-  "description": "現役高校英語教員が制作したワークシートPDF・Excelテンプレート・小テスト素材を販売しています。授業準備と校務の時短にどうぞ。",
+  "description": "現役高校英語教員が制作したワークシートPDF・Excelテンプレート・小テスト素材のストアです。高校生の予習復習、大人の英語学び直し、先生の授業準備・校務の時短にどうぞ。",
   "baseUrl": "https://blitzendegen915-beep.github.io/teacher-automation-lab",
   "authorName": "（あなたの名前・屋号）",
   "contactEmail": "example@example.com",
+  "github": {
+    "owner": "blitzendegen915-beep",
+    "repo": "teacher-automation-lab",
+    "branch": "main"
+  },
+  "paymentMethods": ["クレジットカード", "PayPay", "コンビニ決済"],
   "tokushoho": {
     "sellerName": "（販売者の氏名を記載）",
     "address": "（請求があった場合に遅滞なく開示します）",
@@ -13,7 +19,7 @@
     "priceNote": "各商品ページに税込価格を表示しています。",
     "extraFees": "インターネット接続にかかる通信費はお客様のご負担となります。",
     "delivery": "決済完了後、すぐにダウンロードいただけます。",
-    "payment": "クレジットカード決済（Stripe）",
+    "payment": "クレジットカード・PayPay・コンビニ決済（Stripe）",
     "returns": "デジタルコンテンツの性質上、決済完了後の返金・キャンセルはお受けできません。ファイルに不具合がある場合はメールにてご連絡ください。"
   }
 }
