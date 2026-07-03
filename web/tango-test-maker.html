@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>単語テストメーカー | 貼るだけで印刷用小テスト完成</title>
+<style>
+  :root {
+    --ink: #1a2233;
+    --sub: #5a6478;
+    --line: #d9dee8;
+    --bg: #f2f4f8;
+    --card: #ffffff;
+    --accent: #2455c3;
+    --accent-dark: #1a3f96;
+    --ok: #1a7f4e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+  }
+
+  /* ===== 画面用UI ===== */
+  .app {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 24px 16px 80px;
+  }
+  header.appbar {
+    margin-bottom: 20px;
+  }
+  header.appbar h1 {
+    font-size: 26px;
+    letter-spacing: .02em;
+  }
+  header.appbar p {
+    color: var(--sub);
+    font-size: 14px;
+    margin-top: 4px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .card h2 {
+    font-size: 15px;
+    margin-bottom: 10px;
+    color: var(--accent-dark);
+  }
+  textarea#wordlist {
+    width: 100%;
+    height: 260px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 14px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    resize: vertical;
+  }
+  textarea#wordlist:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .hint { font-size: 12px; color: var(--sub); margin-top: 8px; }
+  .count { font-size: 13px; margin-top: 8px; font-weight: 600; }
+  .count.ok { color: var(--ok); }
+  .count.err { color: #b3261e; }
+
+  .field { margin-bottom: 14px; }
+  .field label.name {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .field input[type="text"], .field input[type="number"], .field select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    background: #fff;
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .checks label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    padding: 4px 0;
+    cursor: pointer;
+  }
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  button.primary, button.secondary {
+    border: none;
+    border-radius: 10px;
+    padding: 12px 26px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: #fff; }
+  button.primary:hover { background: var(--accent-dark); }
+  button.secondary {
+    background: #fff;
+    color: var(--accent-dark);
+    border: 1.5px solid var(--accent);
+  }
+  button.secondary:hover { background: #eef3ff; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+
+  .preview-note {
+    margin: 26px 0 10px;
+    font-size: 13px;
+    color: var(--sub);
+  }
+  #sheets .sheet {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(20,30,60,.08);
+    margin-bottom: 24px;
+    padding: 15mm 14mm;
+  }
+
+  /* ===== テスト用紙(画面・印刷共通) ===== */
+  .sheet { font-size: 10.5pt; color: #000; }
+  .sheet .test-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 2.5px solid #000;
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+  }
+  .sheet .test-title { font-size: 15pt; font-weight: 700; }
+  .sheet .test-ver {
+    font-size: 11pt;
+    font-weight: 700;
+    border: 1.5px solid #000;
+    border-radius: 4px;
+    padding: 1px 10px;
+  }
+  .sheet .name-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 10pt;
+    padding: 6px 0 10px;
+    border-bottom: 1px solid #000;
+    margin-bottom: 14px;
+  }
+  .sheet .name-blank { letter-spacing: .05em; }
+  .sheet .score-box {
+    border: 1.5px solid #000;
+    padding: 2px 14px 2px 8px;
+    font-size: 9pt;
+    min-width: 80px;
+  }
+  .sheet .score-box .slash { font-size: 12pt; }
+  .sheet .direction { font-size: 10pt; margin-bottom: 12px; }
+  .sheet ol.questions { list-style: none; counter-reset: q; }
+  .sheet ol.questions.two-col { column-count: 2; column-gap: 10mm; }
+  .sheet ol.questions li {
+    counter-increment: q;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 4.2mm;
+    break-inside: avoid;
+  }
+  .sheet ol.questions li::before {
+    content: "(" counter(q) ")";
+    min-width: 9mm;
+    font-size: 9.5pt;
+  }
+  .sheet .q-word { font-weight: 600; min-width: 34mm; }
+  .sheet .q-line {
+    flex: 1;
+    border-bottom: 1px solid #000;
+    min-height: 6mm;
+    align-self: flex-end;
+  }
+  .sheet .q-choices {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    font-size: 9.5pt;
+  }
+  .sheet .q-ansnum {
+    border: 1px solid #000;
+    min-width: 10mm;
+    min-height: 6.5mm;
+    align-self: center;
+    margin-left: 4px;
+  }
+  .sheet.answer-sheet .test-title { font-size: 13pt; }
+  .sheet.answer-sheet ol.questions li { margin-bottom: 2.2mm; }
+  .sheet.answer-sheet .q-ans { color: #000; font-weight: 600; }
+  .sheet .footer-note {
+    margin-top: 10mm;
+    font-size: 8pt;
+    color: #666;
+    text-align: right;
+  }
+
+  /* ===== 印刷 ===== */
+  @media print {
+    body { background: #fff; }
+    .app > *:not(#sheets) { display: none !important; }
+    .app { max-width: none; padding: 0; }
+    #sheets .sheet {
+      border: none;
+      box-shadow: none;
+      border-radius: 0;
+      margin: 0;
+      padding: 0;
+      page-break-after: always;
+    }
+    #sheets .sheet:last-child { page-break-after: auto; }
+  }
+  @page { size: A4; margin: 15mm 14mm; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="appbar">
+    <h1>📝 単語テストメーカー</h1>
+    <p>単語リストを貼り付けるだけで、印刷用の単語小テスト(A/B版・解答付き)が完成します。データは端末外に送信されません。</p>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1. 単語リストを貼り付け</h2>
+      <textarea id="wordlist" placeholder="例)1行に「英語 日本語」の順で入力
+apple	りんご
+give up	あきらめる
+environment, 環境
+significant : 重要な"></textarea>
+      <p class="hint">Excel・スプレッドシートから2列コピーしてそのまま貼り付けOK。区切りはタブ / カンマ / コロン / スペースいずれも自動判定します。</p>
+      <p class="count" id="count">0 語</p>
+    </div>
+
+    <div class="card">
+      <h2>2. テスト設定</h2>
+      <div class="field">
+        <label class="name" for="title">テストタイトル</label>
+        <input type="text" id="title" value="英単語小テスト">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label class="name" for="numq">出題数</label>
+          <input type="number" id="numq" value="20" min="1" max="100">
+        </div>
+        <div class="field">
+          <label class="name" for="versions">バージョン数(A/B版)</label>
+          <select id="versions">
+            <option value="1">1(全員同じ)</option>
+            <option value="2" selected>2(A・B)</option>
+            <option value="3">3(A・B・C)</option>
+            <option value="4">4(A〜D)</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label class="name" for="mode">出題形式</label>
+        <select id="mode">
+          <option value="e2j">英語 → 日本語(記述)</option>
+          <option value="j2e">日本語 → 英語(記述)</option>
+          <option value="e2j4">英語 → 日本語(4択)</option>
+          <option value="j2e4">日本語 → 英語(4択)</option>
+        </select>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="twocol"> 2列レイアウト(出題数が多いとき用)</label>
+        <label><input type="checkbox" id="withans" checked> 解答(採点用)を最後に付ける</label>
+      </div>
+      <div class="actions">
+        <button class="primary" id="generate">テストを作成</button>
+        <button class="secondary" id="print" disabled>🖨 印刷 / PDF保存</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="preview-note" id="previewNote" hidden>プレビュー(印刷するとこのまま A4 で出力されます。バージョンごと・解答ごとに自動で改ページされます)</p>
+  <div id="sheets"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var words = [];
+
+  // ---- 単語リストのパース ----
+  function parseList(text) {
+    var out = [];
+    text.split(/\r?\n/).forEach(function (line) {
+      line = line.trim();
+      if (!line) return;
+      var en = "", ja = "";
+      var m;
+      if (line.indexOf("\t") !== -1) {
+        m = line.split("\t");
+        en = m[0]; ja = m.slice(1).join(" ");
+      } else if (/[,、]/.test(line)) {
+        m = line.split(/[,、]/);
+        en = m[0]; ja = m.slice(1).join(" ");
+      } else if (/[::]/.test(line)) {
+        m = line.split(/[::]/);
+        en = m[0]; ja = m.slice(1).join(" ");
+      } else {
+        // 最初に日本語文字(非ASCII)が現れる位置で分割 → "give up あきらめる" に対応
+        var idx = line.search(/[^\x00-\x7F]/);
+        if (idx > 0) { en = line.slice(0, idx); ja = line.slice(idx); }
+        else {
+          var sp = line.indexOf(" ");
+          if (sp > 0) { en = line.slice(0, sp); ja = line.slice(sp + 1); }
+        }
+      }
+      en = en.trim(); ja = ja.trim();
+      if (en && ja) out.push({ en: en, ja: ja });
+    });
+    return out;
+  }
+
+  function updateCount() {
+    words = parseList($("wordlist").value);
+    var el = $("count");
+    el.textContent = words.length + " 語 読み込み中";
+    el.className = "count " + (words.length > 0 ? "ok" : "err");
+    if (words.length === 0) el.textContent = "0 語(1行に「英語 日本語」の形式で入力してください)";
+  }
+  $("wordlist").addEventListener("input", updateCount);
+
+  // ---- ユーティリティ ----
+  function shuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  var MARU = ["①", "②", "③", "④"];
+
+  // ---- 4択の選択肢生成 ----
+  function makeChoices(item, pool, key) {
+    var others = pool.filter(function (w) { return w !== item && w[key] !== item[key]; });
+    var wrong = shuffle(others).slice(0, 3).map(function (w) { return w[key]; });
+    var choices = shuffle(wrong.concat([item[key]]));
+    return { choices: choices, answer: choices.indexOf(item[key]) };
+  }
+
+  // ---- テスト生成 ----
+  function generate() {
+    updateCount();
+    if (words.length < 2) {
+      alert("単語リストを2語以上入力してください。");
+      return;
+    }
+    var mode = $("mode").value;
+    if ((mode === "e2j4" || mode === "j2e4") && words.length < 4) {
+      alert("4択形式はリストに4語以上必要です。");
+      return;
+    }
+
+    var title = $("title").value.trim() || "英単語小テスト";
+    var numq = Math.min(parseInt($("numq").value, 10) || 20, words.length);
+    var nver = parseInt($("versions").value, 10);
+    var twocol = $("twocol").checked;
+    var withans = $("withans").checked;
+
+    var isChoice = (mode === "e2j4" || mode === "j2e4");
+    var qKey = (mode === "e2j" || mode === "e2j4") ? "en" : "ja";
+    var aKey = qKey === "en" ? "ja" : "en";
+    var direction = isChoice
+      ? "次の各語の意味として最も適切なものを ①〜④ から1つ選び、番号を右の解答欄に書きなさい。"
+      : (qKey === "en"
+        ? "次の英語の意味を日本語で書きなさい。"
+        : "次の日本語に合う英語を書きなさい。");
+
+    // 出題する単語は全バージョン共通(公平性のため)。順序と選択肢だけ変える。
+    var selected = shuffle(words).slice(0, numq);
+    var verLabels = ["A", "B", "C", "D"];
+    var sheetsHtml = "";
+    var answersHtml = "";
+    var today = new Date();
+    var dateStr = today.getFullYear() + "年" + (today.getMonth() + 1) + "月" + today.getDate() + "日";
+
+    for (var v = 0; v < nver; v++) {
+      var qs = shuffle(selected).map(function (item) {
+        var q = { prompt: item[qKey], answer: item[aKey] };
+        if (isChoice) {
+          var c = makeChoices(item, words, aKey);
+          q.choices = c.choices;
+          q.answerIdx = c.answer;
+        }
+        return q;
+      });
+      var verLabel = nver > 1 ? verLabels[v] : "";
+
+      sheetsHtml += renderSheet(title, verLabel, direction, qs, isChoice, twocol, numq, dateStr, false);
+      if (withans) {
+        answersHtml += renderSheet(title, verLabel, direction, qs, isChoice, twocol, numq, dateStr, true);
+      }
+    }
+
+    $("sheets").innerHTML = sheetsHtml + answersHtml;
+    $("previewNote").hidden = false;
+    $("print").disabled = false;
+    $("previewNote").scrollIntoView({ behavior: "smooth" });
+  }
+
+  function renderSheet(title, verLabel, direction, qs, isChoice, twocol, numq, dateStr, isAnswer) {
+    var h = '<div class="sheet' + (isAnswer ? " answer-sheet" : "") + '">';
+    h += '<div class="test-head"><span class="test-title">' + esc(title) + (isAnswer ? "【解答】" : "") + "</span>";
+    if (verLabel) h += '<span class="test-ver">' + verLabel + " 版</span>";
+    h += "</div>";
+    if (!isAnswer) {
+      h += '<div class="name-row">' +
+        '<span>' + esc(dateStr) + '</span>' +
+        '<span class="name-blank">年&emsp;&emsp;組&emsp;&emsp;番&emsp;氏名:&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;</span>' +
+        '<span class="score-box">得点<span class="slash">&emsp;/' + numq + "</span></span>" +
+        "</div>";
+      h += '<div class="direction">' + esc(direction) + "(各1点)</div>";
+    } else {
+      h += '<div class="direction">採点用解答一覧</div>';
+    }
+    h += '<ol class="questions' + (twocol ? " two-col" : "") + '">';
+    qs.forEach(function (q) {
+      h += "<li>";
+      h += '<span class="q-word">' + esc(q.prompt) + "</span>";
+      if (isChoice) {
+        h += '<span class="q-choices">';
+        q.choices.forEach(function (c, i) {
+          h += "<span>" + MARU[i] + " " + esc(c) + "</span>";
+        });
+        h += "</span>";
+        h += isAnswer
+          ? '<span class="q-ans">' + MARU[q.answerIdx] + "</span>"
+          : '<span class="q-ansnum"></span>';
+      } else {
+        h += isAnswer
+          ? '<span class="q-ans">' + esc(q.answer) + "</span>"
+          : '<span class="q-line"></span>';
+      }
+      h += "</li>";
+    });
+    h += "</ol>";
+    h += "</div>";
+    return h;
+  }
+
+  $("generate").addEventListener("click", generate);
+  $("print").addEventListener("click", function () { window.print(); });
+})();
+</script>
+</body>
+</html>
