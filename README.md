@@ -21,6 +21,13 @@
 - コード: `web/tango-test-maker.html`(ブラウザで開くだけで動作)
 - 販売キット(出品文・価格戦略・1時間アクションプラン): `docs/tango_test_maker_sales_kit.md`
 
+### 店舗ホームページ即日制作テンプレート(商品B・受託販売用)
+
+設定オブジェクト(CONFIG)を書き換えるだけで店舗サイトが完成するテンプレート。カフェ/美容室/整体院の3業種デモ内蔵(`?preset=salon` / `?preset=clinic` で切替)。1件49,800円のホームページ制作を実働約1時間で納品するための商材です。
+
+- コード: `web/shop-site-template/index.html`
+- 販売キット(出品文・営業DM・ヒアリングシート・納品手順): `docs/shop_site_sales_kit.md`
+
 ### Google Forms 小テスト自動作成
 
 Googleスプレッドシートの「問題」シートに入力した文法問題から、Google Forms の小テストを自動作成します。

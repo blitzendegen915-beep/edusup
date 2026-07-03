@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="pageTitle">店舗サイトテンプレート</title>
+<meta name="description" id="pageDesc" content="">
+<style>
+  :root {
+    /* テーマ変数はCONFIGから流し込まれます */
+    --primary: #7a5c3e;
+    --primary-dark: #5d452e;
+    --accent: #c9a227;
+    --bg: #faf7f2;
+    --ink: #2b2620;
+    --sub: #6f675c;
+    --card: #ffffff;
+    --hero-grad-1: #8a6a48;
+    --hero-grad-2: #4a3826;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body {
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", "BIZ UDMincho", serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.9;
+    letter-spacing: .04em;
+  }
+  body.font-sans {
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ===== ヘッダー ===== */
+  header.site {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 64px;
+    background: rgba(255,255,255,.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(0,0,0,.06);
+  }
+  .brand { font-size: 18px; font-weight: 700; letter-spacing: .1em; color: var(--primary-dark); }
+  nav.gnav { display: flex; gap: 26px; font-size: 14px; }
+  nav.gnav a { position: relative; padding: 4px 0; }
+  nav.gnav a::after {
+    content: ""; position: absolute; left: 0; bottom: 0;
+    width: 0; height: 1.5px; background: var(--accent);
+    transition: width .25s;
+  }
+  nav.gnav a:hover::after { width: 100%; }
+  .tel-btn {
+    background: var(--primary);
+    color: #fff !important;
+    border-radius: 999px;
+    padding: 8px 20px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .tel-btn:hover { background: var(--primary-dark); }
+  @media (max-width: 760px) { nav.gnav { display: none; } }
+
+  /* ===== ヒーロー ===== */
+  .hero {
+    position: relative;
+    min-height: 88vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #fff;
+    background:
+      radial-gradient(1100px 500px at 85% -10%, rgba(255,255,255,.16), transparent 60%),
+      radial-gradient(800px 600px at 10% 110%, rgba(255,255,255,.10), transparent 55%),
+      linear-gradient(135deg, var(--hero-grad-1), var(--hero-grad-2));
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: var(--hero-photo, none);
+    background-size: cover;
+    background-position: center;
+    opacity: .55;
+  }
+  .hero-inner { position: relative; padding: 96px 20px 60px; max-width: 760px; }
+  .hero .en {
+    font-size: clamp(13px, 2vw, 16px);
+    letter-spacing: .5em;
+    text-transform: uppercase;
+    opacity: .85;
+    margin-bottom: 14px;
+  }
+  .hero h1 {
+    font-size: clamp(32px, 6vw, 56px);
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-shadow: 0 2px 24px rgba(0,0,0,.35);
+  }
+  .hero .tagline {
+    margin-top: 18px;
+    font-size: clamp(15px, 2.4vw, 19px);
+    opacity: .95;
+    text-shadow: 0 1px 12px rgba(0,0,0,.35);
+  }
+  .hero-ctas { margin-top: 36px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 13px 34px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    transition: transform .15s, opacity .15s;
+  }
+  .btn:hover { transform: translateY(-2px); opacity: .92; }
+  .btn.gold { background: var(--accent); color: #fff; }
+  .btn.ghost { border: 1.5px solid rgba(255,255,255,.85); color: #fff; }
+
+  /* ===== セクション共通 ===== */
+  section.block { padding: 84px 20px; }
+  section.block:nth-of-type(even) { background: #fff; }
+  .container { max-width: 1000px; margin: 0 auto; }
+  .sec-head { text-align: center; margin-bottom: 48px; }
+  .sec-head .en {
+    font-size: 13px;
+    letter-spacing: .4em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .sec-head h2 {
+    font-size: clamp(24px, 4vw, 32px);
+    letter-spacing: .14em;
+    margin-top: 6px;
+    color: var(--primary-dark);
+  }
+  .sec-head h2::after {
+    content: "";
+    display: block;
+    width: 44px; height: 2px;
+    background: var(--accent);
+    margin: 16px auto 0;
+  }
+
+  /* ===== こだわり ===== */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  @media (max-width: 760px) { .features { grid-template-columns: 1fr; } }
+  .feature {
+    background: var(--card);
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 14px;
+    padding: 34px 26px;
+    text-align: center;
+    box-shadow: 0 6px 24px rgba(40,30,10,.05);
+  }
+  .feature .icon { font-size: 40px; margin-bottom: 14px; }
+  .feature h3 { font-size: 18px; letter-spacing: .1em; color: var(--primary-dark); margin-bottom: 10px; }
+  .feature p { font-size: 14px; color: var(--sub); text-align: left; }
+
+  /* ===== メニュー ===== */
+  .menu-group { margin-bottom: 36px; }
+  .menu-group h3 {
+    font-size: 18px;
+    letter-spacing: .12em;
+    color: var(--primary-dark);
+    border-left: 4px solid var(--accent);
+    padding-left: 12px;
+    margin-bottom: 18px;
+  }
+  .menu-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px dashed rgba(0,0,0,.15);
+    font-size: 15px;
+  }
+  .menu-item .m-name { flex-shrink: 0; }
+  .menu-item .m-note { font-size: 12.5px; color: var(--sub); }
+  .menu-item .m-dots { flex: 1; }
+  .menu-item .m-price { flex-shrink: 0; font-weight: 700; color: var(--primary-dark); }
+
+  /* ===== お知らせ ===== */
+  .news-list { max-width: 760px; margin: 0 auto; }
+  .news-item {
+    display: flex;
+    gap: 22px;
+    padding: 16px 6px;
+    border-bottom: 1px solid rgba(0,0,0,.08);
+    font-size: 15px;
+    align-items: baseline;
+  }
+  .news-item time { color: var(--accent); font-weight: 700; flex-shrink: 0; font-size: 14px; }
+  @media (max-width: 560px) { .news-item { flex-direction: column; gap: 2px; } }
+
+  /* ===== 店舗情報 ===== */
+  .info-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+  @media (max-width: 760px) { .info-wrap { grid-template-columns: 1fr; } }
+  table.shop-info { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.shop-info th, table.shop-info td {
+    text-align: left;
+    padding: 13px 8px;
+    border-bottom: 1px solid rgba(0,0,0,.1);
+    vertical-align: top;
+  }
+  table.shop-info th { width: 96px; color: var(--primary-dark); font-weight: 700; white-space: nowrap; }
+  .map-box {
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,.08);
+    min-height: 300px;
+    background: #e9e5de;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sub);
+    font-size: 14px;
+  }
+  .map-box iframe { width: 100%; height: 100%; min-height: 300px; border: 0; }
+
+  /* ===== フッター ===== */
+  footer.site {
+    background: var(--primary-dark);
+    color: rgba(255,255,255,.9);
+    text-align: center;
+    padding: 56px 20px 90px;
+  }
+  footer.site .f-name { font-size: 20px; letter-spacing: .18em; margin-bottom: 10px; }
+  footer.site .f-addr { font-size: 13px; opacity: .8; }
+  footer.site .copy { font-size: 11px; opacity: .55; margin-top: 26px; }
+
+  /* ===== モバイル固定CTA ===== */
+  .mobile-cta {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 100;
+    display: none;
+    grid-template-columns: 1fr 1fr;
+  }
+  .mobile-cta a {
+    padding: 15px 0;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .mobile-cta .call { background: var(--primary); }
+  .mobile-cta .line { background: #06c755; }
+  @media (max-width: 760px) { .mobile-cta { display: grid; } }
+
+  .fade { opacity: 0; transform: translateY(18px); transition: opacity .7s, transform .7s; }
+  .fade.show { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="brand" id="brandName"></div>
+  <nav class="gnav">
+    <a href="#about">こだわり</a>
+    <a href="#menu" id="navMenu">メニュー</a>
+    <a href="#news">お知らせ</a>
+    <a href="#access">アクセス</a>
+    <a href="#" class="tel-btn" id="headerTel">☎ 電話する</a>
+  </nav>
+</header>
+
+<div class="hero" id="hero">
+  <div class="hero-inner">
+    <p class="en" id="heroEn"></p>
+    <h1 id="heroName"></h1>
+    <p class="tagline" id="heroTagline"></p>
+    <div class="hero-ctas">
+      <a class="btn gold" id="heroCta1"></a>
+      <a class="btn ghost" href="#access">アクセス・営業時間</a>
+    </div>
+  </div>
+</div>
+
+<section class="block" id="about">
+  <div class="container">
+    <div class="sec-head fade"><p class="en">Features</p><h2 id="aboutTitle">私たちのこだわり</h2></div>
+    <div class="features" id="featureCards"></div>
+  </div>
+</section>
+
+<section class="block" id="menu">
+  <div class="container" style="max-width:760px;">
+    <div class="sec-head fade"><p class="en">Menu</p><h2 id="menuTitle">メニュー</h2></div>
+    <div id="menuGroups"></div>
+    <p style="font-size:12.5px;color:var(--sub);text-align:right;margin-top:8px;" id="menuNote"></p>
+  </div>
+</section>
+
+<section class="block" id="news">
+  <div class="container">
+    <div class="sec-head fade"><p class="en">News</p><h2>お知らせ</h2></div>
+    <div class="news-list" id="newsList"></div>
+  </div>
+</section>
+
+<section class="block" id="access">
+  <div class="container">
+    <div class="sec-head fade"><p class="en">Access</p><h2>店舗情報</h2></div>
+    <div class="info-wrap">
+      <table class="shop-info" id="infoTable"></table>
+      <div class="map-box" id="mapBox">地図(Googleマップ埋め込み)</div>
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <p class="f-name" id="footName"></p>
+  <p class="f-addr" id="footAddr"></p>
+  <p class="copy" id="footCopy"></p>
+</footer>
+
+<div class="mobile-cta">
+  <a class="call" id="mobileTel">☎ 電話する</a>
+  <a class="line" id="mobileLine" target="_blank" rel="noopener">LINEで予約</a>
+</div>
+
+<script>
+/* =====================================================================
+   ここから下の CONFIG を書き換えるだけでサイトが完成します。
+   納品時:お客様のヒアリングシートの内容を流し込む → 完成。
+   ===================================================================== */
+
+const PRESETS = {
+
+  /* ---- デモ1:カフェ(デフォルト) ---- */
+  cafe: {
+    theme: {
+      primary: "#7a5c3e", primaryDark: "#5d452e", accent: "#c9a227",
+      bg: "#faf7f2", heroGrad: ["#8a6a48", "#4a3826"], font: "serif"
+    },
+    nameEn: "Cafe Hidamari",
+    name: "カフェ ひだまり",
+    tagline: "自家焙煎の香りに包まれる、まちの小さな喫茶店。",
+    heroCta: { label: "メニューを見る", href: "#menu" },
+    heroPhoto: "",  // 写真URLを入れると背景に表示(例: "url('images/hero.jpg')")
+    menuLabel: "メニュー",
+    features: [
+      { icon: "☕", title: "自家焙煎珈琲", text: "毎朝店内で焙煎する豆だけを使用。浅煎りから深煎りまで、その日いちばん美味しい一杯をお出しします。" },
+      { icon: "🍰", title: "手作りスイーツ", text: "季節の果物を使ったケーキと焼き菓子はすべて店内キッチンで手作り。珈琲に合う甘さに仕上げています。" },
+      { icon: "📖", title: "くつろぎの空間", text: "本棚と観葉植物に囲まれた静かな店内。おひとり様でも、読書やお仕事でもごゆっくりどうぞ。" }
+    ],
+    menu: [
+      { group: "コーヒー", items: [
+        { name: "本日のドリップ", note: "浅煎り/深煎り", price: "550円" },
+        { name: "カフェラテ", note: "", price: "650円" },
+        { name: "水出しアイスコーヒー", note: "夏季限定", price: "600円" }
+      ]},
+      { group: "スイーツ・軽食", items: [
+        { name: "季節のケーキ", note: "日替わり", price: "580円" },
+        { name: "厚切りバタートースト", note: "", price: "480円" },
+        { name: "ケーキセット", note: "お好きなドリンク付き", price: "1,000円" }
+      ]}
+    ],
+    menuNote: "※価格はすべて税込です。",
+    news: [
+      { date: "2026.06.28", text: "夏季限定「水出しアイスコーヒー」はじめました。" },
+      { date: "2026.06.10", text: "7月の店休日は毎週水曜と 7/21(火)です。" },
+      { date: "2026.05.30", text: "焼き菓子のテイクアウトを始めました。" }
+    ],
+    info: {
+      "店名": "カフェ ひだまり",
+      "住所": "東京都◯◯区◯◯ 1-2-3",
+      "電話": "03-1234-5678",
+      "営業時間": "9:00〜18:00(L.O. 17:30)",
+      "定休日": "水曜日",
+      "席数": "18席(全席禁煙)",
+      "支払い": "現金・各種キャッシュレス対応"
+    },
+    tel: "0312345678",
+    lineUrl: "https://lin.ee/xxxxx",
+    mapEmbed: ""  // GoogleマップのiframeのsrcのURLを入れる
+  },
+
+  /* ---- デモ2:美容室 ---- */
+  salon: {
+    theme: {
+      primary: "#8c6d7c", primaryDark: "#5f4553", accent: "#c98da6",
+      bg: "#faf6f8", heroGrad: ["#9a7488", "#4e3542"], font: "sans"
+    },
+    nameEn: "hair salon Lumo",
+    name: "ヘアサロン ルーモ",
+    tagline: "『似合う』がきっと見つかる、大人のためのプライベートサロン。",
+    heroCta: { label: "LINEで予約する", href: "LINE" },
+    heroPhoto: "",
+    menuLabel: "メニュー・料金",
+    features: [
+      { icon: "✂️", title: "完全マンツーマン", text: "カウンセリングから仕上げまで、経験15年のスタイリストが最後まで担当。施術中の引き継ぎは一切ありません。" },
+      { icon: "🌿", title: "髪にやさしい薬剤", text: "カラー・パーマはダメージを抑えたオーガニック系薬剤を採用。頭皮が敏感な方もご相談ください。" },
+      { icon: "🕊", title: "半個室のくつろぎ", text: "セット面はゆったり2席のみ。周りを気にせず、自分だけの時間をお過ごしいただけます。" }
+    ],
+    menu: [
+      { group: "カット", items: [
+        { name: "カット", note: "シャンプー・ブロー込み", price: "4,950円" },
+        { name: "前髪カット", note: "", price: "1,100円" }
+      ]},
+      { group: "カラー・パーマ", items: [
+        { name: "カット + カラー", note: "オーガニックカラー", price: "9,900円" },
+        { name: "カット + パーマ", note: "", price: "11,000円" },
+        { name: "白髪ぼかしハイライト", note: "人気No.1", price: "13,200円" }
+      ]},
+      { group: "ケア", items: [
+        { name: "髪質改善トリートメント", note: "", price: "6,600円" },
+        { name: "ヘッドスパ 20分", note: "", price: "3,300円" }
+      ]}
+    ],
+    menuNote: "※価格はすべて税込です。初回の方は全メニュー10%OFF。",
+    news: [
+      { date: "2026.07.01", text: "7月の空き状況を更新しました。土曜は残りわずかです。" },
+      { date: "2026.06.15", text: "梅雨の広がり対策に「髪質改善トリートメント」がおすすめです。" },
+      { date: "2026.05.20", text: "LINE予約を始めました。24時間いつでもご予約いただけます。" }
+    ],
+    info: {
+      "店名": "ヘアサロン ルーモ",
+      "住所": "東京都◯◯区◯◯ 2-3-4 ◯◯ビル2F",
+      "電話": "03-2345-6789",
+      "営業時間": "10:00〜19:00(最終受付 カット18:00/カラー17:00)",
+      "定休日": "月曜・第2火曜",
+      "予約": "LINE・お電話にて(当日予約もOK)",
+      "支払い": "現金・クレジット・QR決済"
+    },
+    tel: "0323456789",
+    lineUrl: "https://lin.ee/xxxxx",
+    mapEmbed: ""
+  },
+
+  /* ---- デモ3:整体院 ---- */
+  clinic: {
+    theme: {
+      primary: "#2f6e63", primaryDark: "#1f4d45", accent: "#5aa892",
+      bg: "#f4f8f6", heroGrad: ["#3a7d70", "#1c3f39"], font: "sans"
+    },
+    nameEn: "Midori Seitai",
+    name: "みどり整体院",
+    tagline: "つらい肩こり・腰痛、我慢していませんか。根本から整えます。",
+    heroCta: { label: "LINEで予約する", href: "LINE" },
+    heroPhoto: "",
+    menuLabel: "施術メニュー",
+    features: [
+      { icon: "🤲", title: "国家資格者が施術", text: "柔道整復師の資格を持つ院長がすべての施術を担当。お身体の状態を丁寧に確認してから施術に入ります。" },
+      { icon: "🔍", title: "原因への根本アプローチ", text: "痛む場所だけでなく、姿勢・骨格・生活習慣まで含めて原因を特定。その場しのぎではない改善を目指します。" },
+      { icon: "🏠", title: "セルフケア指導つき", text: "施術効果を長持ちさせるため、ご自宅でできるストレッチや姿勢のコツを毎回お伝えします。" }
+    ],
+    menu: [
+      { group: "整体", items: [
+        { name: "全身整体 60分", note: "初回はカウンセリング込み75分", price: "6,600円" },
+        { name: "クイック整体 30分", note: "肩・腰など気になる部位を集中", price: "3,850円" }
+      ]},
+      { group: "専門コース", items: [
+        { name: "骨盤矯正コース", note: "産後の方に人気", price: "7,700円" },
+        { name: "猫背・姿勢改善コース", note: "デスクワークの方へ", price: "7,700円" }
+      ]},
+      { group: "回数券", items: [
+        { name: "全身整体 5回券", note: "1回あたり5,940円", price: "29,700円" }
+      ]}
+    ],
+    menuNote: "※価格はすべて税込です。初回限定:全身整体 6,600円 → 4,980円。",
+    news: [
+      { date: "2026.07.01", text: "7月より土曜の受付を18時まで延長しました。" },
+      { date: "2026.06.05", text: "産後骨盤矯正コースにお子様連れOKの枠を設けました。" },
+      { date: "2026.05.12", text: "初回限定キャンペーンを実施中です。詳しくはお電話にて。" }
+    ],
+    info: {
+      "院名": "みどり整体院",
+      "住所": "東京都◯◯区◯◯ 3-4-5 1F",
+      "電話": "03-3456-7890",
+      "受付時間": "平日 9:00〜20:00 / 土 9:00〜18:00",
+      "定休日": "日曜・祝日",
+      "予約": "完全予約制(LINE・お電話)",
+      "支払い": "現金・クレジット・QR決済"
+    },
+    tel: "0334567890",
+    lineUrl: "https://lin.ee/xxxxx",
+    mapEmbed: ""
+  }
+};
+
+/* デモ用:URLに ?preset=salon / ?preset=clinic を付けると業種が切り替わります。
+   実際の納品時は、下の1行を `const CONFIG = { ...お客様の内容... };` に置き換えます。 */
+const CONFIG = PRESETS[new URLSearchParams(location.search).get("preset")] || PRESETS.cafe;
+
+/* ===================== 以下、描画処理(編集不要) ===================== */
+(function render(c) {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+  // テーマ
+  const r = document.documentElement.style;
+  r.setProperty("--primary", c.theme.primary);
+  r.setProperty("--primary-dark", c.theme.primaryDark);
+  r.setProperty("--accent", c.theme.accent);
+  r.setProperty("--bg", c.theme.bg);
+  r.setProperty("--hero-grad-1", c.theme.heroGrad[0]);
+  r.setProperty("--hero-grad-2", c.theme.heroGrad[1]);
+  if (c.theme.font === "sans") document.body.classList.add("font-sans");
+  if (c.heroPhoto) $("hero").style.setProperty("--hero-photo", c.heroPhoto);
+
+  // タイトル・ヘッダー・ヒーロー
+  document.title = c.name + "|" + c.tagline;
+  $("pageDesc").setAttribute("content", c.name + " - " + c.tagline);
+  $("brandName").textContent = c.name;
+  $("heroEn").textContent = c.nameEn;
+  $("heroName").textContent = c.name;
+  $("heroTagline").textContent = c.tagline;
+  $("navMenu").textContent = c.menuLabel;
+  $("menuTitle").textContent = c.menuLabel;
+
+  const cta = $("heroCta1");
+  cta.textContent = c.heroCta.label;
+  cta.href = c.heroCta.href === "LINE" ? c.lineUrl : c.heroCta.href;
+  if (c.heroCta.href === "LINE") { cta.target = "_blank"; cta.rel = "noopener"; }
+
+  // 電話・LINE
+  $("headerTel").href = "tel:" + c.tel;
+  $("mobileTel").href = "tel:" + c.tel;
+  $("mobileLine").href = c.lineUrl;
+
+  // こだわり
+  $("featureCards").innerHTML = c.features.map(f =>
+    '<div class="feature fade"><div class="icon">' + f.icon + '</div><h3>' + esc(f.title) + '</h3><p>' + esc(f.text) + '</p></div>'
+  ).join("");
+
+  // メニュー
+  $("menuGroups").innerHTML = c.menu.map(g =>
+    '<div class="menu-group fade"><h3>' + esc(g.group) + '</h3>' +
+    g.items.map(i =>
+      '<div class="menu-item"><span class="m-name">' + esc(i.name) + '</span>' +
+      (i.note ? '<span class="m-note">' + esc(i.note) + '</span>' : '') +
+      '<span class="m-dots"></span><span class="m-price">' + esc(i.price) + '</span></div>'
+    ).join("") + '</div>'
+  ).join("");
+  $("menuNote").textContent = c.menuNote || "";
+
+  // お知らせ
+  $("newsList").innerHTML = c.news.map(n =>
+    '<div class="news-item fade"><time>' + esc(n.date) + '</time><span>' + esc(n.text) + '</span></div>'
+  ).join("");
+
+  // 店舗情報
+  $("infoTable").innerHTML = Object.entries(c.info).map(([k, v]) =>
+    '<tr><th>' + esc(k) + '</th><td>' + esc(v) + '</td></tr>'
+  ).join("");
+  if (c.mapEmbed) $("mapBox").innerHTML = '<iframe src="' + c.mapEmbed + '" loading="lazy" allowfullscreen></iframe>';
+
+  // フッター
+  $("footName").textContent = c.name;
+  $("footAddr").textContent = (c.info["住所"] || "") + (c.tel ? "  TEL " + c.info["電話"] : "");
+  $("footCopy").textContent = "© " + new Date().getFullYear() + " " + c.nameEn + ". All rights reserved.";
+
+  // スクロールフェードイン
+  const io = new IntersectionObserver((es) => {
+    es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("show"); io.unobserve(e.target); } });
+  }, { threshold: .12 });
+  document.querySelectorAll(".fade").forEach(el => io.observe(el));
+})(CONFIG);
+</script>
+</body>
+</html>
