@@ -1,0 +1,2 @@
+# build.js が生成する公開用ファイル（コミット不要。GitHub Actionsが毎回作り直します）
+dist/
