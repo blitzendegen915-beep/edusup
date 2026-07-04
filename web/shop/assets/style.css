@@ -278,6 +278,31 @@ a {
   font-weight: 600;
 }
 
+.about-meta {
+  margin: 24px 0 0;
+  padding: 20px 0 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.about-meta-row {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 0.92rem;
+}
+
+.about-meta-row dt {
+  flex-shrink: 0;
+  width: 7em;
+  color: var(--color-muted);
+  font-weight: 600;
+  margin: 0;
+}
+
+.about-meta-row dd {
+  margin: 0;
+}
+
 .product-audience {
   font-size: 0.8rem;
   color: var(--color-accent-dark);

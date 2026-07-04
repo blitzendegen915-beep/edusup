@@ -402,25 +402,32 @@ function buildAboutPage(site) {
     return;
   }
   const paragraphs = (about.paragraphs || []).map((p) => `<p>${esc(p)}</p>`).join("\n  ");
-  const specialties = (about.specialties || []).map((s) => `<li>${esc(s)}</li>`).join("\n    ");
+  const authorLabel = about.author || site.authorName;
+  const specialtiesLabel = (about.specialties || []).join("、");
+  // 制作者名にはハンドル名（運営者表記）を使い、個人名は出さない
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Person",
-    name: site.authorName,
+    name: authorLabel,
     description: about.lead,
     url: `${site.baseUrl}/about.html`,
     knowsAbout: about.specialties || [],
   };
-  const bodyHtml = `<article class="product-detail">
+  const metaRows = [
+    ["制作者", esc(authorLabel)],
+    ["得意分野", esc(specialtiesLabel)],
+    ["お問い合わせ", `<a href="mailto:${esc(site.contactEmail)}">${esc(site.contactEmail)}</a>`],
+  ]
+    .filter(([, value]) => value)
+    .map(([label, value]) => `<div class="about-meta-row"><dt>${esc(label)}</dt><dd>${value}</dd></div>`)
+    .join("\n    ");
+  const bodyHtml = `<article class="legal-page about-page">
   <h1>${esc(about.title)}</h1>
   <p class="about-lead">${esc(about.lead)}</p>
   ${paragraphs}
-  <h2>得意分野</h2>
-  <ul>
-    ${specialties}
-  </ul>
-  <h2>連絡先</h2>
-  <p>不具合の報告・教材のリクエストは <a href="mailto:${esc(site.contactEmail)}">${esc(site.contactEmail)}</a> までお気軽にどうぞ。</p>
+  <dl class="about-meta">
+    ${metaRows}
+  </dl>
 </article>`;
   writeFile(
     "about.html",
@@ -471,19 +478,17 @@ function buildPrivacyPage(site) {
 function buildTokushohoPage(site) {
   const t = site.tokushoho;
   const rows = [
-    ["販売事業者", t.sellerName],
-    ["運営統括責任者", t.operator],
+    ["販売業者", t.sellerName],
+    ["運営責任者", t.operator],
     ["所在地", t.address],
     ["電話番号", t.phone],
     ["メールアドレス", t.email],
-    ["受付時間", t.businessHours],
     ["販売価格", t.priceNote],
     ["商品代金以外の必要料金", t.extraFees],
-    ["支払い方法", t.payment],
-    ["支払い時期", t.paymentTiming],
+    ["支払方法", t.payment],
     ["商品の引き渡し時期", t.delivery],
-    ["動作環境", t.environment],
-    ["返品・キャンセルについて（返品特約）", t.returns],
+    ["返品・キャンセル", t.returns],
+    ["現在の状態", t.currentStatus],
   ]
     // 未設定の項目は行ごと省略する
     .filter(([, value]) => value)
