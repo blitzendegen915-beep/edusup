@@ -3,8 +3,10 @@
   "tagline": "高校英語教員が作った、そのまま使える教材・校務テンプレート",
   "description": "現役高校英語教員が制作したワークシートPDF・Excelテンプレート・小テスト素材のストアです。高校生の予習復習、大人の英語学び直し、先生の授業準備・校務の時短にどうぞ。",
   "baseUrl": "https://blitzendegen915-beep.github.io/edusup",
-  "authorName": "（あなたの名前・屋号）",
-  "contactEmail": "example@example.com",
+  "comingSoon": true,
+  "comingSoonMessage": "このストアは現在準備中です。商品・価格・掲載内容はすべてサンプルであり、実際の販売はまだ行っていません。",
+  "authorName": "占部涼也",
+  "contactEmail": "ryoyaurabe@gmail.com",
   "github": {
     "owner": "blitzendegen915-beep",
     "repo": "edusup",
@@ -56,11 +58,11 @@
     "specialties": ["高校英語（文法・語彙・4技能）", "小テスト・ワークシート制作", "Excel・GASによる校務の自動化"]
   },
   "tokushoho": {
-    "sellerName": "（販売者の氏名を記載）",
-    "operator": "（運営統括責任者の氏名を記載）",
+    "sellerName": "占部涼也",
+    "operator": "占部涼也",
     "address": "お客様からご請求があった場合には、遅滞なく開示いたします。",
     "phone": "お客様からご請求があった場合には、遅滞なく開示いたします。",
-    "email": "example@example.com",
+    "email": "ryoyaurabe@gmail.com",
     "businessHours": "メールにて随時受付（返信は数日いただく場合があります）",
     "priceNote": "各商品ページに表示された金額（消費税込みの総額表示）です。",
     "extraFees": "商品はデジタルデータのダウンロード販売のため、送料はかかりません。インターネット接続にかかる通信費、および決済方法によっては所定の手数料（コンビニ決済等）はお客様のご負担となります。",

@@ -108,6 +108,7 @@ function pageShell({ site, title, description, canonicalUrl, rootPath, jsonLd, b
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
+${site.comingSoon ? '<meta name="robots" content="noindex, nofollow">' : ""}
 <link rel="canonical" href="${esc(canonicalUrl)}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
@@ -120,6 +121,11 @@ ${jsonLdTag}
 ${gaTag}
 </head>
 <body>
+${
+  site.comingSoon
+    ? `<div class="coming-soon-banner" role="status">🚧 ${esc(site.comingSoonMessage || "このストアは現在準備中です。")}</div>`
+    : ""
+}
 <header class="site-header">
   <div class="site-header-inner">
     <div class="site-brand">
@@ -624,7 +630,12 @@ ${urls.map((u) => `  <url><loc>${esc(u)}</loc><lastmod>${today}</lastmod></url>`
 `;
   writeFile("sitemap.xml", sitemap);
 
-  const robots = `User-agent: *
+  // 準備中の間は検索エンジンのクロールを全面的にブロックする
+  const robots = site.comingSoon
+    ? `User-agent: *
+Disallow: /
+`
+    : `User-agent: *
 Allow: /
 Disallow: /admin/
 

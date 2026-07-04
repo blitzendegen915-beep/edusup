@@ -29,6 +29,16 @@ GitHub Pages で公開
 4. **Actions** タブで「Deploy shop to GitHub Pages」が成功するのを待つ。
 5. `https://blitzendegen915-beep.github.io/edusup/` を開いて表示を確認する。
 
+## 準備中モード（公開前はこれをオンに）
+
+`site.json` の `comingSoon` を `true` にすると、ストア全体が「準備中」状態になります。
+
+- 全ページ上部に準備中バナーが表示されます（文面は `comingSoonMessage` で変更可）
+- 全ページに `noindex` が入り、`robots.txt` も全面ブロックになるため、**Googleなど検索エンジンにインデックスされません**
+- 見た目の確認はできるので、身内へのプレビュー共有には使えます
+
+**本番公開の手順**: 商品と価格が本物になり、無料サンプルを配置し、Stripe決済リンクを設定し終えたら、`comingSoon` を `false` にして push してください。これで検索エンジン向けの設定（sitemap・インデックス許可）が有効になります。その後に Google Search Console でサイト登録＋sitemap送信を行うと、数日〜数週間で検索結果に載り始めます。
+
 ### site.json を自分用に書き換える
 
 `web/shop/site.json` の以下を必ず書き換えてください（今はダミーです）。
