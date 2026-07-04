@@ -4,7 +4,7 @@
 GitHub Pages で無料公開でき、Google検索にも載せられるようにSEO対応済みです。
 
 - コード: `web/shop/`
-- 公開URL（Pages有効化後）: `https://blitzendegen915-beep.github.io/teacher-automation-lab/`
+- 公開URL（Pages有効化後）: `https://blitzendegen915-beep.github.io/edusup/`
 
 ## 仕組み
 
@@ -27,7 +27,7 @@ GitHub Pages で公開
 2. GitHubのリポジトリページで **Settings → Pages** を開く。
 3. **Source** を **GitHub Actions** に変更する。
 4. **Actions** タブで「Deploy shop to GitHub Pages」が成功するのを待つ。
-5. `https://blitzendegen915-beep.github.io/teacher-automation-lab/` を開いて表示を確認する。
+5. `https://blitzendegen915-beep.github.io/edusup/` を開いて表示を確認する。
 
 ### site.json を自分用に書き換える
 
@@ -51,7 +51,7 @@ GitHub Pages で公開
 
 ### 方法1: 管理画面から（おすすめ）
 
-公開サイトの `/admin/`（例: `https://blitzendegen915-beep.github.io/teacher-automation-lab/admin/`）を開くと、ブラウザ上のフォームで商品の追加・編集・削除・並べ替え・無料配布ファイルのアップロードができます。
+公開サイトの `/admin/`（例: `https://blitzendegen915-beep.github.io/edusup/admin/`）を開くと、ブラウザ上のフォームで商品の追加・編集・削除・並べ替え・無料配布ファイルのアップロードができます。
 
 初回だけGitHubのアクセストークンが必要です。
 

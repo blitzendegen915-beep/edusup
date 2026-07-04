@@ -2,12 +2,12 @@
   "siteName": "先生の教材ストア",
   "tagline": "高校英語教員が作った、そのまま使える教材・校務テンプレート",
   "description": "現役高校英語教員が制作したワークシートPDF・Excelテンプレート・小テスト素材のストアです。高校生の予習復習、大人の英語学び直し、先生の授業準備・校務の時短にどうぞ。",
-  "baseUrl": "https://blitzendegen915-beep.github.io/teacher-automation-lab",
+  "baseUrl": "https://blitzendegen915-beep.github.io/edusup",
   "authorName": "（あなたの名前・屋号）",
   "contactEmail": "example@example.com",
   "github": {
     "owner": "blitzendegen915-beep",
-    "repo": "teacher-automation-lab",
+    "repo": "edusup",
     "branch": "main"
   },
   "paymentMethods": ["クレジットカード", "PayPay", "コンビニ決済"],

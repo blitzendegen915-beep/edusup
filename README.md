@@ -1,4 +1,4 @@
-# teacher-automation-lab
+# edusup
 
 高校英語教員の校務・教材制作・授業準備を自動化するためのツール置き場です。
 
