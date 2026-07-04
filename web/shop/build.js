@@ -121,22 +121,44 @@ ${gaTag}
 </head>
 <body>
 <header class="site-header">
-  <a class="site-logo" href="${rootPath}index.html">${esc(site.siteName)}</a>
-  <p class="site-tagline">${esc(site.tagline)}</p>
+  <div class="site-header-inner">
+    <div class="site-brand">
+      <a class="site-logo" href="${rootPath}index.html">${esc(site.siteName)}</a>
+      <p class="site-tagline">${esc(site.tagline)}</p>
+    </div>
+    <nav class="site-nav" aria-label="メインナビゲーション">
+      ${(site.nav || [])
+        .map((item) => `<a href="${rootPath}${esc(item.href)}">${esc(item.label)}</a>`)
+        .join("\n      ")}
+    </nav>
+  </div>
 </header>
 <main class="container">
 ${bodyHtml}
 </main>
 <footer class="site-footer">
-  <nav>
-    <a href="${rootPath}index.html">商品一覧</a>
-    <a href="${rootPath}about.html">制作者について</a>
-    <a href="${rootPath}tokushoho.html">特定商取引法に基づく表記</a>
-    <a href="${rootPath}privacy.html">プライバシーポリシー</a>
-    <a href="mailto:${esc(site.contactEmail)}">お問い合わせ</a>
-  </nav>
-  <p class="payment-methods">対応決済: ${esc((site.paymentMethods || []).join(" / "))}</p>
-  <p>&copy; ${new Date().getFullYear()} ${esc(site.authorName)}</p>
+  <div class="site-footer-cols">
+    <div class="footer-col">
+      <h3>ショップ</h3>
+      <a href="${rootPath}index.html">商品一覧</a>
+      <a href="${rootPath}guide.html">ご購入の流れ</a>
+      <a href="${rootPath}faq.html">よくある質問</a>
+    </div>
+    <div class="footer-col">
+      <h3>ストア情報</h3>
+      <a href="${rootPath}about.html">制作者について</a>
+      <a href="mailto:${esc(site.contactEmail)}">お問い合わせ</a>
+    </div>
+    <div class="footer-col">
+      <h3>法的情報</h3>
+      <a href="${rootPath}tokushoho.html">特定商取引法に基づく表記</a>
+      <a href="${rootPath}privacy.html">プライバシーポリシー</a>
+    </div>
+  </div>
+  <div class="site-footer-bottom">
+    <p class="payment-methods">対応決済: ${esc((site.paymentMethods || []).join(" / "))}</p>
+    <p>&copy; ${new Date().getFullYear()} ${esc(site.authorName)}</p>
+  </div>
 </footer>
 </body>
 </html>
@@ -443,25 +465,34 @@ function buildPrivacyPage(site) {
 function buildTokushohoPage(site) {
   const t = site.tokushoho;
   const rows = [
-    ["販売者", t.sellerName],
+    ["販売事業者", t.sellerName],
+    ["運営統括責任者", t.operator],
     ["所在地", t.address],
     ["電話番号", t.phone],
     ["メールアドレス", t.email],
+    ["受付時間", t.businessHours],
     ["販売価格", t.priceNote],
     ["商品代金以外の必要料金", t.extraFees],
-    ["引き渡し時期", t.delivery],
     ["支払い方法", t.payment],
-    ["返品・キャンセル", t.returns],
+    ["支払い時期", t.paymentTiming],
+    ["商品の引き渡し時期", t.delivery],
+    ["動作環境", t.environment],
+    ["返品・キャンセルについて（返品特約）", t.returns],
   ]
+    // 未設定の項目は行ごと省略する
+    .filter(([, value]) => value)
     .map(([label, value]) => `<tr><th>${esc(label)}</th><td>${esc(value)}</td></tr>`)
     .join("\n    ");
 
-  const bodyHtml = `<h1>特定商取引法に基づく表記</h1>
+  const bodyHtml = `<article class="legal-page">
+<h1>特定商取引法に基づく表記</h1>
+<p class="legal-intro">特定商取引法（通信販売）に基づき、以下のとおり表示します。</p>
 <table class="tokushoho-table">
   <tbody>
     ${rows}
   </tbody>
-</table>`;
+</table>
+</article>`;
 
   writeFile(
     "tokushoho.html",
@@ -472,6 +503,86 @@ function buildTokushohoPage(site) {
       canonicalUrl: `${site.baseUrl}/tokushoho.html`,
       rootPath: "./",
       jsonLd: null,
+      bodyHtml,
+    })
+  );
+}
+
+/** ご購入の流れページ */
+function buildGuidePage(site) {
+  const guide = site.purchaseGuide;
+  if (!guide) {
+    return;
+  }
+  const steps = (guide.steps || [])
+    .map(
+      (step, i) => `<li class="guide-step">
+    <span class="guide-step-num">${i + 1}</span>
+    <div>
+      <h2>${esc(step.title)}</h2>
+      <p>${esc(step.body)}</p>
+    </div>
+  </li>`
+    )
+    .join("\n  ");
+  const bodyHtml = `<article class="guide-page">
+  <h1>${esc(guide.title)}</h1>
+  <p class="legal-intro">${esc(guide.lead)}</p>
+  <ol class="guide-steps">
+  ${steps}
+  </ol>
+  <p class="guide-cta"><a href="index.html">商品一覧を見る →</a></p>
+</article>`;
+  writeFile(
+    "guide.html",
+    pageShell({
+      site,
+      title: `${guide.title}｜${site.siteName}`,
+      description: `${site.siteName}での購入方法・受け取り方法のご案内です。`,
+      canonicalUrl: `${site.baseUrl}/guide.html`,
+      rootPath: "./",
+      jsonLd: null,
+      bodyHtml,
+    })
+  );
+}
+
+/** よくある質問ページ（FAQPage構造化データつき） */
+function buildFaqPage(site) {
+  const faq = site.faq;
+  if (!faq || !(faq.items || []).length) {
+    return;
+  }
+  const items = faq.items
+    .map(
+      (item) => `<div class="faq-item">
+    <h2 class="faq-q">${esc(item.q)}</h2>
+    <p class="faq-a">${esc(item.a)}</p>
+  </div>`
+    )
+    .join("\n  ");
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faq.items.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  };
+  const bodyHtml = `<article class="faq-page">
+  <h1>${esc(faq.title)}</h1>
+  ${items}
+</article>`;
+  writeFile(
+    "faq.html",
+    pageShell({
+      site,
+      title: `${faq.title}｜${site.siteName}`,
+      description: `${site.siteName}に寄せられるよくある質問と回答です。`,
+      canonicalUrl: `${site.baseUrl}/faq.html`,
+      rootPath: "./",
+      jsonLd,
       bodyHtml,
     })
   );
@@ -498,6 +609,8 @@ function build404Page(site) {
 function buildSitemapAndRobots(site, products) {
   const urls = [
     `${site.baseUrl}/`,
+    `${site.baseUrl}/guide.html`,
+    `${site.baseUrl}/faq.html`,
     `${site.baseUrl}/about.html`,
     `${site.baseUrl}/tokushoho.html`,
     `${site.baseUrl}/privacy.html`,
@@ -574,6 +687,8 @@ function main() {
   for (const product of products) {
     buildProductPage(site, product);
   }
+  buildGuidePage(site);
+  buildFaqPage(site);
   buildAboutPage(site);
   buildTokushohoPage(site);
   buildPrivacyPage(site);

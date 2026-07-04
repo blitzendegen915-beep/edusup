@@ -30,21 +30,63 @@ a {
 .site-header {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
-  padding: 20px 16px;
-  text-align: center;
+  padding: 16px 16px;
+}
+
+.site-header-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.site-brand {
+  text-align: left;
 }
 
 .site-logo {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 700;
   text-decoration: none;
   color: var(--color-text);
 }
 
 .site-tagline {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.site-nav {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.site-nav a {
+  color: var(--color-text);
+  text-decoration: none;
   font-size: 0.9rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+.site-nav a:hover {
+  background: var(--color-bg);
+  color: var(--color-accent);
+}
+
+@media (max-width: 560px) {
+  .site-header-inner {
+    justify-content: center;
+  }
+  .site-brand {
+    text-align: center;
+  }
 }
 
 .container {
@@ -357,34 +399,193 @@ a {
   padding: 12px 16px;
   text-align: left;
   font-size: 0.9rem;
+  vertical-align: top;
 }
 
 .tokushoho-table th {
-  width: 30%;
+  width: 32%;
+  min-width: 8em;
   background: var(--color-bg);
-  white-space: nowrap;
+  font-weight: 600;
+}
+
+@media (max-width: 560px) {
+  .tokushoho-table th,
+  .tokushoho-table td {
+    display: block;
+    width: 100%;
+    border-bottom: none;
+  }
+  .tokushoho-table tr {
+    display: block;
+    margin-bottom: 8px;
+  }
+  .tokushoho-table td {
+    border-bottom: 1px solid var(--color-border);
+  }
 }
 
 /* フッター */
 .site-footer {
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
-  text-align: center;
-  padding: 24px 16px;
+  padding: 32px 16px 24px;
   font-size: 0.85rem;
   color: var(--color-muted);
 }
 
-.site-footer nav {
+.site-footer-cols {
+  max-width: 720px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.footer-col h3 {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  margin: 0 0 10px;
+  letter-spacing: 0.04em;
+}
+
+.footer-col a {
+  display: block;
+  color: var(--color-muted);
+  text-decoration: none;
+  padding: 3px 0;
+}
+
+.footer-col a:hover {
+  color: var(--color-accent);
+}
+
+.site-footer-bottom {
+  max-width: 720px;
+  margin: 24px auto 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+  text-align: center;
+}
+
+.site-footer-bottom .payment-methods {
+  margin: 0 0 4px;
+}
+
+@media (max-width: 560px) {
+  .site-footer-cols {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    text-align: center;
+  }
+}
+
+/* 法的ページ・ご購入の流れ・FAQ 共通 */
+.legal-page,
+.guide-page,
+.faq-page {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 32px 28px;
+}
+
+.legal-page h1,
+.guide-page h1,
+.faq-page h1 {
+  font-size: 1.4rem;
+  margin: 0 0 8px;
+}
+
+.legal-intro {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  margin: 0 0 24px;
+}
+
+/* ご購入の流れ */
+.guide-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.guide-step {
   display: flex;
   gap: 16px;
+  align-items: flex-start;
+}
+
+.guide-step-num {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
+}
+
+.guide-step h2 {
+  font-size: 1.05rem;
+  margin: 4px 0 4px;
+}
+
+.guide-step p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.92rem;
+}
+
+.guide-cta {
+  margin: 28px 0 0;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* FAQ */
+.faq-item {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.faq-item:last-child {
+  border-bottom: none;
+}
+
+.faq-q {
+  font-size: 1rem;
+  margin: 0 0 6px;
+  padding-left: 24px;
+  position: relative;
+}
+
+.faq-q::before {
+  content: "Q";
+  position: absolute;
+  left: 0;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.faq-a {
+  margin: 0;
+  padding-left: 24px;
+  color: var(--color-muted);
+  font-size: 0.92rem;
 }
 
 @media (max-width: 600px) {
-  .product-detail {
+  .product-detail,
+  .legal-page,
+  .guide-page,
+  .faq-page {
     padding: 24px 16px;
   }
 }
