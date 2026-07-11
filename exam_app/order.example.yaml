@@ -1,0 +1,33 @@
+# 定期考査オーダー（例: 英語コミュニケーションII 期末試験）
+exam:
+  title: "２０２６年　２学年受験コース　英語コミュニケーションⅡ　２学期中間試験"
+  total_points: 100
+  written_points: 80   # 残りはSpeaking/Listening等
+  notes: "S10 + L10 は別途"
+
+# 索引化済み教材（index コマンドの出力）
+materials_index: materials_index.json
+
+# 大問構成。type と source を必ず指定する。
+# source は materials_index.json 内の文書ID（教材にない文の創作は禁止）
+sections:
+  - no: 1
+    type: fill_blank          # 空所補充
+    points_each: 1
+    count: 9
+    source: heartening2_wb    # ワークブックの①問題・Grammar問題から
+    instructions: >
+      日本文の意味になるように英文の空所に適語を入れなさい。
+      別解が出うる語には頭文字ヒントを付けること。
+  - no: 2
+    type: reading_misfit      # 不要文選択+空所+内容一致
+    points_each: 2
+    count: 3
+    source: textbook_L4
+  - no: 6
+    type: reorder_2nd_5th     # 並び替え（2番目と5番目）
+    points_each: 2
+    count: 5
+    source: douga_bunpou      # 例文一覧から。別解チェック必須
+    instructions: >
+      複数語チャンクを使う場合は下線を引き、指示文に該当問題番号を明記。

@@ -1,0 +1,53 @@
+# 定期考査ジェネレーター (exam_app)
+
+指定フォルダのWord/PDF教材を読み込み、オーダー（order.yaml）通りに定期考査の
+問題・解答用紙・模範解答のドラフトを自動生成するツール。
+
+## 役割分担（設計思想）
+
+| 役割 | 担当 | 使用モデル |
+|---|---|---|
+| 指揮者（オーダー設計・最終判断・精査） | Claude Code上のClaude（あなたとの対話） | — |
+| 教材の文字起こし・索引化 | このアプリ | **Haiku** (`claude-haiku-4-5`) 安価・高速 |
+| 作問・別解チェック | このアプリ | **Sonnet** (`claude-sonnet-5`) |
+| 最終レビュー | 教員 + 指揮者Claude（/exam-verify） | — |
+
+トークン消費を抑えるため、生成はSonnet/Haikuのみ。`skills/` の再発防止ルール
+（本文改変禁止・出典必須・別解チェック・1枠1語）はプロンプトに組み込み済み。
+
+## セットアップ
+
+```bash
+pip install anthropic python-docx pyyaml
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+## 使い方
+
+```bash
+# 1. 教材フォルダを索引化（Haiku）→ materials_index.json
+python -m exam_app.cli index --materials ./materials
+
+# 2. オーダーを書く（exam_app/order.example.yaml をコピーして編集）
+
+# 3. 生成（Sonnet）→ output/ にドラフト3点セット + 出典記録
+python -m exam_app.cli generate --order my_order.yaml
+
+# 4. 別解チェック（Sonnet・敵対的検証）
+python -m exam_app.cli verify --draft output/exam_draft.json
+```
+
+## 出力
+
+- `output/exam_draft.md` — 問題ドラフト（Wordに貼る前の確認用）
+- `output/exam_draft.json` — 構造化データ（解答・出典込み）
+- `output/sources_draft.md` — 出典記録（sources/ へコピーして使う）
+- `output/verify_report.md` — 別解・整合性チェック結果
+
+## 注意（必読）
+
+- **生成物はドラフト。** そのまま出題しない。必ず `/exam-verify` で精査し、
+  教員が全問解き直してから使う。
+- 教材にない文は作らせない設計だが、**出典欄が空の問題は破棄**すること。
+- 大問6（並び替え）は verify の別解チェックを通っても、順列の見落としが
+  ありうる。2番目/5番目の答えは人間が確認する。
