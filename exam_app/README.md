@@ -33,16 +33,34 @@ python -m exam_app.cli index --materials ./materials
 # 3. 生成（Sonnet）→ output/ にドラフト3点セット + 出典記録
 python -m exam_app.cli generate --order my_order.yaml
 
-# 4. 別解チェック（Sonnet・敵対的検証）
+# 4. 精査: 決定論チェック（無料）＋別解の敵対的検証（Sonnet）
 python -m exam_app.cli verify --draft output/exam_draft.json
+
+# 5. 別解が出た問題だけ自動差し替え → 再度 verify
+python -m exam_app.cli fix --draft output/exam_draft.json --index materials_index.json
+
+# 6. Word 3点セット出力（API不使用）
+python -m exam_app.cli docx --draft output/exam_draft.json
 ```
 
 ## 出力
 
-- `output/exam_draft.md` — 問題ドラフト（Wordに貼る前の確認用）
+- `output/exam_draft.md` — 問題ドラフト（確認用）
 - `output/exam_draft.json` — 構造化データ（解答・出典込み）
 - `output/sources_draft.md` — 出典記録（sources/ へコピーして使う）
-- `output/verify_report.md` — 別解・整合性チェック結果
+- `output/verify_report.md` / `verdicts.json` — 精査結果（fixが読む）
+- `output/exam_draft.docx` / `answersheet_draft.docx` / `modelanswer_draft.docx`
+  — Word 3点セット（体裁は叩き台。テンプレート運用は scripts/ 方式）
+
+## 決定論チェック（checks.py・API不使用）
+
+過去の事故を機械検出する: 配点合計ズレ / 小問番号の飛び / 出典なし /
+答え・出典の重複（rush/conduct事故の対策） / 選択肢の正解偏り。
+generate と verify の両方で自動実行される。
+
+## コスト
+
+各コマンド終了時に概算APIコストを表示する（Haiku $1/$5, Sonnet $3/$15 per MTok）。
 
 ## 注意（必読）
 

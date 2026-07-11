@@ -3,6 +3,8 @@
   python -m exam_app.cli index    --materials ./materials [--out materials_index.json]
   python -m exam_app.cli generate --order my_order.yaml   [--outdir output]
   python -m exam_app.cli verify   --draft output/exam_draft.json
+  python -m exam_app.cli fix      --draft output/exam_draft.json  # 別解問題を差し替え
+  python -m exam_app.cli docx     --draft output/exam_draft.json  # Word 3点セット出力
 """
 import argparse
 import json
@@ -65,6 +67,16 @@ def cmd_generate(args):
     (outdir / "exam_draft.json").write_text(
         json.dumps(draft, ensure_ascii=False, indent=1), encoding="utf-8")
     _write_markdown(draft, outdir)
+
+    from . import checks
+    issues = checks.run_all(draft)
+    if issues:
+        print("\n⚠ 決定論チェックで問題を検出:")
+        for i in issues:
+            print(f"  - {i}")
+    else:
+        print("決定論チェック: 合格")
+    print(generate.cost_report())
     print(f"保存: {outdir}/exam_draft.json / exam_draft.md / sources_draft.md")
     print("次: python -m exam_app.cli verify --draft", outdir / "exam_draft.json")
 
@@ -86,28 +98,102 @@ def _write_markdown(draft, outdir: Path):
 
 
 def cmd_verify(args):
-    from . import generate
-    draft = json.loads(Path(args.draft).read_text(encoding="utf-8"))
-    report = ["# 別解チェック結果（Sonnet 敵対的検証）", ""]
+    from . import checks, generate
+    draft_path = Path(args.draft)
+    draft = json.loads(draft_path.read_text(encoding="utf-8"))
+
+    report = ["# 精査結果", "", "## 決定論チェック"]
+    det = checks.run_all(draft)
+    report += [f"- ⚠ {i}" for i in det] or ["- 合格"]
+    for i in det:
+        print(f"⚠ {i}")
+
+    report += ["", "## 別解チェック（Sonnet 敵対的検証）", ""]
     ng = 0
+    verdicts = {}
     for sec in draft["sections"]:
         for q in sec["questions"]:
             v = generate.adversarial_verify(q, sec["type"])
+            key = f"{sec['no']}-{q['number']}"
+            verdicts[key] = v
             mark = "❌ 別解あり" if v["has_alternate_answer"] else "✅"
             if v["has_alternate_answer"]:
                 ng += 1
             print(f"大問{sec['no']}({q['number']}): {mark}")
-            report.append(f"## 大問{sec['no']} ({q['number']}) {mark}")
+            report.append(f"### 大問{sec['no']} ({q['number']}) {mark}")
             report.append(f"- 問題: {q['body'][:120]}")
             report.append(f"- 判定理由: {v['explanation']}")
             if v["has_alternate_answer"]:
                 report.append(f"- 修正案: {v['suggested_fix']}")
             report.append("")
-    out = Path(args.draft).parent / "verify_report.md"
+
+    out = draft_path.parent / "verify_report.md"
     out.write_text("\n".join(report), encoding="utf-8")
-    print(f"\n保存: {out}  （要修正: {ng}問）")
+    # fixコマンド用に判定を保存
+    (draft_path.parent / "verdicts.json").write_text(
+        json.dumps(verdicts, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(generate.cost_report())
+    print(f"\n保存: {out}  （別解あり: {ng}問 / 決定論NG: {len(det)}件）")
     if ng:
+        print("差し替え: python -m exam_app.cli fix --draft", draft_path)
         sys.exit(1)
+
+
+def cmd_fix(args):
+    """verify で別解が出た問題を差し替える。差し替え内容は必ず表示する
+    （skills/exam-provenance: 黙って変えない）。"""
+    from . import checks, generate
+    draft_path = Path(args.draft)
+    draft = json.loads(draft_path.read_text(encoding="utf-8"))
+    verdicts_path = draft_path.parent / "verdicts.json"
+    if not verdicts_path.exists():
+        sys.exit("verdicts.json がありません。先に verify を実行してください。")
+    verdicts = json.loads(verdicts_path.read_text(encoding="utf-8"))
+    order_index = json.loads(Path(args.index).read_text(encoding="utf-8")) \
+        if args.index else None
+
+    changed = []
+    for sec in draft["sections"]:
+        items = (order_index or {}).get(sec.get("source", ""), {}).get("usable_items", [])
+        used = [q["source_ref"] for q in sec["questions"]]
+        for i, q in enumerate(sec["questions"]):
+            v = verdicts.get(f"{sec['no']}-{q['number']}")
+            if not (v and v["has_alternate_answer"]):
+                continue
+            print(f"差し替え中 (Sonnet): 大問{sec['no']}({q['number']}) ...")
+            new_q = generate.regenerate_question(
+                sec, q, v, items, used, draft["exam"]["title"])
+            new_q["number"] = q["number"]
+            sec["questions"][i] = new_q
+            changed.append(
+                f"大問{sec['no']}({q['number']}): 「{q['body'][:60]}…」\n"
+                f"  → 「{new_q['body'][:60]}…」（出典: {new_q['source_ref']}）")
+
+    if not changed:
+        print("差し替え対象なし")
+        return
+    print("\n== 差し替え内容（要確認） ==")
+    for c in changed:
+        print(c)
+
+    draft_path.write_text(json.dumps(draft, ensure_ascii=False, indent=1),
+                          encoding="utf-8")
+    _write_markdown(draft, draft_path.parent)
+    for i in checks.run_all(draft):
+        print(f"⚠ {i}")
+    print(generate.cost_report())
+    print(f"\n更新: {draft_path}")
+    print("再検証: python -m exam_app.cli verify --draft", draft_path)
+
+
+def cmd_docx(args):
+    from . import build_docx
+    draft_path = Path(args.draft)
+    draft = json.loads(draft_path.read_text(encoding="utf-8"))
+    files = build_docx.build_all(draft, draft_path.parent)
+    for f in files:
+        print(f"保存: {f}")
+    print("※体裁は叩き台。テンプレート運用する場合は scripts/ の方式を使う")
 
 
 def main():
@@ -124,9 +210,18 @@ def main():
     s.add_argument("--outdir", default="output")
     s.set_defaults(func=cmd_generate)
 
-    s = sub.add_parser("verify", help="別解の敵対的チェック（Sonnet）")
+    s = sub.add_parser("verify", help="決定論チェック＋別解の敵対的チェック（Sonnet）")
     s.add_argument("--draft", required=True)
     s.set_defaults(func=cmd_verify)
+
+    s = sub.add_parser("fix", help="別解ありの問題を差し替え（Sonnet）")
+    s.add_argument("--draft", required=True)
+    s.add_argument("--index", help="materials_index.json（差し替え候補の出典元）")
+    s.set_defaults(func=cmd_fix)
+
+    s = sub.add_parser("docx", help="Word 3点セットを出力（API不使用）")
+    s.add_argument("--draft", required=True)
+    s.set_defaults(func=cmd_docx)
 
     args = p.parse_args()
     args.func(args)

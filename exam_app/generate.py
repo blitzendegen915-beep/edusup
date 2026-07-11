@@ -13,7 +13,24 @@ import anthropic
 HAIKU = "claude-haiku-4-5"
 SONNET = "claude-sonnet-5"
 
-client = anthropic.Anthropic()
+client = anthropic.Anthropic(max_retries=4)
+
+# 累計コスト（$/1Mトークン: Haiku 1/5, Sonnet 3/15）
+_PRICES = {HAIKU: (1.0, 5.0), SONNET: (3.0, 15.0)}
+usage_total = {"cost_usd": 0.0, "input": 0, "output": 0}
+
+
+def _track(model: str, usage):
+    pin, pout = _PRICES[model]
+    usage_total["input"] += usage.input_tokens
+    usage_total["output"] += usage.output_tokens
+    usage_total["cost_usd"] += (usage.input_tokens * pin
+                                + usage.output_tokens * pout) / 1_000_000
+
+
+def cost_report() -> str:
+    return (f"APIコスト: 約${usage_total['cost_usd']:.3f} "
+            f"(入力{usage_total['input']:,}tok / 出力{usage_total['output']:,}tok)")
 
 INDEX_SCHEMA = {
     "type": "object",
@@ -84,6 +101,7 @@ def index_material(doc_id: str, text: str) -> dict:
         messages=[{"role": "user", "content": f"教材ID: {doc_id}\n\n{text[:60000]}"}],
         output_config={"format": {"type": "json_schema", "schema": INDEX_SCHEMA}},
     )
+    _track(HAIKU, resp.usage)
     text_out = next(b.text for b in resp.content if b.type == "text")
     return json.loads(text_out)
 
@@ -110,6 +128,7 @@ def make_section(section: dict, material_items: list, exam_context: str) -> dict
         messages=[{"role": "user", "content": prompt}],
         output_config={"format": {"type": "json_schema", "schema": QUESTIONS_SCHEMA}},
     )
+    _track(SONNET, resp.usage)
     text_out = next(b.text for b in resp.content if b.type == "text")
     return json.loads(text_out)
 
@@ -146,5 +165,47 @@ def adversarial_verify(question: dict, qtype: str) -> dict:
         messages=[{"role": "user", "content": prompt}],
         output_config={"format": {"type": "json_schema", "schema": VERDICT_SCHEMA}},
     )
+    _track(SONNET, resp.usage)
     text_out = next(b.text for b in resp.content if b.type == "text")
     return json.loads(text_out)
+
+
+def regenerate_question(section: dict, bad_question: dict, verdict: dict,
+                        material_items: list, used_refs: list,
+                        exam_context: str) -> dict:
+    """別解が見つかった1問を、同じ教材から別のアイテムで差し替える。
+
+    skills/exam-provenance: 差し替え内容は呼び出し側でユーザーに明示すること。
+    """
+    items_json = json.dumps(material_items, ensure_ascii=False)
+    prompt = f"""{RULES}
+
+試験情報: {exam_context}
+
+以下の問題に別解が見つかったため、1問だけ差し替えてください。
+- 元の問題: {bad_question['body']}
+- 元の解答: {bad_question['answer']}
+- 別解の内容: {verdict['explanation']}
+- 修正案: {verdict['suggested_fix']}
+
+差し替え方針（優先順）:
+1. まず修正案の通り、同じ文のままチャンク化や頭文字ヒントで別解を潰せるか検討
+2. 潰せなければ、教材アイテムから別の文で新しい問題を作る
+   （既に使用済みの出典は使わない: {used_refs}）
+
+形式: {section['type']} / 問題番号: {bad_question['number']}
+questions配列には差し替え後の1問だけを入れてください。
+
+使用可能な教材アイテム:
+{items_json}"""
+    resp = client.messages.create(
+        model=SONNET,
+        max_tokens=8000,
+        thinking={"type": "adaptive"},
+        system="あなたは高校英語の定期考査の作問者です。ルールを厳守してください。",
+        messages=[{"role": "user", "content": prompt}],
+        output_config={"format": {"type": "json_schema", "schema": QUESTIONS_SCHEMA}},
+    )
+    _track(SONNET, resp.usage)
+    text_out = next(b.text for b in resp.content if b.type == "text")
+    return json.loads(text_out)["questions"][0]
