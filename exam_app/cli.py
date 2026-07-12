@@ -14,21 +14,44 @@ from pathlib import Path
 import yaml
 
 
+def _load_order(path) -> dict:
+    """order.yaml を読む。YAML 1.1 では `no:` がブール False に化けるので
+    正規化する（大問番号キーの事故対策）。"""
+    order = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    for sec in order.get("sections", []):
+        if False in sec and "no" not in sec:
+            sec["no"] = sec.pop(False)
+    return order
+
+
 def cmd_index(args):
     from . import extract
     folder = Path(args.materials)
     docs = extract.scan_folder(folder)
     if not docs:
         sys.exit(f"教材が見つかりません: {folder}")
-    from . import generate
     index = {}
-    for doc_id, d in docs.items():
-        print(f"索引化中 (Haiku): {doc_id} ...")
-        if d["text"].startswith("[PDF:"):
-            print(f"  スキップ: {d['text']}")
-            continue
-        index[doc_id] = {"path": d["path"], **generate.index_material(doc_id, d["text"])}
-        print(f"  {len(index[doc_id]['usable_items'])} アイテム")
+    if args.no_api:
+        # API抜き: 生テキストをそのまま1アイテムとして索引化（無料）。
+        # 出題アイテムへの分解は指揮者(Claude/Codex)が読む前提。
+        for doc_id, d in docs.items():
+            index[doc_id] = {
+                "path": d["path"],
+                "summary": "(no-api: 生テキスト)",
+                "usable_items": [{"kind": "raw", "ref": doc_id, "text": d["text"]}],
+            }
+            print(f"索引化 (no-api): {doc_id} ({len(d['text'])}文字)")
+    else:
+        from . import generate
+        for doc_id, d in docs.items():
+            print(f"索引化中 (Haiku): {doc_id} ...")
+            if d["text"].startswith("[PDF:"):
+                print(f"  スキップ: {d['text']}")
+                continue
+            index[doc_id] = {"path": d["path"],
+                             **generate.index_material(doc_id, d["text"])}
+            print(f"  {len(index[doc_id]['usable_items'])} アイテム")
+        print(generate.cost_report())
     out = Path(args.out)
     out.write_text(json.dumps(index, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"保存: {out}")
@@ -36,7 +59,7 @@ def cmd_index(args):
 
 def cmd_generate(args):
     from . import generate
-    order = yaml.safe_load(Path(args.order).read_text(encoding="utf-8"))
+    order = _load_order(args.order)
     index = json.loads(Path(order["materials_index"]).read_text(encoding="utf-8"))
     exam = order["exam"]
 
@@ -98,7 +121,7 @@ def _write_markdown(draft, outdir: Path):
 
 
 def cmd_verify(args):
-    from . import checks, generate
+    from . import checks
     draft_path = Path(args.draft)
     draft = json.loads(draft_path.read_text(encoding="utf-8"))
 
@@ -108,6 +131,15 @@ def cmd_verify(args):
     for i in det:
         print(f"⚠ {i}")
 
+    if args.no_api:
+        out = draft_path.parent / "verify_report.md"
+        report += ["", "## 別解チェック", "- (no-api: 未実施。指揮者が "
+                   "skills/exam-unique-answer/SKILL.md の手順で行うこと)"]
+        out.write_text("\n".join(report), encoding="utf-8")
+        print(f"決定論チェックのみ実施（NG: {len(det)}件）→ {out}")
+        sys.exit(1 if det else 0)
+
+    from . import generate
     report += ["", "## 別解チェック（Sonnet 敵対的検証）", ""]
     ng = 0
     verdicts = {}
@@ -186,6 +218,24 @@ def cmd_fix(args):
     print("再検証: python -m exam_app.cli verify --draft", draft_path)
 
 
+def cmd_skeleton(args):
+    """API抜き運用の入口: オーダーから空のdraft雛形を作る。
+    問題は指揮者(Claude Code/Codex)か教員が skills/ に従って埋める。"""
+    order = _load_order(args.order)
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    draft = {"exam": order["exam"], "sections": []}
+    for sec in order["sections"]:
+        qs = [{"number": i + 1, "body": "", "answer": "",
+               "source_ref": "", "alt_answer_risk": ""}
+              for i in range(sec["count"])]
+        draft["sections"].append({**sec, "questions": qs})
+    out = outdir / "exam_draft.json"
+    out.write_text(json.dumps(draft, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"雛形を保存: {out}")
+    print("問題を埋めたら: verify --no-api → docx の順で実行")
+
+
 def cmd_docx(args):
     from . import build_docx
     draft_path = Path(args.draft)
@@ -200,9 +250,11 @@ def main():
     p = argparse.ArgumentParser(prog="exam_app")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("index", help="教材フォルダを索引化（Haiku）")
+    s = sub.add_parser("index", help="教材フォルダを索引化（Haiku / --no-apiで無料）")
     s.add_argument("--materials", required=True)
     s.add_argument("--out", default="materials_index.json")
+    s.add_argument("--no-api", action="store_true",
+                   help="APIを使わず生テキストで索引化")
     s.set_defaults(func=cmd_index)
 
     s = sub.add_parser("generate", help="オーダー通りに作問（Sonnet）")
@@ -212,7 +264,14 @@ def main():
 
     s = sub.add_parser("verify", help="決定論チェック＋別解の敵対的チェック（Sonnet）")
     s.add_argument("--draft", required=True)
+    s.add_argument("--no-api", action="store_true",
+                   help="決定論チェックのみ（無料）")
     s.set_defaults(func=cmd_verify)
+
+    s = sub.add_parser("skeleton", help="手作業/指揮者作問用の draft雛形を出力（API不使用）")
+    s.add_argument("--order", required=True)
+    s.add_argument("--outdir", default="output")
+    s.set_defaults(func=cmd_skeleton)
 
     s = sub.add_parser("fix", help="別解ありの問題を差し替え（Sonnet）")
     s.add_argument("--draft", required=True)

@@ -62,6 +62,30 @@ generate と verify の両方で自動実行される。
 
 各コマンド終了時に概算APIコストを表示する（Haiku $1/$5, Sonnet $3/$15 per MTok）。
 
+## API抜き運用（学校PC・APIキーなし）
+
+APIキーが使えない環境では、**作問をClaude Code/Codexのセッション（指揮者）が
+skills/ に従って行い**、アプリは無料部分だけ担当する:
+
+```bash
+# 教材の索引化（生テキスト・無料）
+python -m exam_app.cli index --materials ./materials --no-api
+
+# オーダーから空の雛形を作る
+python -m exam_app.cli skeleton --order my_order.yaml
+
+# → output/exam_draft.json の body/answer/source_ref を
+#    指揮者(または教員)が埋める。ルールは skills/ 参照。
+
+# 決定論チェック（配点・連番・出典・重複・偏り、無料）
+python -m exam_app.cli verify --draft output/exam_draft.json --no-api
+
+# Word 3点セット出力（無料）
+python -m exam_app.cli docx --draft output/exam_draft.json
+```
+
+別解チェックは skills/exam-unique-answer/SKILL.md の手順で指揮者が実施する。
+
 ## 注意（必読）
 
 - **生成物はドラフト。** そのまま出題しない。必ず `/exam-verify` で精査し、
