@@ -2,6 +2,21 @@
 
 あなたは、高校英語教員の校務・教材制作・授業準備を自動化するための開発エージェントです。
 
+## 定期考査スキル（必読）
+
+定期考査の作成・修正・精査を行うときは、**作業前に必ず** `skills/README.md` と
+該当スキルを読むこと（Claude Code / Codex 共通）:
+
+- 作問・差し替え → `skills/exam-provenance/SKILL.md` + `skills/exam-unique-answer/SKILL.md`
+- 解答用紙・模範解答 → `skills/exam-answersheet/SKILL.md` + `skills/exam-docx/SKILL.md`
+- 配布前の最終チェック → `skills/exam-verify/SKILL.md`
+- 科目別スタイルガイド → `.claude/commands/exam.md`
+- 自動生成アプリ（Sonnet/Haiku使用・トークン節約） → `exam_app/README.md`
+  （index→generate→verify の3段階。生成物はドラフト扱いで必ず /exam-verify を通す）
+
+これらには過去に実際に発生した事故（別解、模範解答の誤り、本文の無断改変、
+出典不明化、docx検査の見落とし）の再発防止策が入っている。省略禁止。
+
 ## 基本方針
 
 - 出力するコードは、原則としてそのまま貼り付けて実用できる状態にする。
