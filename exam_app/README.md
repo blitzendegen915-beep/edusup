@@ -86,6 +86,36 @@ python -m exam_app.cli docx --draft output/exam_draft.json
 
 別解チェックは skills/exam-unique-answer/SKILL.md の手順で指揮者が実施する。
 
+## ピンポイント作問（「この文のここを、この形式で聞きたい」）
+
+**方法A: 1問だけサッと作る（askコマンド）**
+```bash
+python -m exam_app.cli ask \
+  --text "She is the girl who I think will win the prize." \
+  --format reorder_2nd_5th --focus 連鎖関係代名詞
+# → 生成+敵対的別解チェックまで一気に実行
+# --draft output/exam_draft.json --section 6 を付けると大問6に追記
+# --no-api なら指揮者(Claude/Codex)向けの作問指示書を出力
+```
+
+形式: fill_blank / reorder_2nd_5th / reorder_4th_8th / choice_4 /
+underline_grammar / translation / word_form（他は自由記述でも通じる）
+
+**方法B: オーダーに書いておく（pinpoint）**
+```yaml
+sections:
+  - no: 6
+    type: reorder_2nd_5th
+    count: 5
+    source: douga_bunpou
+    pinpoint:
+      - text: "She is the girl who I think will win the prize."
+        focus: 連鎖関係代名詞
+        note: whoが解答位置に来るように
+```
+指定した文は必ずその文・その狙いで出題され、残りの問数は教材から自動で
+埋まる。generate 実行時に反映される。
+
 ## 注意（必読）
 
 - **生成物はドラフト。** そのまま出題しない。必ず `/exam-verify` で精査し、

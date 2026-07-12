@@ -8,12 +8,26 @@ skills/ の再発防止ルールをプロンプトに焼き込んである:
 """
 import json
 
-import anthropic
-
 HAIKU = "claude-haiku-4-5"
 SONNET = "claude-sonnet-5"
 
-client = anthropic.Anthropic(max_retries=4)
+_client = None
+
+
+def client_or_die():
+    """anthropicを遅延インポートする。--no-api 系機能（FORMAT_HINTS等）は
+    パッケージ未インストールでも使えるようにするため。"""
+    global _client
+    if _client is None:
+        try:
+            import anthropic
+        except ImportError:
+            raise SystemExit(
+                "anthropic パッケージがありません。API機能を使うには "
+                "`pip install anthropic` と ANTHROPIC_API_KEY の設定が必要です。"
+                "（API抜き運用なら --no-api を付けてください）")
+        _client = anthropic.Anthropic(max_retries=4)
+    return _client
 
 # 累計コスト（$/1Mトークン: Haiku 1/5, Sonnet 3/15）
 _PRICES = {HAIKU: (1.0, 5.0), SONNET: (3.0, 15.0)}
@@ -92,7 +106,7 @@ RULES = """作問ルール（違反禁止）:
 
 def index_material(doc_id: str, text: str) -> dict:
     """Haikuで教材を出題可能アイテムに索引化する。"""
-    resp = client.messages.create(
+    resp = client_or_die().messages.create(
         model=HAIKU,
         max_tokens=8000,
         system="あなたは英語教材の索引作成係です。教材テキストから出題に使える"
@@ -106,6 +120,23 @@ def index_material(doc_id: str, text: str) -> dict:
     return json.loads(text_out)
 
 
+def _pinpoint_block(section: dict) -> str:
+    """オーダーの pinpoint 指定（教員が「この文のここを聞きたい」）を
+    プロンプト化する。指定された問題は必ずその文・その狙いで作る。"""
+    pins = section.get("pinpoint") or []
+    if not pins:
+        return ""
+    lines = ["\n教員からのピンポイント指定（最優先。必ずこの文・この狙いで作問する）:"]
+    for i, p in enumerate(pins, 1):
+        lines.append(f"{i}. 対象文: {p['text']}")
+        if p.get("focus"):
+            lines.append(f"   問いたい点: {p['focus']}（この文法事項・語句が解答の核になるように）")
+        if p.get("note"):
+            lines.append(f"   補足: {p['note']}")
+    lines.append("指定より問数が多い場合、残りは教材アイテムから作る。")
+    return "\n".join(lines)
+
+
 def make_section(section: dict, material_items: list, exam_context: str) -> dict:
     """Sonnetで大問1つ分を作問する。"""
     items_json = json.dumps(material_items, ensure_ascii=False)
@@ -117,10 +148,11 @@ def make_section(section: dict, material_items: list, exam_context: str) -> dict
 - 形式: {section['type']}
 - 問数: {section['count']}問 × {section['points_each']}点
 - 追加指示: {section.get('instructions', 'なし')}
+{_pinpoint_block(section)}
 
 使用可能な教材アイテム（この中からのみ出題）:
 {items_json}"""
-    resp = client.messages.create(
+    resp = client_or_die().messages.create(
         model=SONNET,
         max_tokens=16000,
         thinking={"type": "adaptive"},
@@ -158,7 +190,7 @@ def adversarial_verify(question: dict, qtype: str) -> dict:
 模範解答: {question['answer']}
 
 疑わしい場合は has_alternate_answer=true としてください。"""
-    resp = client.messages.create(
+    resp = client_or_die().messages.create(
         model=SONNET,
         max_tokens=4000,
         thinking={"type": "adaptive"},
@@ -168,6 +200,46 @@ def adversarial_verify(question: dict, qtype: str) -> dict:
     _track(SONNET, resp.usage)
     text_out = next(b.text for b in resp.content if b.type == "text")
     return json.loads(text_out)
+
+
+FORMAT_HINTS = {
+    "fill_blank": "空所補充。問いたい語句を（　）にし、日本語文を添える。別解が出るなら頭文字ヒント",
+    "reorder_2nd_5th": "並び替え。語群を（ ）内に列挙し2番目と5番目を答えさせる。文頭固定語は外に出す。移動可能句はチャンク化",
+    "reorder_4th_8th": "並び替え。4番目と8番目を答えさせる（それ以外は reorder_2nd_5th と同じ注意）",
+    "underline_grammar": "下線部の文法説明・書き換え問題。問いたい箇所に下線を引く",
+    "choice_4": "4択問題。ひっかけ選択肢は文法・語彙的に近い語で作り、正解は一意",
+    "translation": "下線部和訳または全文和訳",
+    "word_form": "語形変化。（　）内に原形を与えて適切な形に直させる",
+}
+
+
+def make_pinpoint(text: str, qformat: str, focus: str = "", note: str = "") -> dict:
+    """教員指定の1文から、指定形式で1問だけ作る（askコマンド用）。"""
+    hint = FORMAT_HINTS.get(qformat, qformat)
+    prompt = f"""{RULES}
+
+教員から次のピンポイント作問依頼がありました。指定文をそのまま使い、
+指定形式で1問だけ作ってください（questions配列は1要素）。
+
+- 対象文（無改変で使う。出典もこの文）: {text}
+- 形式: {qformat} — {hint}
+- 問いたい点: {focus or '指定なし（文の中心的な文法事項を問う）'}
+- 補足: {note or 'なし'}
+
+問いたい点が解答の核になるように設計すること。
+（例: 関係代名詞を問いたいなら、関係代名詞が空所/並び替えの答えの位置に来るように）
+別解の検討結果を alt_answer_risk に必ず書くこと。"""
+    resp = client_or_die().messages.create(
+        model=SONNET,
+        max_tokens=8000,
+        thinking={"type": "adaptive"},
+        system="あなたは高校英語の定期考査の作問者です。ルールを厳守してください。",
+        messages=[{"role": "user", "content": prompt}],
+        output_config={"format": {"type": "json_schema", "schema": QUESTIONS_SCHEMA}},
+    )
+    _track(SONNET, resp.usage)
+    text_out = next(b.text for b in resp.content if b.type == "text")
+    return json.loads(text_out)["questions"][0]
 
 
 def regenerate_question(section: dict, bad_question: dict, verdict: dict,
@@ -198,7 +270,7 @@ questions配列には差し替え後の1問だけを入れてください。
 
 使用可能な教材アイテム:
 {items_json}"""
-    resp = client.messages.create(
+    resp = client_or_die().messages.create(
         model=SONNET,
         max_tokens=8000,
         thinking={"type": "adaptive"},

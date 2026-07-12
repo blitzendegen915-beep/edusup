@@ -236,6 +236,56 @@ def cmd_skeleton(args):
     print("問題を埋めたら: verify --no-api → docx の順で実行")
 
 
+def cmd_ask(args):
+    """ピンポイント作問: 教員が文と形式と狙いを指定して1問作る。
+
+      python -m exam_app.cli ask \\
+        --text "She is the girl who I think will win the prize." \\
+        --format reorder_2nd_5th --focus 関係代名詞
+
+    --draft を渡すと既存ドラフトの大問に追記する。
+    --no-api なら作問せず、指揮者(Claude/Codex)向けの作問指示書を出力する。
+    """
+    from . import generate as gen
+    if args.no_api:
+        hint = gen.FORMAT_HINTS.get(args.format, args.format)
+        print("== 作問指示書（これをClaude Code / Codexに渡す） ==")
+        print(f"対象文（無改変）: {args.text}")
+        print(f"形式: {args.format} — {hint}")
+        print(f"問いたい点: {args.focus or '文の中心的な文法事項'}")
+        print("ルール: skills/exam-unique-answer/SKILL.md に従い別解を検討し、")
+        print("出典・別解検討結果とともに exam_draft.json に追記すること。")
+        return
+
+    q = gen.make_pinpoint(args.text, args.format, args.focus or "", args.note or "")
+    print("\n== 生成された問題 ==")
+    print(f"問題: {q['body']}")
+    print(f"解答: {q['answer']}")
+    print(f"出典: {q['source_ref']}")
+    print(f"別解検討: {q['alt_answer_risk']}")
+
+    v = gen.adversarial_verify(q, args.format)
+    mark = "❌ 別解あり" if v["has_alternate_answer"] else "✅ 別解なし"
+    print(f"\n敵対的チェック: {mark}")
+    print(f"  {v['explanation']}")
+    if v["has_alternate_answer"]:
+        print(f"  修正案: {v['suggested_fix']}")
+
+    if args.draft:
+        draft_path = Path(args.draft)
+        draft = json.loads(draft_path.read_text(encoding="utf-8"))
+        sec = next((s for s in draft["sections"] if s["no"] == args.section), None)
+        if sec is None:
+            sys.exit(f"大問{args.section} がドラフトにありません")
+        q["number"] = len(sec["questions"]) + 1
+        sec["questions"].append(q)
+        draft_path.write_text(json.dumps(draft, ensure_ascii=False, indent=1),
+                              encoding="utf-8")
+        _write_markdown(draft, draft_path.parent)
+        print(f"\n大問{args.section}の({q['number']})として追記: {draft_path}")
+    print(gen.cost_report())
+
+
 def cmd_docx(args):
     from . import build_docx
     draft_path = Path(args.draft)
@@ -277,6 +327,19 @@ def main():
     s.add_argument("--draft", required=True)
     s.add_argument("--index", help="materials_index.json（差し替え候補の出典元）")
     s.set_defaults(func=cmd_fix)
+
+    s = sub.add_parser("ask", help="ピンポイント作問: 文+形式+狙いを指定して1問作る")
+    s.add_argument("--text", required=True, help="対象の英文（無改変で使われる）")
+    s.add_argument("--format", required=True,
+                   help="形式: fill_blank / reorder_2nd_5th / choice_4 / "
+                        "underline_grammar / translation / word_form など")
+    s.add_argument("--focus", help="問いたい点（例: 関係代名詞, 仮定法過去）")
+    s.add_argument("--note", help="補足指示")
+    s.add_argument("--draft", help="追記先の exam_draft.json")
+    s.add_argument("--section", type=int, help="--draft使用時の追記先大問番号")
+    s.add_argument("--no-api", action="store_true",
+                   help="作問せず指揮者向けの作問指示書を出力")
+    s.set_defaults(func=cmd_ask)
 
     s = sub.add_parser("docx", help="Word 3点セットを出力（API不使用）")
     s.add_argument("--draft", required=True)

@@ -31,3 +31,11 @@ sections:
     source: douga_bunpou      # 例文一覧から。別解チェック必須
     instructions: >
       複数語チャンクを使う場合は下線を引き、指示文に該当問題番号を明記。
+    # ピンポイント指定: 「この文のここを聞きたい」を書くと最優先で反映される。
+    # 指定より count が多い分は教材から自動で埋まる。
+    pinpoint:
+      - text: "She is the girl who I think will win the prize."
+        focus: 連鎖関係代名詞
+        note: whoが2番目か5番目に来る並びにしたい
+      - text: "It goes without saying that writing clearly is important."
+        focus: 動名詞の慣用表現 it goes without saying
