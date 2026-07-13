@@ -4,7 +4,9 @@
       "mcp__868a314d-9f07-4335-9c96-62326f4d30fe__search_files",
       "mcp__868a314d-9f07-4335-9c96-62326f4d30fe__read_file_content",
       "mcp__7685634a-9a32-4be8-b343-241924177313__create_draft",
-      "mcp__Gmail__create_draft"
+      "mcp__Gmail__create_draft",
+      "Bash(cp /root/.claude/uploads/5767506c-4b71-528d-8561-fcd86f45b58e/7a6bc56c-__________2026__.docx /tmp/claude-0/-home-user-teacher-automation-lab/5767506c-4b71-528d-8561-fcd86f45b58e/scratchpad/orig.docx)",
+      "Bash(timeout 60 soffice --headless --norestore -env:UserInstallation=file:///tmp/claude-0/-home-user-teacher-automation-lab/5767506c-4b71-528d-8561-fcd86f45b58e/scratchpad/loprofile2 --convert-to pdf --outdir /tmp/claude-0/-home-user-teacher-automation-lab/5767506c-4b71-528d-8561-fcd86f45b58e/scratchpad/pdfout /tmp/claude-0/-home-user-teacher-automation-lab/5767506c-4b71-528d-8561-fcd86f45b58e/scratchpad/orig.docx)"
     ]
   }
 }
