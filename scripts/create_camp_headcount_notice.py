@@ -99,6 +99,47 @@ def para(text='', align=WD_ALIGN_PARAGRAPH.LEFT, bold=False, size=11,
     return p
 
 
+# ── FAX送信状 ──────────────────────────────────────────
+para('FAX送信状', align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size=16, space_after=10)
+
+fax_table = doc.add_table(rows=6, cols=2)
+fax_table.style = 'Table Grid'
+fax_col_widths = [Cm(4.5), Cm(10.9)]
+for row in fax_table.rows:
+    for j, cell in enumerate(row.cells):
+        cell.width = fax_col_widths[j]
+        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        for p in cell.paragraphs:
+            p.paragraph_format.space_before = Pt(3)
+            p.paragraph_format.space_after = Pt(3)
+
+
+def set_fax_cell(row_idx, col_idx, text, bold=False):
+    cell = fax_table.cell(row_idx, col_idx)
+    p = cell.paragraphs[0]
+    run = p.add_run(text)
+    run.bold = bold
+    run.font.size = Pt(11)
+    run.font.name = '游明朝'
+    run._element.rPr.rFonts.set(qn('w:eastAsia'), '游明朝')
+
+
+set_fax_cell(0, 0, '送信日', bold=True)
+set_fax_cell(0, 1, '2026年7月17日')
+set_fax_cell(1, 0, '宛先', bold=True)
+set_fax_cell(1, 1, '有限会社　菅平ホテル　御中（FAX：0268-74-3548）')
+set_fax_cell(2, 0, '発信元', bold=True)
+set_fax_cell(2, 1, '駒澤大学高等学校　ラグビー部顧問　占部涼也')
+set_fax_cell(3, 0, '発信元連絡先', bold=True)
+set_fax_cell(3, 1, 'Tel（携帯）：080-5032-9150 / Mail：ryoyaurabe@gmail.com')
+set_fax_cell(4, 0, '件名', bold=True)
+set_fax_cell(4, 1, '夏季合宿　参加人数確定のご連絡')
+set_fax_cell(5, 0, '枚数', bold=True)
+set_fax_cell(5, 1, '本紙を含め　　枚', bold=False)
+highlight_run(fax_table.cell(5, 1).paragraphs[0].runs[0])
+
+doc.add_page_break()
+
 # ── 日付・差出人（右寄せ）──────────────────────────────
 para('2026年7月17日', align=WD_ALIGN_PARAGRAPH.RIGHT, size=11, space_after=2)
 para('駒澤大学高等学校　ラグビー部顧問　占部涼也', align=WD_ALIGN_PARAGRAPH.RIGHT, size=10.5)
