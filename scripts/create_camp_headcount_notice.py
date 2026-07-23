@@ -7,40 +7,64 @@ from docx.oxml import OxmlElement
 import os
 
 # ── 人数計算（コードで算出。手計算値を直書きしない）──────────
-# 部員42名（選手39名＋マネージャー3名）のうち2名が途中合流。
-# 椎名薫（2年F組・マネージャー）: 8/4午後〜合流
-# 吉田青空（1年E組・選手）: 8/5午後〜合流
-# 引率顧問2名は全日程帯同（部費からの徴収対象ではないが、宿での食事・宿泊は発生する）。
-# 外部コーチは2名が入れ替わりで8/1〜8/5に常時1名帯同（1人目8/1-8/2、2人目8/3-8/5）。
-# 8/6・8/7はコーチなし。
+# 出典: 部からの参加者一覧Excel（シート1「参加日 8/1〜8/7」の〇印、および
+# 「会計計算」シートの「大人参加日程（宿・現地人数確認用）」表）と、ユーザーからの
+# 追加確認（途中合流者は合流日の夕食からカウント）。
+#
+# 生徒（部員42名＝選手39名＋マネージャー3名）のうち2名が途中合流:
+#   椎名薫（2年F組・マネージャー）: 8/4夕食〜カウント
+#   吉田青空（1年E組・選手）: 8/5夕食〜カウント
+#
+# 大人は当初「顧問2名が全日程帯同」としていたが誤り。実際は下記の通り
+# （Excelの「大人参加日程」表・ユーザー確認に基づく）:
+#   顧問1（畠山先生）: 全日程（8/1〜8/7）帯同
+#   顧問2（占部先生）: 8/5夕食〜カウント（吉田・椎名と同様、午後合流）
+#   外部コーチ1人目: 8/1・8/2（入れ替わりで常時1名。8/1は初日につき朝食なし）
+#   外部コーチ2人目: 8/3・8/4・8/5（3日間フル参加）
+#   8/6・8/7はコーチの帯同なし
 
 days = ['8/1（土）', '8/2（日）', '8/3（月）', '8/4（火）', '8/5（水）', '8/6（木）', '8/7（金）']
 
-base_am_pm = [40, 40, 40, 40, 41, 42, 42]        # 朝食・昼食時点の部員人数
-base_dinner = [40, 40, 40, 41, 42, 42, None]      # 夕食・宿泊時点の部員人数（8/7は夕食・宿泊なし）
-ADVISORS = 2
+# 生徒: 朝食・昼食時点／夕食・宿泊時点（8/7は夕食・宿泊なし＝出発日）
+base_am_pm = [40, 40, 40, 40, 41, 42, 42]
+base_dinner = [40, 40, 40, 41, 42, 42, None]
 
-# コーチ帯同人数（入れ替わりで常時1名、8/1〜8/5）。8/1は全体の入所日で朝食枠自体が無い。
-# 8/5はコーチの最終日のため、他の最終日（8/7）と同じ扱いで夕食・宿泊は計上しない。
-COACH_BF = [None, 1, 1, 1, 1, 0, 0]
-COACH_LUNCH = [1, 1, 1, 1, 1, 0, 0]
-COACH_DINNER = [1, 1, 1, 1, 0, 0, None]
-COACH_STAY = [1, 1, 1, 1, 0, 0, None]
+# 大人（顧問1・顧問2・コーチ）を朝食/昼食/夕食/宿泊ごとに個別集計。
+# 全体の初日(8/1)は誰も朝食なし、最終日(8/7)は誰も夕食・宿泊なし、という
+# 生徒側と同じ規約を大人にも適用する。
+ADVISOR1_BF     = [None, 1, 1, 1, 1, 1, 1]   # 全日程
+ADVISOR1_LUNCH  = [1, 1, 1, 1, 1, 1, 1]
+ADVISOR1_DINNER = [1, 1, 1, 1, 1, 1, None]
+ADVISOR1_STAY   = [1, 1, 1, 1, 1, 1, None]
+
+ADVISOR2_BF     = [None, 0, 0, 0, 0, 1, 1]   # 8/5夕食〜カウント
+ADVISOR2_LUNCH  = [0, 0, 0, 0, 0, 1, 1]
+ADVISOR2_DINNER = [0, 0, 0, 0, 1, 1, None]
+ADVISOR2_STAY   = [0, 0, 0, 0, 1, 1, None]
+
+COACH_BF     = [None, 1, 1, 1, 1, 0, 0]      # 1人目8/1-8/2、2人目8/3-8/5（各フル日程）
+COACH_LUNCH  = [1, 1, 1, 1, 1, 0, 0]
+COACH_DINNER = [1, 1, 1, 1, 1, 0, None]
+COACH_STAY   = [1, 1, 1, 1, 1, 0, None]
 
 rows = []
 total_b = total_l = total_d = total_s = 0
 for i, day in enumerate(days):
-    if i == 0:
-        b = '－'
-    else:
-        b = base_am_pm[i] + ADVISORS + COACH_BF[i]
-    l = base_am_pm[i] + ADVISORS + COACH_LUNCH[i]
+    adult_bf = (ADVISOR1_BF[i] or 0) + (ADVISOR2_BF[i] or 0) + (COACH_BF[i] or 0)
+    adult_lunch = ADVISOR1_LUNCH[i] + ADVISOR2_LUNCH[i] + COACH_LUNCH[i]
+
+    b = '－' if i == 0 else base_am_pm[i] + adult_bf
+    l = base_am_pm[i] + adult_lunch
+
     if base_dinner[i] is None:
         d = '－'
         s = '－'
     else:
-        d = base_dinner[i] + ADVISORS + COACH_DINNER[i]
-        s = base_dinner[i] + ADVISORS + COACH_STAY[i]
+        adult_dinner = ADVISOR1_DINNER[i] + ADVISOR2_DINNER[i] + COACH_DINNER[i]
+        adult_stay = ADVISOR1_STAY[i] + ADVISOR2_STAY[i] + COACH_STAY[i]
+        d = base_dinner[i] + adult_dinner
+        s = base_dinner[i] + adult_stay
+
     rows.append((day, b, l, d, s))
     if isinstance(b, int):
         total_b += b
@@ -49,10 +73,11 @@ for i, day in enumerate(days):
         total_d += d
         total_s += s
 
-assert rows[0] == ('8/1（土）', '－', 43, 43, 43)
-assert rows[4] == ('8/5（水）', 44, 44, 44, 44)
+# Excel「大人参加日程」シートの現地人数計（42,42,42,43,45,44,44）との整合確認
+assert [r[3] if r[3] != '－' else 44 for r in rows] == [42, 42, 42, 43, 45, 44, 44]
+assert rows[0] == ('8/1（土）', '－', 42, 42, 42)
+assert rows[4] == ('8/5（水）', 43, 43, 45, 45)
 assert rows[6] == ('8/7（金）', 44, 44, '－', '－')
-assert total_l == 304
 
 # ── 文書生成 ──────────────────────────────────────────────
 doc = Document()
@@ -200,20 +225,21 @@ def set_cell(table, row_idx, col_idx, text, bold=False, highlight=False):
 set_cell(table1, 0, 0, '部員（生徒）', bold=True)
 set_cell(table1, 0, 1, '42名　（選手39名・マネージャー3名）')
 set_cell(table1, 1, 0, '引率顧問', bold=True)
-set_cell(table1, 1, 1, '2名　（全日程帯同）')
+set_cell(table1, 1, 1, '2名　（顧問1：全日程帯同／顧問2：8月5日夕食〜合流）')
 set_cell(table1, 2, 0, '外部コーチ', bold=True)
 set_cell(table1, 2, 1, '2名　（入れ替わりで常時1名帯同。1人目：8/1〜8/2、2人目：8/3〜8/5）')
 set_cell(table1, 3, 0, '', bold=True)
 set_cell(table1, 3, 1, '　8/6・8/7はコーチの帯同なし')
 set_cell(table1, 4, 0, '最大同時人数', bold=True)
-set_cell(table1, 4, 1, '44名　（部員42名＋顧問2名＋コーチ1名。8/5宿泊まで）')
+set_cell(table1, 4, 1, '45名　（部員42名＋顧問2名＋コーチ1名。8/5夕食〜宿泊）')
 
 para('', space_before=8)
 
-para('３．途中合流する部員について', bold=True, size=11, space_before=4, space_after=2)
+para('３．途中合流する部員・顧問について', bold=True, size=11, space_before=4, space_after=2)
 mid_join = [
-    '椎名　薫（2年F組・マネージャー）：8月4日午後〜合流',
-    '吉田　青空（1年E組・選手）：8月5日午後〜合流',
+    '椎名　薫（2年F組・マネージャー）：8月4日午後〜合流（夕食からカウント）',
+    '吉田　青空（1年E組・選手）：8月5日午後〜合流（夕食からカウント）',
+    '顧問2　占部涼也：8月5日午後〜合流（夕食からカウント）',
 ]
 for line in mid_join:
     p = doc.add_paragraph(style='List Bullet')
@@ -228,8 +254,8 @@ para('', space_before=8)
 
 para('４．外部コーチの帯同について', bold=True, size=11, space_before=4, space_after=2)
 coach_sched = [
-    '1人目：8月1日〜8月2日（8/2は朝食・昼食のみ帯同し、夕食・宿泊なしで交代）',
-    '2人目：8月3日〜8月5日（8/5は朝食・昼食のみ帯同し、夕食・宿泊なしで退所）',
+    '1人目：8月1日〜8月2日（8/2の夕食・宿泊まで帯同し、翌朝までに交代）',
+    '2人目：8月3日〜8月5日（8/5の夕食・宿泊まで帯同）',
     '8月6日・8月7日はコーチの帯同なし',
 ]
 for line in coach_sched:
@@ -281,9 +307,10 @@ para('', space_before=8)
 note2 = doc.add_paragraph()
 note2.paragraph_format.space_after = Pt(8)
 run_n2 = note2.add_run(
-    '※　上表は部員42名・引率顧問2名・外部コーチ（8/1〜8/5、入れ替わりで常時1名）を'
-    '合算した確定人数です。ご請求書（6/9付）でいただいた46名／日の一律見積と比べ、'
-    '日によって人数が変動いたしますので、上表の人数でご準備をお願いいたします。'
+    '※　上表は部員42名（途中合流2名を含む）・引率顧問2名（顧問2は8/5夕食〜）・'
+    '外部コーチ（8/1〜8/5、入れ替わりで常時1名）を合算した確定人数です。'
+    'ご請求書（6/9付）でいただいた46名／日の一律見積と比べ、日によって人数が変動いたしますので、'
+    '上表の人数でご準備をお願いいたします。'
 )
 run_n2.font.size = Pt(9.5)
 run_n2.font.name = '游明朝'
