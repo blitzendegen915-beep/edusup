@@ -5,79 +5,14 @@ from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 import os
+import sys
 
-# ── 人数計算（コードで算出。手計算値を直書きしない）──────────
-# 出典: 部からの参加者一覧Excel（シート1「参加日 8/1〜8/7」の〇印、および
-# 「会計計算」シートの「大人参加日程（宿・現地人数確認用）」表）と、ユーザーからの
-# 追加確認（途中合流者は合流日の夕食からカウント）。
-#
-# 生徒（部員42名＝選手39名＋マネージャー3名）のうち2名が途中合流:
-#   椎名薫（2年F組・マネージャー）: 8/4夕食〜カウント
-#   吉田青空（1年E組・選手）: 8/5夕食〜カウント
-#
-# 大人は当初「顧問2名が全日程帯同」としていたが誤り。実際は下記の通り
-# （Excelの「大人参加日程」表・ユーザー確認に基づく）:
-#   顧問1（畠山先生）: 全日程（8/1〜8/7）帯同
-#   顧問2（占部先生）: 8/5夕食〜カウント（吉田・椎名と同様、午後合流）
-#   外部コーチ1人目: 8/1・8/2（入れ替わりで常時1名。8/1は初日につき朝食なし）
-#   外部コーチ2人目: 8/3・8/4・8/5（3日間フル参加）
-#   8/6・8/7はコーチの帯同なし
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from camp_headcount_calc import compute
 
-days = ['8/1（土）', '8/2（日）', '8/3（月）', '8/4（火）', '8/5（水）', '8/6（木）', '8/7（金）']
-
-# 生徒: 朝食・昼食時点／夕食・宿泊時点（8/7は夕食・宿泊なし＝出発日）
-base_am_pm = [40, 40, 40, 40, 41, 42, 42]
-base_dinner = [40, 40, 40, 41, 42, 42, None]
-
-# 大人（顧問1・顧問2・コーチ）を朝食/昼食/夕食/宿泊ごとに個別集計。
-# 全体の初日(8/1)は誰も朝食なし、最終日(8/7)は誰も夕食・宿泊なし、という
-# 生徒側と同じ規約を大人にも適用する。
-ADVISOR1_BF     = [None, 1, 1, 1, 1, 1, 1]   # 全日程
-ADVISOR1_LUNCH  = [1, 1, 1, 1, 1, 1, 1]
-ADVISOR1_DINNER = [1, 1, 1, 1, 1, 1, None]
-ADVISOR1_STAY   = [1, 1, 1, 1, 1, 1, None]
-
-ADVISOR2_BF     = [None, 0, 0, 0, 0, 1, 1]   # 8/5夕食〜カウント
-ADVISOR2_LUNCH  = [0, 0, 0, 0, 0, 1, 1]
-ADVISOR2_DINNER = [0, 0, 0, 0, 1, 1, None]
-ADVISOR2_STAY   = [0, 0, 0, 0, 1, 1, None]
-
-COACH_BF     = [None, 1, 1, 1, 1, 0, 0]      # 1人目8/1-8/2、2人目8/3-8/5（各フル日程）
-COACH_LUNCH  = [1, 1, 1, 1, 1, 0, 0]
-COACH_DINNER = [1, 1, 1, 1, 1, 0, None]
-COACH_STAY   = [1, 1, 1, 1, 1, 0, None]
-
-rows = []
-total_b = total_l = total_d = total_s = 0
-for i, day in enumerate(days):
-    adult_bf = (ADVISOR1_BF[i] or 0) + (ADVISOR2_BF[i] or 0) + (COACH_BF[i] or 0)
-    adult_lunch = ADVISOR1_LUNCH[i] + ADVISOR2_LUNCH[i] + COACH_LUNCH[i]
-
-    b = '－' if i == 0 else base_am_pm[i] + adult_bf
-    l = base_am_pm[i] + adult_lunch
-
-    if base_dinner[i] is None:
-        d = '－'
-        s = '－'
-    else:
-        adult_dinner = ADVISOR1_DINNER[i] + ADVISOR2_DINNER[i] + COACH_DINNER[i]
-        adult_stay = ADVISOR1_STAY[i] + ADVISOR2_STAY[i] + COACH_STAY[i]
-        d = base_dinner[i] + adult_dinner
-        s = base_dinner[i] + adult_stay
-
-    rows.append((day, b, l, d, s))
-    if isinstance(b, int):
-        total_b += b
-    total_l += l
-    if isinstance(d, int):
-        total_d += d
-        total_s += s
-
-# Excel「大人参加日程」シートの現地人数計（42,42,42,43,45,44,44）との整合確認
-assert [r[3] if r[3] != '－' else 44 for r in rows] == [42, 42, 42, 43, 45, 44, 44]
-assert rows[0] == ('8/1（土）', '－', 42, 42, 42)
-assert rows[4] == ('8/5（水）', 43, 43, 45, 45)
-assert rows[6] == ('8/7（金）', 44, 44, '－', '－')
+# ── 人数計算（共通モジュール camp_headcount_calc.py に一元化）───
+rows, totals = compute()
+total_b, total_l, total_d, total_s = totals['breakfast'], totals['lunch'], totals['dinner'], totals['stay']
 
 # ── 文書生成 ──────────────────────────────────────────────
 doc = Document()
