@@ -108,6 +108,29 @@ class PriorYearMiscItem:
 
 
 @dataclass
+class LedgerEntry:
+    """年間経費台帳(ledger-<年度>.csv)の1行。合宿以外の部の支出。"""
+
+    date: date
+    event: str
+    vendor: str
+    description: str
+    amount: int
+    category: str
+    payer: str
+    settled: str
+    receipt: str
+    note: str
+
+    @property
+    def is_settled(self) -> bool:
+        return self.settled.strip().lower() == "yes"
+
+
+CATEGORY_JA = {"A": "校友会予算", "B": "父母会予算", "C": "都度徴収"}
+
+
+@dataclass
 class Presence:
     """ある一人について、合宿期間中に在籍が認められる食事・宿泊日の集合。"""
 
@@ -320,6 +343,34 @@ def prior_year_misc_summary(year: str = "2025") -> dict:
     return {"year": year, "items": items, "count": len(items), "total": sum(i.amount for i in items)}
 
 
+def load_ledger(fiscal_year: str = "2026") -> list:
+    """年間経費台帳(ledger-<年度>.csv)を読み込む。合宿費以外の部の支出(秋季大会・文化祭等)。
+
+    ファイルが存在しない場合はエラーにせず空リストを返す(まだ経費が発生していない年度もあるため)。
+    """
+    path = DATA_DIR / f"ledger-{fiscal_year}.csv"
+    if not path.exists():
+        return []
+    entries = []
+    with open(path, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            entries.append(
+                LedgerEntry(
+                    date=_parse_date(row["date"]),
+                    event=row.get("event", "").strip(),
+                    vendor=row["vendor"],
+                    description=row["description"],
+                    amount=int(row["amount"]),
+                    category=row["category"].strip(),
+                    payer=row["payer"].strip(),
+                    settled=row["settled"].strip(),
+                    receipt=row["receipt"].strip(),
+                    note=row["note"].strip(),
+                )
+            )
+    return entries
+
+
 # ---------------------------------------------------------------------------
 # 支出台帳(CSV)の追記・精算フラグ更新
 # ---------------------------------------------------------------------------
@@ -401,6 +452,94 @@ def settle_payer_rows(camp_id: str, payer: str) -> dict:
             settled_items.append(r)
     if settled_items:
         _write_expense_rows(camp_id, rows, fieldnames)
+    total = sum(int(r["amount"]) for r in settled_items)
+    return {"items": settled_items, "total": total}
+
+
+# ---------------------------------------------------------------------------
+# 年間経費台帳(CSV)の追記・精算フラグ更新
+# ---------------------------------------------------------------------------
+
+LEDGER_FIELDNAMES = ["date", "event", "vendor", "description", "amount", "category", "payer", "settled", "receipt", "note"]
+
+
+def ledger_csv_path(fiscal_year: str) -> Path:
+    return DATA_DIR / f"ledger-{fiscal_year}.csv"
+
+
+def _read_ledger_rows(fiscal_year: str):
+    """年間経費台帳を文字列のままdictの行リストとして読み込む。ファイルが無ければ空。"""
+    path = ledger_csv_path(fiscal_year)
+    if not path.exists():
+        return [], LEDGER_FIELDNAMES
+    with open(path, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames or LEDGER_FIELDNAMES
+        rows = list(reader)
+    return rows, fieldnames
+
+
+def _write_ledger_rows(fiscal_year: str, rows: list, fieldnames: list) -> None:
+    path = ledger_csv_path(fiscal_year)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _ledger_receipt_sort_key(receipt: str):
+    receipt = (receipt or "").strip()
+    if receipt.startswith("y") and receipt[1:].isdigit():
+        return (0, int(receipt[1:]), receipt)
+    return (1, 0, receipt)
+
+
+def next_ledger_receipt_id(rows: list) -> str:
+    """既存の yNNN のうち最大の番号の次を返す(合宿の rNNN とは別採番)。"""
+    max_n = 0
+    for row in rows:
+        rid = (row.get("receipt") or "").strip()
+        if rid.startswith("y") and rid[1:].isdigit():
+            max_n = max(max_n, int(rid[1:]))
+    return f"y{max_n + 1:03d}"
+
+
+def append_ledger_entry(fiscal_year: str, new_row: dict) -> dict:
+    """年間経費台帳に1行追加する。日付→領収書番号の順でソートして書き戻す。
+
+    new_row["receipt"] が空なら次の空き番号(yNNN)を自動採番する。既存と重複する
+    番号が指定された場合は ValueError を送出し、ファイルには一切触れない。
+    ファイルが存在しない場合はヘッダー付きで新規作成する。
+    """
+    rows, fieldnames = _read_ledger_rows(fiscal_year)
+    existing_receipts = {(r.get("receipt") or "").strip() for r in rows}
+
+    receipt = (new_row.get("receipt") or "").strip()
+    if not receipt:
+        receipt = next_ledger_receipt_id(rows)
+    elif receipt in existing_receipts:
+        raise ValueError(f"領収書番号 '{receipt}' は既に使われています。")
+
+    row = dict(new_row)
+    row["receipt"] = receipt
+    row = {k: str(row.get(k, "")) for k in fieldnames}
+
+    rows.append(row)
+    rows.sort(key=lambda r: (r["date"], _ledger_receipt_sort_key(r["receipt"])))
+    _write_ledger_rows(fiscal_year, rows, fieldnames)
+    return row
+
+
+def settle_ledger_rows(fiscal_year: str, payer: str) -> dict:
+    """年間経費台帳で指定した立替者の未精算行(settled=no)をすべて yes にして書き戻す。"""
+    rows, fieldnames = _read_ledger_rows(fiscal_year)
+    settled_items = []
+    for r in rows:
+        if r.get("payer", "").strip() == payer and r.get("settled", "").strip().lower() != "yes":
+            r["settled"] = "yes"
+            settled_items.append(r)
+    if settled_items:
+        _write_ledger_rows(fiscal_year, rows, fieldnames)
     total = sum(int(r["amount"]) for r in settled_items)
     return {"items": settled_items, "total": total}
 
@@ -596,9 +735,9 @@ def balance(camp: Camp) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def settlement(camp: Camp) -> dict:
+def _settlement_from_items(items: list) -> dict:
     by_payer: dict = {}
-    for e in camp.expenses:
+    for e in items:
         if e.is_settled:
             continue
         by_payer.setdefault(e.payer, {"items": [], "total": 0})
@@ -606,3 +745,48 @@ def settlement(camp: Camp) -> dict:
         by_payer[e.payer]["total"] += e.amount
     grand_total = sum(v["total"] for v in by_payer.values())
     return {"by_payer": by_payer, "grand_total": grand_total}
+
+
+def settlement(camp: Camp) -> dict:
+    return _settlement_from_items(camp.expenses)
+
+
+def ledger_settlement(entries: list) -> dict:
+    """年間経費台帳(load_ledgerの返り値)の未精算立替を立替者ごとに集計する。"""
+    return _settlement_from_items(entries)
+
+
+def combined_settlement(camp_id: str = "2026-summer", fiscal_year: str = None) -> dict:
+    """夏合宿(expenses-<camp_id>.csv)と年間経費台帳(ledger-<fiscal_year>.csv)の
+    未精算立替を、立替者ごとに合算する。
+
+    fiscal_year を省略した場合は camp_id の先頭の年(例: "2026-summer" -> "2026")を使う。
+    """
+    if fiscal_year is None:
+        fiscal_year = camp_id.split("-")[0]
+
+    camp = load(camp_id)
+    camp_settle = settlement(camp)
+    ledger_entries = load_ledger(fiscal_year)
+    ledger_settle = ledger_settlement(ledger_entries)
+
+    payers = list(camp_settle["by_payer"].keys())
+    for p in ledger_settle["by_payer"]:
+        if p not in payers:
+            payers.append(p)
+
+    combined = {}
+    for p in payers:
+        camp_total = camp_settle["by_payer"].get(p, {"total": 0})["total"]
+        ledger_total = ledger_settle["by_payer"].get(p, {"total": 0})["total"]
+        combined[p] = {"camp": camp_total, "ledger": ledger_total, "total": camp_total + ledger_total}
+
+    grand_total = camp_settle["grand_total"] + ledger_settle["grand_total"]
+    return {
+        "camp_id": camp_id,
+        "fiscal_year": fiscal_year,
+        "camp": camp_settle,
+        "ledger": ledger_settle,
+        "combined": combined,
+        "grand_total": grand_total,
+    }

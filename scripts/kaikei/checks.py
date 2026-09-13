@@ -267,3 +267,89 @@ def run_all(camp: model.Camp) -> list:
     for check in ALL_CHECKS:
         findings.extend(check(camp))
     return findings
+
+
+# ---------------------------------------------------------------------------
+# 年間経費台帳(ledger-<年度>.csv)向けチェック
+# ---------------------------------------------------------------------------
+
+
+def check_ledger_category_totals(ledger_entries: list) -> list:
+    """年間経費台帳を会計分類別に集計する(check が年間の全体像を報告するため)。"""
+    findings = []
+    if not ledger_entries:
+        findings.append(
+            Finding("info", "ledger_empty", "年間経費台帳(ledger-*.csv)にはまだ記録がありません。")
+        )
+        return findings
+
+    totals = {"A": 0, "B": 0, "C": 0}
+    counts = {"A": 0, "B": 0, "C": 0}
+    for e in ledger_entries:
+        if e.category in totals:
+            totals[e.category] += e.amount
+            counts[e.category] += 1
+        else:
+            findings.append(
+                Finding(
+                    "warn",
+                    "ledger_category_unknown",
+                    f"年間経費台帳に未知の会計分類 '{e.category}'（{e.description}）があります。",
+                )
+            )
+
+    grand_total = sum(totals.values())
+    findings.append(
+        Finding(
+            "info",
+            "ledger_category_totals",
+            "年間経費台帳 会計分類別の小計: "
+            + " ／ ".join(f"{k}（{model.CATEGORY_JA[k]}）¥{totals[k]:,}（{counts[k]}件）" for k in "ABC")
+            + f" ／ 合計 ¥{grand_total:,}（{len(ledger_entries)}件）",
+        )
+    )
+    return findings
+
+
+def check_category_a_reimbursement(ledger_entries: list) -> list:
+    """分類A(校友会予算)は事務室から精算されるべき予算。settled=noのまま残っていれば
+    部が立て替えたまま事務室へ請求できていないということなので、明示的に警告する。
+    """
+    findings = []
+    unsettled_a = [e for e in ledger_entries if e.category == "A" and not e.is_settled]
+    if not unsettled_a:
+        findings.append(
+            Finding("info", "category_a_reimbursement_ok", "分類A（校友会予算）の未精算の立替はありません。")
+        )
+        return findings
+
+    total = sum(e.amount for e in unsettled_a)
+    items_desc = "、".join(
+        f"{e.date.month}/{e.date.day}[{e.event}]{e.vendor}¥{e.amount:,}（{e.payer}立替・{e.receipt}）"
+        for e in unsettled_a
+    )
+    findings.append(
+        Finding(
+            "warn",
+            "category_a_reimbursement_pending",
+            f"分類A（校友会予算）の支出で未精算(settled=no)のものが{len(unsettled_a)}件、"
+            f"合計¥{total:,}あります（{items_desc}）。"
+            "分類Aは本来、部が立て替えても事務室から精算される予算です。"
+            "精算(settled=yes)にしていないということは、まだ事務室から部へ返金されておらず、"
+            "部が実質的に立て替えたままになっています。事務室へ予算請求する必要がある。",
+        )
+    )
+    return findings
+
+
+LEDGER_CHECKS = [
+    check_ledger_category_totals,
+    check_category_a_reimbursement,
+]
+
+
+def run_all_ledger(ledger_entries: list) -> list:
+    findings = []
+    for check in LEDGER_CHECKS:
+        findings.extend(check(ledger_entries))
+    return findings

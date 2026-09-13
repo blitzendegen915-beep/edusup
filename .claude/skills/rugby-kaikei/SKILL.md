@@ -23,28 +23,61 @@ description: 合宿・部の会計に関する計算、人数集計、立替金�
 ```
 data/rugby/roster-2026.csv          部員名簿。参加可否・合流日・合流食
 data/rugby/camp-2026-summer.yml     日程・単価・大人の帯同・徴収額の内訳
-data/rugby/expenses-2026-summer.csv 支出台帳。立替者・会計分類A/B/C
+data/rugby/expenses-2026-summer.csv 夏合宿の支出台帳。立替者・会計分類A/B/C。領収書番号は rNNN
+data/rugby/ledger-2026.csv          合宿以外の年間経費台帳。秋季大会・駒大高祭など。領収書番号は yNNN
 ```
 
-人が触ってよいのはこの3ファイルだけ。書類はすべてここから生成される。
+人が触ってよいのはこの4ファイルだけ。書類はすべてここから生成される。
+
+**夏合宿の支出は `expenses-2026-summer.csv`、それ以外（秋季大会・文化祭・新人戦など）は
+`ledger-2026.csv` に入れる。** 合宿費の会計報告と年間の部費会計が混ざらないように、
+2ファイルに分離してある。`ledger-2026.csv` は `event` 列（秋季大会、駒大高祭…）を持つ点が
+合宿の支出台帳と違う。存在しなくてもエラーにはならない（まだ年間経費が発生していない場合）。
 
 ## コマンド
 
 ```bash
-python3 -m scripts.kaikei check      # 全検証。まずこれを実行する
-python3 -m scripts.kaikei headcount  # 日別・食事別の人数
-python3 -m scripts.kaikei balance    # 収支
-python3 -m scripts.kaikei settle     # 立替金の精算表
-python3 -m scripts.kaikei report     # xlsx一式を output/ に生成
-python3 -m scripts.kaikei add ...    # 領収書1件の追加／立替金の精算フラグ更新（下記）
-python3 tests/test_kaikei.py         # 計算ロジックの回帰テスト
+python3 -m scripts.kaikei check        # 全検証（夏合宿＋年間経費台帳）。まずこれを実行する
+python3 -m scripts.kaikei headcount    # 日別・食事別の人数
+python3 -m scripts.kaikei balance      # 収支（夏合宿）
+python3 -m scripts.kaikei settle       # 立替金の精算表（夏合宿のみ、xlsx出力）
+python3 -m scripts.kaikei settle --all # 立替金を夏合宿＋年間経費台帳で合算して精算額を表示
+python3 -m scripts.kaikei ledger       # 年間経費台帳を会計分類(A/B/C)別に表示
+python3 -m scripts.kaikei report       # xlsx一式を output/ に生成
+python3 -m scripts.kaikei add ...      # 領収書1件の追加／立替金の精算フラグ更新（下記）
+python3 tests/test_kaikei.py           # 計算ロジックの回帰テスト
 ```
+
+### settle --all（先生への合算精算額）
+
+占部先生・畠山先生のように、夏合宿とそれ以外（秋季大会・文化祭…）の両方を立て替えている
+場合、実際に返す額は2つのファイルの合計になる。**「結局いくら返せばいいか」は必ず
+`settle --all` の出力をそのまま使う。** 夏合宿分・年間経費台帳分をチャットで足し算しない。
+
+```bash
+python3 -m scripts.kaikei settle --all
+```
+
+夏合宿の内訳・年間経費台帳の内訳・立替者ごとの合算額の順に表示される。
+プレーンな `settle`（`--all` なし）は従来どおり夏合宿のみのxlsx精算表を出力する挙動のまま。
+
+### ledger（年間経費台帳の確認）
+
+```bash
+python3 -m scripts.kaikei ledger                    # 全件、会計分類別
+python3 -m scripts.kaikei ledger --category A       # 分類Aのみ
+python3 -m scripts.kaikei ledger --event 秋季大会    # 特定の行事のみ
+```
+
+会計分類ごとの小計・全体の合計と、未精算(settled=no)の行が表示される。
 
 ## 領収書を受け取ったときの手順
 
 写真やレシートを渡されたら、読み取って `add` コマンドで1件追加する。
-**`expenses-*.csv` を手で編集しない。** `add` が列順・ソート順・重複チェックを
-保証してくれる。
+**`expenses-*.csv`・`ledger-*.csv` を手で編集しない。** `add` が列順・ソート順・
+重複チェックを保証してくれる。
+
+夏合宿の支出（デフォルト）:
 
 ```bash
 python3 -m scripts.kaikei add --date 2026-08-04 --vendor "セブンイレブン菅平高原八店" \
@@ -52,12 +85,28 @@ python3 -m scripts.kaikei add --date 2026-08-04 --vendor "セブンイレブン�
     [--note "補足があれば"]
 ```
 
-- `--date`: `YYYY-MM-DD`。合宿期間外の日付は警告が出るが追加はされる（入力ミスの疑い時に確認する）。
+夏合宿以外の支出（`--event` を付けると `ledger-2026.csv` へ入る）:
+
+```bash
+python3 -m scripts.kaikei add --date 2026-09-13 --vendor "東京都高体連" \
+    --description "秋季大会 参加費" --amount 12000 --category A --payer 占部 \
+    --event 秋季大会 [--note "補足があれば"]
+```
+
+- `--date`: `YYYY-MM-DD`。夏合宿分は期間外の日付だと警告が出るが追加はされる
+  （入力ミスの疑い時に確認する）。年間経費台帳(`--event`指定時)は合宿期間の縛りがないので
+  この警告は出ない。
 - `--amount`: 正の整数。0以下や数値でない値はエラーで弾かれ、ファイルは変更されない。
 - `--category`: A=校友会予算 / B=父母会予算 / C=都度徴収。A/B/C以外はエラー。
   **対戦校への手土産・メディカル費・補食はB**（合宿費に混ぜない部のルール）。
+  **分類Aは事務室へ請求するまで精算済み(settled=yes)にしない。** 分類Aは本来事務室から
+  精算される予算なので、`settled=no` のままなのは「まだ事務室から部へ返金されていない」
+  ことを意味する。事務室へ実際に予算請求して入金されるまでは触らない（`check` が警告する）。
 - `--payer`: 立て替えた人。部の現金から払ったなら `部`。空にはできない。
-- `--receipt`: 省略すると `rNNN` を自動採番する。手で指定して既存と重複した場合はエラーになる。
+- `--event`: 行事名（例: 秋季大会、駒大高祭）。**これを指定すると年間経費台帳
+  (`ledger-<年度>.csv`)に入る。省略すると従来どおり夏合宿の支出台帳に入る。**
+- `--receipt`: 省略すると自動採番される（夏合宿は `rNNN`、年間経費台帳は `yNNN`。
+  番号体系を分けて衝突を避けている）。手で指定して既存と重複した場合はエラーになる。
   現物の領収書にも採番された番号を書いておくと照合できる。
 - `settled` は追加時は常に `no`（自動）。
 
@@ -65,26 +114,36 @@ python3 -m scripts.kaikei add --date 2026-08-04 --vendor "セブンイレブン�
 追加したら `check` を実行して整合性を確認する。
 
 先生に実際に現金を返した後は、`--settle` でその人の未精算分をまとめて `settled: yes` にする。
+夏合宿分だけを精算するのが既定の挙動。**夏合宿分と年間経費台帳分の両方を精算したときは
+`--all` を付ける**（片方だけ現金を返したときは付けない）。
 
 ```bash
-python3 -m scripts.kaikei add --settle 畠山
+python3 -m scripts.kaikei add --settle 畠山          # 夏合宿の立替のみ精算
+python3 -m scripts.kaikei add --settle 占部 --all    # 夏合宿＋年間経費台帳の両方を精算
 ```
 
 精算した件数・合計額が表示される。**現金を渡す前に実行しない**（`settle` コマンドの
-精算表と実態がずれる）。
+精算表と実態がずれる）。**分類Aの行だけは例外**で、現金を渡していなくても事務室から
+入金されたタイミングで精算済みにする（上記参照）。
 
 ## check が報告すること
+
+`check` は夏合宿(`expenses-2026-summer.csv`)と年間経費台帳(`ledger-2026.csv`)の
+両方を検証する。年間経費台帳の分類別小計も表示されるので、`check` の出力だけで
+その年度の会計の全体像がわかる。
 
 | 検証 | 何を防ぐか |
 |---|---|
 | 曜日の検算 | 「7月1日(火)」のような曜日誤記（過去に配布事故あり） |
 | 申告人数との突合 | 名簿とホテルへの申告人数のズレ |
 | ホテル請求との突合 | 請求書の金額ミス、人数の分母違い |
-| 収支の突合 | 徴収額と支出の辻褄 |
-| 未精算の立替 | 先生への返金忘れ |
+| 収支の突合 | 徴収額と支出の辻褄（夏合宿） |
+| 未精算の立替（夏合宿） | 先生への返金忘れ |
 | **支出が1件も無い日の検出** | **領収書の回収漏れ**（`data/rugby/prior-year-misc-2025.csv` の前年度実績件数・金額と比較。7日間で支出ゼロの日は不自然） |
 | 今年と前年の雑費(分類C)合計の比較 | **領収書の回収漏れ**（前年比50%未満で警告） |
 | 会計分類の混在 | 父母会予算(B)を合宿費に混ぜる誤り |
+| 年間経費台帳の会計分類別小計 | 年間経費台帳(A/B/C)の全体像の把握 |
+| **分類A(校友会予算)の未精算チェック** | **事務室への請求忘れ**。年間経費台帳で分類Aかつ `settled=no` の行を検出し、対象と合計額を示したうえで「事務室へ予算請求する必要がある」と明示する |
 
 ## 書類の様式
 
