@@ -1,0 +1,5 @@
+# scripts/kaikei, scripts/nenkan, scripts/anzen の実行に必要
+# セッションを作り直したら: pip install -r requirements.txt
+openpyxl
+python-docx
+PyYAML
