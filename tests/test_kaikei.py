@@ -163,6 +163,11 @@ def main():
 
     test_ledger_cli()
 
+    # -- claim (事務室への請求) / add --event --category A の既定値 (一時ディレクトリで検証) --
+
+    test_add_category_a_claimed_default()
+    test_claim()
+
     print(f"\n{PASS} passed, {FAIL} failed")
     return 1 if FAIL else 0
 
@@ -386,9 +391,9 @@ def test_ledger_checks():
 
     findings = checks.run_all_ledger(ledger_entries)
     a_findings = [f for f in findings if f.code == "category_a_reimbursement_pending"]
-    check("分類Aの未精算立替がwarnとして1件検出される", len(a_findings) == 1)
+    check("分類Aの事務室未請求がwarnとして1件検出される", len(a_findings) == 1)
     check("警告のseverityはwarn", a_findings[0].severity == "warn")
-    check("警告に未精算合計¥12,000が含まれる", "¥12,000" in a_findings[0].message)
+    check("警告に未請求合計¥12,000が含まれる", "¥12,000" in a_findings[0].message)
     check("警告に事務室への請求が必要である旨が明記されている", "事務室へ予算請求する必要がある" in a_findings[0].message)
 
     totals_findings = [f for f in findings if f.code == "ledger_category_totals"]
@@ -398,16 +403,60 @@ def test_ledger_checks():
         "¥12,000" in totals_findings[0].message and "¥1,624" in totals_findings[0].message and "¥0" in totals_findings[0].message,
     )
 
-    # 全件精算済みなら分類Aのwarnはinfoになる
-    settled_entries = [
+    # claimedがCSVに無い(古い形式の)行はn-aとして扱われ、分類Aならwarn対象になる
+    entry_no_claimed_attr = ledger_entries[0]
+    check(
+        "claimed列を指定しなかったLedgerEntryはデフォルトでn-a",
+        m.LedgerEntry(
+            date=entry_no_claimed_attr.date, event=entry_no_claimed_attr.event, vendor=entry_no_claimed_attr.vendor,
+            description=entry_no_claimed_attr.description, amount=entry_no_claimed_attr.amount,
+            category=entry_no_claimed_attr.category, payer=entry_no_claimed_attr.payer, settled="no",
+            receipt=entry_no_claimed_attr.receipt, note=entry_no_claimed_attr.note,
+        ).claimed == "n-a",
+    )
+    check("model._parse_claimed(None)はn-a", m._parse_claimed(None) == "n-a")
+    check("model._parse_claimed('')はn-a", m._parse_claimed("") == "n-a")
+    check("model._parse_claimed('  ')はn-a", m._parse_claimed("  ") == "n-a")
+    check("model._parse_claimed('yes')はyes", m._parse_claimed("yes") == "yes")
+    check("model._parse_claimed('YES')は小文字化されてyes", m._parse_claimed("YES") == "yes")
+
+    # 全ての分類A行がclaimed=yesなら分類Aのwarnはinfoになる(settledの値には依存しない)
+    claimed_entries = [
         m.LedgerEntry(
             date=e.date, event=e.event, vendor=e.vendor, description=e.description, amount=e.amount,
-            category=e.category, payer=e.payer, settled="yes", receipt=e.receipt, note=e.note,
+            category=e.category, payer=e.payer, settled=e.settled, receipt=e.receipt, note=e.note,
+            claimed="yes",
         )
         for e in ledger_entries
     ]
-    settled_findings = checks.check_category_a_reimbursement(settled_entries)
-    check("分類Aがすべて精算済みならinfo(OK)になる", settled_findings[0].severity == "info" and settled_findings[0].code == "category_a_reimbursement_ok")
+    claimed_findings = checks.check_category_a_reimbursement(claimed_entries)
+    check(
+        "分類Aがすべてclaimed=yesならinfo(OK)になる",
+        claimed_findings[0].severity == "info" and claimed_findings[0].code == "category_a_reimbursement_ok",
+    )
+
+    # ここが今回のバグ修正の核心: settled=yes(占部先生への返金は完了)でも
+    # claimed=no(事務室への請求がまだ)なら警告は消えない。
+    settled_but_unclaimed = [
+        m.LedgerEntry(
+            date=e.date, event=e.event, vendor=e.vendor, description=e.description, amount=e.amount,
+            category=e.category, payer=e.payer, settled="yes", receipt=e.receipt, note=e.note,
+            claimed="no",
+        )
+        for e in ledger_entries if e.category == "A"
+    ]
+    still_warn_findings = checks.check_category_a_reimbursement(settled_but_unclaimed)
+    check(
+        "分類Aはsettled=yes(立替者への返金済み)でもclaimed=noならまだ警告される",
+        still_warn_findings[0].severity == "warn" and still_warn_findings[0].code == "category_a_reimbursement_pending",
+    )
+    check(
+        "settled=yesでも消えない警告メッセージに『事務室へ請求して部にお金を戻す』旨と"
+        "『立替者への返金とは別』の旨が明記されている",
+        "事務室へ請求して部にお金を戻すこと" in still_warn_findings[0].message
+        and "立替者への返金" in still_warn_findings[0].message
+        and "とは別の話です" in still_warn_findings[0].message,
+    )
 
     # ledgerが空でもエラーにならない
     empty_findings = checks.run_all_ledger([])
@@ -458,6 +507,7 @@ def test_ledger_cli():
         added = next(r for r in ledger_rows if r["receipt"] == "y003")
         check("追加行のeventが正しい", added["event"] == "新人戦")
         check("追加行のsettledは既定でno", added["settled"] == "no")
+        check("分類C(y003)の追加行のclaimedは既定でn-a", added["claimed"] == "n-a")
 
         # -- add --event: 必須項目欠落やカテゴリ不正はエラーでファイル未変更 --------
 
@@ -528,6 +578,163 @@ def test_ledger_cli():
         ledger_rows_final, _ = m._read_ledger_rows("2026")
         occube_ledger_unsettled_final = [r for r in ledger_rows_final if r["payer"] == "占部" and r["settled"].strip().lower() != "yes"]
         check("add --settle --all 後は年間経費台帳の占部の未精算行が0件", len(occube_ledger_unsettled_final) == 0)
+
+    finally:
+        m.DATA_DIR = orig_data_dir
+        cli.model.DATA_DIR = orig_data_dir
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def test_add_category_a_claimed_default():
+    """add --event --category A は claimed=no を自動設定し、A以外はn-aになることを検証する。
+
+    real のCSVには触れない(専用の一時ディレクトリ、既存のtest_ledger_cliのシナリオとは独立)。
+    """
+    orig_data_dir = m.DATA_DIR
+    tmpdir = Path(tempfile.mkdtemp(prefix="kaikei-claimdefault-test-"))
+    try:
+        for name in ("expenses-2026-summer.csv", "camp-2026-summer.yml", "roster-2026.csv", "ledger-2026.csv"):
+            shutil.copy(orig_data_dir / name, tmpdir / name)
+        m.DATA_DIR = tmpdir
+        cli.model.DATA_DIR = tmpdir
+
+        code, out = _run_cmd_add(
+            _add_ns(date="2026-10-02", vendor="都高体連", description="新人戦 参加費", amount=8000, category="A", payer="占部", event="新人戦")
+        )
+        check("add --event --category A はexit 0", code == 0)
+        ledger_rows_a, _ = m._read_ledger_rows("2026")
+        added_a = next(r for r in ledger_rows_a if r["receipt"] == "y003")
+        check("分類Aの追加行のclaimedは既定でno", added_a["claimed"] == "no")
+        check("分類Aの追加行のsettledは既定でno(claimedとは独立)", added_a["settled"] == "no")
+        check("add --event --category A の出力にclaimedに関する注記が含まれる", "claimed=yesにしない" in out)
+
+        code, out = _run_cmd_add(
+            _add_ns(date="2026-10-03", vendor="テスト業者", description="雑費", amount=1000, category="C", payer="畠山", event="新人戦")
+        )
+        check("add --event --category C はexit 0", code == 0)
+        ledger_rows_c, _ = m._read_ledger_rows("2026")
+        added_c = next(r for r in ledger_rows_c if r["receipt"] == "y004")
+        check("分類Cの追加行のclaimedは既定でn-a", added_c["claimed"] == "n-a")
+
+        # add(--eventなし、合宿の支出台帳)側でも同じ既定値ルールが働くことの確認
+        code, out = _run_cmd_add(
+            _add_ns(date="2026-08-04", vendor="テスト店", description="分類Aテスト", amount=100, category="A", payer="畠山")
+        )
+        check("合宿台帳への分類A追加もexit 0", code == 0)
+        expense_rows, _ = m._read_expense_rows("2026-summer")
+        added_expense_a = next(r for r in expense_rows if r["category"] == "A")
+        check("合宿台帳(expenses)への分類A追加行もclaimedは既定でno", added_expense_a["claimed"] == "no")
+
+    finally:
+        m.DATA_DIR = orig_data_dir
+        cli.model.DATA_DIR = orig_data_dir
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def test_claim():
+    """model.claim_ledger_row / cli.cmd_claim: 事務室への請求(claimed)の反映と各拒否経路。
+
+    real の data/rugby/ledger-2026.csv には一切触れない(一時ディレクトリで検証)。
+    立替者への返金(settled)とclaimedが独立して扱われることも合わせて確認する。
+    """
+    orig_data_dir = m.DATA_DIR
+    tmpdir = Path(tempfile.mkdtemp(prefix="kaikei-claim-test-"))
+    try:
+        shutil.copy(orig_data_dir / "ledger-2026.csv", tmpdir / "ledger-2026.csv")
+        m.DATA_DIR = tmpdir
+        cli.model.DATA_DIR = tmpdir
+
+        # -- model.claim_ledger_row: 正常系 ------------------------------------
+
+        before_entries = m.load_ledger("2026")
+        y001_before = next(e for e in before_entries if e.receipt == "y001")
+        check("claim前のy001はclaimed=no", y001_before.claimed == "no")
+
+        row = m.claim_ledger_row("2026", "y001")
+        check("claimの戻り値はclaimed=yes", row["claimed"] == "yes")
+
+        after_entries = m.load_ledger("2026")
+        y001_after = next(e for e in after_entries if e.receipt == "y001")
+        check("claim後にファイルを読み直すとy001はclaimed=yes", y001_after.claimed == "yes")
+        check(
+            "claimはsettledを変更しない(占部先生への返金とは独立)",
+            y001_after.settled == y001_before.settled == "no",
+        )
+        y002_after = next(e for e in after_entries if e.receipt == "y002")
+        check("claimは他の行(y002)に影響しない", y002_after.claimed == "n-a")
+
+        # -- model.claim_ledger_row: 異常系(いずれもファイル未変更) --------------
+
+        raised = False
+        try:
+            m.claim_ledger_row("2026", "y001")
+        except ValueError as e:
+            raised = True
+            check("既にclaimed=yesの行を再度claimするとエラーメッセージに『既に』を含む", "既に" in str(e))
+        check("既にclaimed=yesの行を再度claimするとValueError", raised)
+
+        raised = False
+        try:
+            m.claim_ledger_row("2026", "y002")
+        except ValueError as e:
+            raised = True
+            check("分類A以外の行をclaimしようとするとエラーメッセージに『分類A』を含む", "分類A" in str(e))
+        check("分類A以外(y002)をclaimしようとするとValueError", raised)
+
+        raised = False
+        try:
+            m.claim_ledger_row("2026", "y999")
+        except ValueError as e:
+            raised = True
+            check("存在しない領収書番号のエラーメッセージに『見つかりません』を含む", "見つかりません" in str(e))
+        check("存在しない領収書番号(y999)をclaimしようとするとValueError", raised)
+
+        entries_after_errors = m.load_ledger("2026")
+        check("異常系のclaim呼び出し後もファイル内容は変わっていない", entries_after_errors == after_entries)
+
+        # -- cli.cmd_claim: 正常系・異常系 --------------------------------------
+
+        new_row = {
+            "date": "2026-10-01", "event": "新人戦", "vendor": "都高体連", "description": "参加費",
+            "amount": 5000, "category": "A", "payer": "畠山", "settled": "no", "receipt": "",
+            "note": "", "claimed": "no",
+        }
+        added = m.append_ledger_entry("2026", new_row)
+        new_receipt = added["receipt"]
+
+        def _run_cmd_claim(ns):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = cli.cmd_claim(ns)
+            return code, buf.getvalue()
+
+        code, out = _run_cmd_claim(Namespace(receipt=new_receipt, on="2026-10-05", fiscal_year="2026"))
+        check("cli claim 正常系はexit 0", code == 0)
+        check("cli claim 正常系の出力に受領日が含まれる", "2026-10-05" in out)
+        check(
+            "cli claim 正常系の出力に立替者への返金とは別の記録である旨が含まれる",
+            "別の記録です" in out,
+        )
+
+        claimed_entries = m.load_ledger("2026")
+        added_after = next(e for e in claimed_entries if e.receipt == new_receipt)
+        check("cli claim後にclaimed=yesになっている", added_after.claimed == "yes")
+
+        code, out = _run_cmd_claim(Namespace(receipt=new_receipt, on=None, fiscal_year="2026"))
+        check("cli claim 二重claimはexit 1", code == 1)
+        check("cli claim 二重claimのエラーメッセージに『既に』を含む", "既に" in out)
+
+        code, out = _run_cmd_claim(Namespace(receipt="y002", on=None, fiscal_year="2026"))
+        check("cli claim 分類A以外はexit 1", code == 1)
+        check("cli claim 分類A以外のエラーメッセージに『分類A』を含む", "分類A" in out)
+
+        code, out = _run_cmd_claim(Namespace(receipt="y999", on=None, fiscal_year="2026"))
+        check("cli claim 存在しないreceiptはexit 1", code == 1)
+        check("cli claim 存在しないreceiptのエラーメッセージに『見つかりません』を含む", "見つかりません" in out)
+
+        code, out = _run_cmd_claim(Namespace(receipt=new_receipt, on="2026/10/05", fiscal_year="2026"))
+        check("cli claim --on の日付形式が不正ならexit 1", code == 1)
+        check("cli claim --on の日付形式エラーメッセージに『形式が不正』を含む", "形式が不正" in out)
 
     finally:
         m.DATA_DIR = orig_data_dir

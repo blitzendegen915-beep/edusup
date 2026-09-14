@@ -45,6 +45,16 @@ def _parse_date(value) -> Optional[date]:
     return date.fromisoformat(value)
 
 
+def _parse_claimed(value) -> str:
+    """CSVの claimed 列を正規化する。空文字・None・未知の値は 'n-a' として扱う
+    (claimed列を持たない古いファイルでも読み込めるようにするため)。
+    """
+    value = (value or "").strip().lower()
+    if value in ("yes", "no", "n-a"):
+        return value
+    return "n-a"
+
+
 # ---------------------------------------------------------------------------
 # データクラス
 # ---------------------------------------------------------------------------
@@ -94,10 +104,17 @@ class Expense:
     settled: str
     receipt: str
     note: str
+    claimed: str = "n-a"
 
     @property
     def is_settled(self) -> bool:
+        """立替者(payer)へ部からお金が返っているか。事務室への請求(claimed)とは別の話。"""
         return self.settled.strip().lower() == "yes"
+
+    @property
+    def is_claimed(self) -> bool:
+        """事務室へ請求して部にお金が戻っているか。分類A以外は 'n-a' なので常にFalse。"""
+        return self.claimed.strip().lower() == "yes"
 
 
 @dataclass
@@ -121,10 +138,17 @@ class LedgerEntry:
     settled: str
     receipt: str
     note: str
+    claimed: str = "n-a"
 
     @property
     def is_settled(self) -> bool:
+        """立替者(payer)へ部からお金が返っているか。事務室への請求(claimed)とは別の話。"""
         return self.settled.strip().lower() == "yes"
+
+    @property
+    def is_claimed(self) -> bool:
+        """事務室へ請求して部にお金が戻っているか。分類A以外は 'n-a' なので常にFalse。"""
+        return self.claimed.strip().lower() == "yes"
 
 
 CATEGORY_JA = {"A": "校友会予算", "B": "父母会予算", "C": "都度徴収"}
@@ -309,6 +333,7 @@ def _load_expenses(camp_id: str) -> list:
                     settled=row["settled"].strip(),
                     receipt=row["receipt"].strip(),
                     note=row["note"].strip(),
+                    claimed=_parse_claimed(row.get("claimed")),
                 )
             )
     return rows
@@ -366,6 +391,7 @@ def load_ledger(fiscal_year: str = "2026") -> list:
                     settled=row["settled"].strip(),
                     receipt=row["receipt"].strip(),
                     note=row["note"].strip(),
+                    claimed=_parse_claimed(row.get("claimed")),
                 )
             )
     return entries
@@ -375,7 +401,16 @@ def load_ledger(fiscal_year: str = "2026") -> list:
 # 支出台帳(CSV)の追記・精算フラグ更新
 # ---------------------------------------------------------------------------
 
-EXPENSE_FIELDNAMES = ["date", "vendor", "description", "amount", "category", "payer", "settled", "receipt", "note"]
+EXPENSE_FIELDNAMES = [
+    "date", "vendor", "description", "amount", "category", "payer", "settled", "receipt", "note", "claimed",
+]
+
+
+def claimed_default(category: str) -> str:
+    """新規に行を追加するときの claimed の既定値。分類Aは事務室への請求が必要なので'no'、
+    それ以外(B/C)は請求そのものが発生しないので'n-a'。
+    """
+    return "no" if category == "A" else "n-a"
 
 
 def expenses_csv_path(camp_id: str) -> Path:
@@ -460,7 +495,9 @@ def settle_payer_rows(camp_id: str, payer: str) -> dict:
 # 年間経費台帳(CSV)の追記・精算フラグ更新
 # ---------------------------------------------------------------------------
 
-LEDGER_FIELDNAMES = ["date", "event", "vendor", "description", "amount", "category", "payer", "settled", "receipt", "note"]
+LEDGER_FIELDNAMES = [
+    "date", "event", "vendor", "description", "amount", "category", "payer", "settled", "receipt", "note", "claimed",
+]
 
 
 def ledger_csv_path(fiscal_year: str) -> Path:
@@ -542,6 +579,43 @@ def settle_ledger_rows(fiscal_year: str, payer: str) -> dict:
         _write_ledger_rows(fiscal_year, rows, fieldnames)
     total = sum(int(r["amount"]) for r in settled_items)
     return {"items": settled_items, "total": total}
+
+
+def claim_ledger_row(fiscal_year: str, receipt_id: str) -> dict:
+    """年間経費台帳の指定した行を「事務室へ請求して部にお金が戻った(claimed=yes)」にする。
+
+    これは立替者(payer)への返金(settled)とは別の操作。分類A(校友会予算)以外の行、
+    存在しない領収書番号、既にclaimed=yesの行はValueErrorを送出し、ファイルには
+    一切触れない。claimed列を持たない古い形式のファイルでも動作するよう、
+    書き戻し前に列を補う。
+    """
+    rows, fieldnames = _read_ledger_rows(fiscal_year)
+    if "claimed" not in fieldnames:
+        fieldnames = list(fieldnames) + ["claimed"]
+    for r in rows:
+        if not (r.get("claimed") or "").strip():
+            r["claimed"] = "n-a"
+
+    receipt_id = (receipt_id or "").strip()
+    row = next((r for r in rows if (r.get("receipt") or "").strip() == receipt_id), None)
+    if row is None:
+        raise ValueError(
+            f"領収書番号 '{receipt_id}' は年間経費台帳(ledger-{fiscal_year}.csv)に見つかりません。"
+        )
+
+    category = row.get("category", "").strip()
+    if category != "A":
+        raise ValueError(
+            f"{receipt_id} は分類{category or '不明'}の行です。"
+            "claimed(事務室への請求)は分類A（校友会予算）の行にのみ使います。"
+        )
+
+    if (row.get("claimed") or "").strip().lower() == "yes":
+        raise ValueError(f"{receipt_id} は既に事務室へ請求済み(claimed=yes)です。")
+
+    row["claimed"] = "yes"
+    _write_ledger_rows(fiscal_year, rows, fieldnames)
+    return row
 
 
 # ---------------------------------------------------------------------------

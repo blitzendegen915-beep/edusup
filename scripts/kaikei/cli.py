@@ -2,7 +2,7 @@
 
     python3 -m scripts.kaikei <command>
 
-commands: check / headcount / balance / settle / report
+commands: check / headcount / balance / settle / report / ledger / add / claim
 """
 from __future__ import annotations
 
@@ -249,6 +249,7 @@ def _cmd_add_row(args) -> int:
         "settled": "no",
         "receipt": (args.receipt or "").strip(),
         "note": args.note or "",
+        "claimed": model.claimed_default(args.category),
     }
     try:
         added = model.append_expense(camp_id, new_row)
@@ -260,7 +261,8 @@ def _cmd_add_row(args) -> int:
     print(f"✅ 支出を追加しました（{added['receipt']}）")
     print(
         f"  {added['date']} {added['vendor']} / {added['description']} "
-        f"¥{int(added['amount']):,}（分類{added['category']} 立替:{added['payer']} 精算:{added['settled']}）"
+        f"¥{int(added['amount']):,}（分類{added['category']} 立替:{added['payer']} "
+        f"精算(立替者への返金):{added['settled']} 請求(事務室):{added['claimed']}）"
     )
     if added.get("note"):
         print(f"  備考: {added['note']}")
@@ -326,6 +328,7 @@ def _cmd_add_ledger_row(args) -> int:
         "settled": "no",
         "receipt": (args.receipt or "").strip(),
         "note": args.note or "",
+        "claimed": model.claimed_default(args.category),
     }
     try:
         added = model.append_ledger_entry(fiscal_year, new_row)
@@ -337,8 +340,14 @@ def _cmd_add_ledger_row(args) -> int:
     print(f"✅ 年間経費台帳に支出を追加しました（{added['receipt']}）")
     print(
         f"  {added['date']} [{added['event']}] {added['vendor']} / {added['description']} "
-        f"¥{int(added['amount']):,}（分類{added['category']} 立替:{added['payer']} 精算:{added['settled']}）"
+        f"¥{int(added['amount']):,}（分類{added['category']} 立替:{added['payer']} "
+        f"精算(立替者への返金):{added['settled']} 請求(事務室):{added['claimed']}）"
     )
+    if added["category"] == "A":
+        print(
+            "  ※ 分類Aは事務室へ請求(claim)して部にお金が戻るまでclaimed=yesにしない。"
+            "立替者への返金(settled)が済んでも自動では請求済みにならない。"
+        )
     if added.get("note"):
         print(f"  備考: {added['note']}")
     print()
@@ -352,6 +361,42 @@ def _cmd_add_ledger_row(args) -> int:
         for payer, info in ledger_settle["by_payer"].items():
             print(f"  {payer}: ¥{info['total']:,}（{len(info['items'])}件）")
         print(f"  合計: ¥{ledger_settle['grand_total']:,}")
+    return 0
+
+
+def cmd_claim(args) -> int:
+    """年間経費台帳の分類A行を『事務室へ請求して部にお金が戻った』(claimed=yes)にする。
+
+    立替者(占部先生など)への返金(settled)とは別の操作。ファイルは成功時のみ更新する。
+    """
+    on_date = None
+    if args.on:
+        try:
+            on_date = date.fromisoformat(args.on)
+        except ValueError:
+            print(f"❌ 日付 '{args.on}' の形式が不正です。YYYY-MM-DD の形式で指定してください。")
+            print("ファイルは変更していません。")
+            return 1
+
+    try:
+        row = model.claim_ledger_row(args.fiscal_year, args.receipt)
+    except ValueError as e:
+        print(f"❌ {e}")
+        print("ファイルは変更していません。")
+        return 1
+
+    print(f"✅ {row['receipt']} を事務室へ請求済み(claimed=yes)にしました。")
+    print(
+        f"  {row['date']} [{row.get('event', '')}] {row['vendor']} / {row['description']} "
+        f"¥{int(row['amount']):,}（分類{row['category']} 立替:{row['payer']} "
+        f"精算(立替者への返金):{row['settled']}）"
+    )
+    if on_date is not None:
+        print(f"  事務室からの受領日: {on_date.isoformat()}")
+    print(
+        "  ※ これは事務室から部へお金が戻ったことの記録であり、"
+        f"立替者（{row['payer']}）への返金(settled)とは別の記録です。"
+    )
     return 0
 
 
@@ -466,6 +511,13 @@ def main(argv=None) -> int:
     ledger_p.add_argument("--category", choices=["A", "B", "C"], help="会計分類で絞り込む")
     ledger_p.add_argument("--event", help="行事名で絞り込む")
 
+    claim_p = sub.add_parser(
+        "claim", help="年間経費台帳の分類A行を、事務室へ請求して部にお金が戻った(claimed=yes)状態にする"
+    )
+    claim_p.add_argument("receipt", help="領収書番号（例: y001）")
+    claim_p.add_argument("--on", help="事務室から受領した日付 YYYY-MM-DD（任意。確認メッセージに表示する）")
+    claim_p.add_argument("--fiscal-year", default="2026", help="年度（既定: 2026）")
+
     args = parser.parse_args(argv)
     if args.command == "add":
         return cmd_add(args)
@@ -473,6 +525,8 @@ def main(argv=None) -> int:
         return cmd_settle(args)
     if args.command == "ledger":
         return cmd_ledger(args)
+    if args.command == "claim":
+        return cmd_claim(args)
     return COMMANDS[args.command](args.camp)
 
 

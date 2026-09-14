@@ -312,31 +312,41 @@ def check_ledger_category_totals(ledger_entries: list) -> list:
 
 
 def check_category_a_reimbursement(ledger_entries: list) -> list:
-    """分類A(校友会予算)は事務室から精算されるべき予算。settled=noのまま残っていれば
-    部が立て替えたまま事務室へ請求できていないということなので、明示的に警告する。
+    """分類A(校友会予算)は事務室に請求して部にお金を戻す必要がある予算。
+
+    これは2つの別々の事象からなる。
+      1. 精算(settled) : 部が、立て替えた個人(占部先生など)へお金を返す。
+      2. 請求・受領(claimed) : 部が、事務室へ分類Aの費目を請求してお金を受け取る。
+
+    このチェックは(2)のclaimedだけを見る。settled=yes(占部先生への返金は終わった)
+    であっても claimed=no のままなら、事務室へ請求できていない=部がそのお金を
+    ずっと負担したままになっている、という危険な状態なので、settledの値に関わらず
+    必ず警告する。
     """
     findings = []
-    unsettled_a = [e for e in ledger_entries if e.category == "A" and not e.is_settled]
-    if not unsettled_a:
+    unclaimed_a = [e for e in ledger_entries if e.category == "A" and not e.is_claimed]
+    if not unclaimed_a:
         findings.append(
-            Finding("info", "category_a_reimbursement_ok", "分類A（校友会予算）の未精算の立替はありません。")
+            Finding("info", "category_a_reimbursement_ok", "分類A（校友会予算）で事務室に未請求のものはありません。")
         )
         return findings
 
-    total = sum(e.amount for e in unsettled_a)
+    total = sum(e.amount for e in unclaimed_a)
     items_desc = "、".join(
-        f"{e.date.month}/{e.date.day}[{e.event}]{e.vendor}¥{e.amount:,}（{e.payer}立替・{e.receipt}）"
-        for e in unsettled_a
+        f"{e.date.month}/{e.date.day}[{e.event}]{e.vendor}¥{e.amount:,}"
+        f"（{e.payer}立替・精算{'済' if e.is_settled else '未'}・{e.receipt}）"
+        for e in unclaimed_a
     )
     findings.append(
         Finding(
             "warn",
             "category_a_reimbursement_pending",
-            f"分類A（校友会予算）の支出で未精算(settled=no)のものが{len(unsettled_a)}件、"
+            f"分類A（校友会予算）の支出で事務室へ未請求(claimed=no)のものが{len(unclaimed_a)}件、"
             f"合計¥{total:,}あります（{items_desc}）。"
-            "分類Aは本来、部が立て替えても事務室から精算される予算です。"
-            "精算(settled=yes)にしていないということは、まだ事務室から部へ返金されておらず、"
-            "部が実質的に立て替えたままになっています。事務室へ予算請求する必要がある。",
+            "これは事務室へ請求して部にお金を戻すこと（claimed）の話であり、"
+            "立替者への返金（settled、占部先生個人にお金を返すこと）とは別の話です。"
+            "立替者への返金(settled=yes)が済んでいても、事務室への請求(claimed)がまだなら"
+            "部がその金額を実質的に負担したままになります。事務室へ予算請求する必要がある。",
         )
     )
     return findings
