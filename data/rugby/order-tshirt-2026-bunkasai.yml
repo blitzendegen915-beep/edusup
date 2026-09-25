@@ -1,0 +1,11 @@
+# 文化祭（駒大高祭）で保護者が購入する部活Tシャツの注文。
+# 回答の原文は responses.csv、備考欄を読んだ解釈結果は lines.csv にある。
+# 集計・検証は: python3 -m scripts.chumon check tshirt-2026-bunkasai
+id: tshirt-2026-bunkasai
+item: ラグビー部Tシャツ（文化祭販売）
+sizes: [S, M, L, XL, XXL]
+# 未回答者を洗い出す対象学年。回答が1年生にほぼ限られているため1年とした。
+# 2・3年にも案内していたなら [1, 2, 3] に変えること。
+target_grades: [1]
+# フォームの「購入しますか？」でこの値なら注文なしとみなす
+decline_values: [購入しない]
