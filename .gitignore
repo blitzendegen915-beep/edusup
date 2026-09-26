@@ -8,3 +8,7 @@ output/anzen/
 # Obsidian のローカル状態（vault設定本体は追跡する）
 docs/.obsidian/workspace*
 docs/.obsidian/cache
+
+# 領収書の写真と写し（病院の領収書など個人情報を含み得るため git に入れない）
+data/rugby/receipts/
+output/ryoshusho/

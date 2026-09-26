@@ -1,0 +1,25 @@
+# 2026年度 夏合宿の領収書写し。
+#   python3 -m scripts.ryoshusho 2026-summer
+#
+# 写真は data/rugby/receipts/2026-summer/ に置く（git には入れない）。
+# 1枚の写真に複数の領収書が写っていてよい。項目ごとに切り出す。
+#   src:    写真のファイル名
+#   rotate: 時計回りに何度起こすか（90 / 180 / 270）
+#   box:    [左, 上, 右, 下]  起こした後の写真での切り抜き範囲（ピクセル）
+#   full_page: true  請求書などA4の書類は1ページ使って載せる
+# src が空の項目は「領収書の添付なし」として1ページ目の下に列挙される。
+title: 2026年度 ラグビー部 夏季合宿 領収書写し
+photo_dir: receipts/2026-summer
+expenses: expenses-2026-summer.csv
+items:
+  - {receipt: r001, src: ""}   # 8/1 日本ハイウェイ・サービス（東京ばな奈ほか）
+  - {receipt: r002, src: ""}   # 8/2 セブン 13:02（串団子23）
+  - {receipt: r003, src: ""}   # 8/2 セブン 13:05（串団子5）
+  - {receipt: r004, src: ""}   # 8/2 コメリ（消臭剤・HDMI）
+  - {receipt: r005, src: ""}   # 8/2 セブン 18:50（ゼリー）
+  - {receipt: r006, src: ""}   # 8/6 セブン 12:20（クレジット・内訳なし）
+  - {receipt: r007, src: ""}   # 8/6 セブン 17:03（菓子類）
+  - {receipt: r008, src: ""}   # コインランドリーカード（カード購入のため領収書なしの見込み）
+  - {receipt: r009, src: ""}   # 病院代（生徒の受診情報を含むため載せるかは要判断）
+  - {receipt: r010, src: ""}   # 星野コーチ謝礼
+  - {label: "菅平ホテル 請求書 2026/08/07　¥2,555,520", src: "", full_page: true}
