@@ -67,8 +67,8 @@ def label_for(item, expenses):
     e = expenses.get(item.get("receipt", ""))
     if not e:
         return item.get("receipt", "")
-    d = e["date"][5:].replace("-", "/").lstrip("0")
-    return f"{item['receipt']}　{d}　{e['vendor']}　¥{int(e['amount']):,}"
+    _, m, dd = e["date"].split("-")
+    return f"{item['receipt']}　{int(m)}/{int(dd)}　¥{int(e['amount']):,}"
 
 
 def cut(item, photo_dir):
@@ -102,7 +102,9 @@ def pack(tiles, ncols):
         s = col_w / img.width
         w, h = col_w, int(img.height * s)
         need = LABEL_H + h + GAP
-        c = heights.index(min(heights))
+        tol = area_h * 0.12
+        low = min(heights)
+        c = next(i for i, hh in enumerate(heights) if hh <= low + tol)
         if heights[c] + need > area_h:
             return None
         x = MARGIN + c * (col_w + GAP)
@@ -150,8 +152,9 @@ def build(camp_id, max_cols=6):
 
     # 台帳にあるのに写真が無いものを書き出す（提出先が「これの領収書は？」とならないように）
     shown = {it.get("receipt") for it in m["items"] if it.get("src")}
-    missing = [f"{k} {e['vendor']} ¥{int(e['amount']):,}"
-               for k, e in expenses.items() if k not in shown and k in {it.get("receipt") for it in m["items"]}]
+    listed = {it.get("receipt") for it in m["items"]}
+    missing = [f"{k} {expenses[k]['description']} ¥{int(expenses[k]['amount']):,}"
+               for k in sorted(listed - shown) if k in expenses]
     for i, p in enumerate(pages, 1):
         d = ImageDraw.Draw(p)
         foot = f"{i} / {len(pages)}"

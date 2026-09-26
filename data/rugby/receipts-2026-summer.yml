@@ -12,14 +12,14 @@ title: 2026年度 ラグビー部 夏季合宿 領収書写し
 photo_dir: receipts/2026-summer
 expenses: expenses-2026-summer.csv
 items:
-  - {receipt: r001, src: ""}   # 8/1 日本ハイウェイ・サービス（東京ばな奈ほか）
-  - {receipt: r002, src: ""}   # 8/2 セブン 13:02（串団子23）
-  - {receipt: r003, src: ""}   # 8/2 セブン 13:05（串団子5）
-  - {receipt: r004, src: ""}   # 8/2 コメリ（消臭剤・HDMI）
-  - {receipt: r005, src: ""}   # 8/2 セブン 18:50（ゼリー）
-  - {receipt: r006, src: ""}   # 8/6 セブン 12:20（クレジット・内訳なし）
-  - {receipt: r007, src: ""}   # 8/6 セブン 17:03（菓子類）
+  - {receipt: r001, src: photo1_0801-0802.jpg, rotate: 270, box: [1650, 20, 2205, 2160]}   # 8/1 日本ハイウェイ・サービス（東京ばな奈ほか）
+  - {receipt: r002, src: photo1_0801-0802.jpg, rotate: 270, box: [1000, 0, 1620, 940]}   # 8/2 セブン 13:02（串団子23）
+  - {receipt: r003, src: photo1_0801-0802.jpg, rotate: 270, box: [2208, 100, 2775, 1045]}   # 8/2 セブン 13:05（串団子5）
+  - {receipt: r004, src: photo1_0801-0802.jpg, rotate: 270, box: [2235, 1050, 2970, 2160]}   # 8/2 コメリ（消臭剤・HDMI）
+  - {receipt: r005, src: photo1_0801-0802.jpg, rotate: 270, box: [920, 995, 1570, 2160]}   # 8/2 セブン 18:50（ゼリー）
+  - {receipt: r006, src: photo2_0806_hotel.jpg, rotate: 270, box: [1055, 495, 1760, 1850]}   # 8/6 セブン 12:20（クレジット・内訳なし）
+  - {receipt: r007, src: photo2_0806_hotel.jpg, rotate: 270, box: [300, 215, 1060, 1712]}   # 8/6 セブン 17:03（菓子類）
   - {receipt: r008, src: ""}   # コインランドリーカード（カード購入のため領収書なしの見込み）
   - {receipt: r009, src: ""}   # 病院代（生徒の受診情報を含むため載せるかは要判断）
   - {receipt: r010, src: ""}   # 星野コーチ謝礼
-  - {label: "菅平ホテル 請求書 2026/08/07　¥2,555,520", src: "", full_page: true}
+  - {label: "菅平ホテル 請求書（2026/08/07）", src: photo2_0806_hotel.jpg, rotate: 270, box: [1860, 0, 3690, 2160], full_page: true}

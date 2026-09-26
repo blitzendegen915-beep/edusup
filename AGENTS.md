@@ -80,10 +80,11 @@ scripts/
   nenkan/   年間業務（今月やること・未完了の検出）
   anzen/    安全管理（緊急時対応シート・アレルギー一覧・未回答者）
   chumon/   ウェア・用具の注文集計（フォーム回答 → 業者送付用の注文票）
+  ryoshusho/ 領収書の写真 → スキャンしたようなA4の写し（写真と出力は git に入れない）
   create_*.py  個別の書類生成スクリプト（旧方式。順次 kaikei 等へ統合したい）
 
 docs/     Obsidian vault としても開ける。ホーム.md が入口
-tests/    test_kaikei.py / test_nenkan.py / test_anzen.py / test_chumon.py
+tests/    test_kaikei.py / test_nenkan.py / test_anzen.py / test_chumon.py / test_ryoshusho.py
 output/   生成物。手で編集しない
 .claude/skills/   rugby-camp / rugby-check / rugby-doc / rugby-kaikei /
                   rugby-mail / rugby-order（作業の型が書いてある）
@@ -111,6 +112,8 @@ python3 -m scripts.anzen generate      # 緊急時対応シート等を生成
 
 python3 -m scripts.chumon check <注文ID>  # 回答原文と注文明細の突き合わせ・集計
 python3 -m scripts.chumon sheet <注文ID>  # 業者送付用と部内確認用のExcelを生成
+
+python3 -m scripts.ryoshusho 2026-summer  # 領収書写し（写真は data/rugby/receipts/ に置く）
 ```
 
 手順:
