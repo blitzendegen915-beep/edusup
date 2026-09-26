@@ -84,7 +84,7 @@ scripts/
   create_*.py  個別の書類生成スクリプト（旧方式。順次 kaikei 等へ統合したい）
 
 docs/     Obsidian vault としても開ける。ホーム.md が入口
-tests/    test_kaikei.py / test_nenkan.py / test_anzen.py / test_chumon.py / test_ryoshusho.py
+tests/    test_kaikei.py / test_nenkan.py / test_anzen.py / test_chumon.py / test_ryoshusho.py / test_admin_report.py
 output/   生成物。手で編集しない
 .claude/skills/   rugby-camp / rugby-check / rugby-doc / rugby-kaikei /
                   rugby-mail / rugby-order（作業の型が書いてある）
@@ -101,6 +101,7 @@ python3 -m scripts.kaikei balance      # 収支
 python3 -m scripts.kaikei headcount    # 日別・食事別の人数
 python3 -m scripts.kaikei ledger       # 年間経費を会計分類別に
 python3 -m scripts.kaikei report       # xlsx一式を output/ に生成
+python3 -m scripts.kaikei admin-report # 管理職（校長）宛ての会計報告書（Word）
 python3 -m scripts.kaikei add ...      # 領収書を1件追加
 python3 -m scripts.kaikei claim y001   # 事務室から受領したら記録
 

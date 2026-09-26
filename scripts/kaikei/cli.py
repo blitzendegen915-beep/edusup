@@ -475,6 +475,17 @@ COMMANDS = {
 }
 
 
+def cmd_admin_report(camp_id: str) -> int:
+    from . import admin_report
+
+    out = model.ROOT / "output" / f"{camp_id}_管理職向け会計報告書.docx"
+    f = admin_report.write(camp_id, out)
+    print(f"✅ {out}")
+    print(f"   収入合計 ¥{f['income_total']:,} ／ 支出合計 ¥{f['expense_total']:,} ／ 差引（暫定）¥{f['diff']:,}")
+    print("   黄色網掛けは見積・精算中・予定の項目と提出日の記入欄。提出前に確認すること。")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="python3 -m scripts.kaikei", description="ラグビー部 合宿会計ツール")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -511,6 +522,9 @@ def main(argv=None) -> int:
     ledger_p.add_argument("--category", choices=["A", "B", "C"], help="会計分類で絞り込む")
     ledger_p.add_argument("--event", help="行事名で絞り込む")
 
+    admin_p = sub.add_parser("admin-report", help="管理職（校長）宛ての会計報告書（Word）を output/ に生成する")
+    admin_p.add_argument("--camp", default="2026-summer", help="合宿ID（既定: 2026-summer）")
+
     claim_p = sub.add_parser(
         "claim", help="年間経費台帳の分類A行を、事務室へ請求して部にお金が戻った(claimed=yes)状態にする"
     )
@@ -527,6 +541,8 @@ def main(argv=None) -> int:
         return cmd_ledger(args)
     if args.command == "claim":
         return cmd_claim(args)
+    if args.command == "admin-report":
+        return cmd_admin_report(args.camp)
     return COMMANDS[args.command](args.camp)
 
 
