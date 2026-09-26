@@ -147,6 +147,18 @@ def write_camp_report_xlsx(path: str | Path = None, camp: model.Camp = None) -> 
 
     b_expenses = [e for e in camp.expenses if e.category == "B"]
     c_expenses = [e for e in camp.expenses if e.category == "C"]
+    # コーチ謝礼は雑費に混ぜない。どの行がコーチ謝礼かは費目の振り分け設定
+    # （report-admin-<合宿ID>.yml。管理職向け報告書と共通）に従う。
+    coach_ids = set()
+    mapping = model.DATA_DIR / f"report-admin-{camp.id}.yml"
+    if mapping.exists():
+        import yaml
+
+        for name, ids in (yaml.safe_load(mapping.read_text()).get("expense_lines") or {}).items():
+            if "コーチ" in name:
+                coach_ids |= set(ids)
+    coach_expenses = [e for e in c_expenses if e.receipt in coach_ids]
+    misc_expenses = [e for e in c_expenses if e.receipt not in coach_ids]
 
     wb = Workbook()
     ws = wb.active
@@ -205,12 +217,12 @@ def write_camp_report_xlsx(path: str | Path = None, camp: model.Camp = None) -> 
             cnt.fill = YELLOW
         r += 1
 
-    income_row("選手参加費（全日参加）", 79090, len(full_select))
-    income_row("マネージャー参加費（全日参加）", 78060, len(full_mgr))
+    income_row("選手参加費（全日参加）", full_select[0].total if full_select else 0, len(full_select))
+    income_row("マネージャー参加費（全日参加）", full_mgr[0].total if full_mgr else 0, len(full_mgr))
     for l in late:
         income_row(f"途中参加者（{l.person.name}・{l.person.role}）", l.total, 1)
-    # 顧問（引率）の宿泊・交通・昼食代: 生徒徴収とは別財源から充当（未解決の論点1）。金額未確定。
-    income_row("顧問宿泊費・交通費・昼食代（別財源）", 0, 1, pending=True)
+    # 顧問・外部コーチの宿泊・食事代は生徒からの徴収で賄う（部の独自財源からは出さない。
+    # 2026/09/26 占部先生確認）。ホテル請求額に含まれて支出側に計上されるので、収入行は置かない。
 
     income_total_row = r
     ws.cell(row=r, column=1, value="収入合計").font = BOLD
@@ -263,10 +275,14 @@ def write_camp_report_xlsx(path: str | Path = None, camp: model.Camp = None) -> 
         1,
         note="簡易再構成モデルでは内訳化していない単発追加分",
     )
-    misc_row = expense_row("雑費（合宿中の経費）※2", sum(e.amount for e in c_expenses), 1)
+    misc_row = expense_row("雑費（合宿中の経費）※2", sum(e.amount for e in misc_expenses), 1)
     bus_row = expense_row("バス代（国際興業・見積額）※3", camp.bus["quote"], 1)
     coach_row = expense_row(
-        "コーチ宿泊代・交通費・謝礼", 0, 1, pending=True, note="金額未確定（畠山先生に確認中）"
+        "コーチ宿泊代・交通費・謝礼",
+        sum(e.amount for e in coach_expenses),
+        1,
+        pending=True,
+        note=f"謝礼{len(coach_expenses)}名分を計上。2人目は未払。宿泊代はホテル代に含む",
     )
     reserve_row = expense_row("予備費未使用返金分※4", camp.collection["reserve"], total_people)
 

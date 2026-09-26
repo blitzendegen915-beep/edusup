@@ -85,7 +85,7 @@ def build_figures(camp_id):
 
     expense_rows = [
         ("宿泊・食事・BBQ・グラウンド使用料（{}）".format(camp.venue), camp.hotel_invoice_total,
-         "確定（支払済）", "請求書に基づく"),
+         "確定（支払済）", "請求書に基づく。引率顧問・外部コーチの宿泊・食事代を含む"),
         ("バス代（{}）".format(camp.bus["vendor"]), camp.bus["quote"],
          "見積額", "有料道路代・駐車場代は後日実費請求"),
     ]
@@ -97,19 +97,8 @@ def build_figures(camp_id):
                          f"@{camp.collection['reserve']:,}円 × {reserve_n}名"))
     expense_total = sum(r[1] for r in expense_rows)
 
-    # 引率の大人の宿泊・食事代（ホテル請求に含まれる。生徒からは徴収していない）
-    rates = camp.hotel_rates
-    xl, bbq = camp.special_days.get("extra_lunch"), camp.special_days.get("bbq")
-
-    def adult_cost(a):
-        p = camp.adult_presence(a)
-        return (len(p.lodging_nights) * rates["stay3"]
-                + (rates["lunch"] if xl in p.lunches else 0)
-                + (rates["bbq"] if bbq in p.dinners else 0))
-
     advisors = [a for a in camp.adults if a.role == "顧問"]
     coaches = [a for a in camp.adults if a.role != "顧問"]
-    advisor_cost = sum(adult_cost(a) for a in advisors)
 
     attending = camp.attending_roster()
     return dict(
@@ -117,7 +106,7 @@ def build_figures(camp_id):
         n_players=sum(1 for p in attending if p.role == "選手"),
         n_mgr=sum(1 for p in attending if p.role != "選手"),
         n_late=sum(1 for p in attending if not p.is_full_time),
-        advisors=advisors, coaches=coaches, advisor_cost=advisor_cost,
+        advisors=advisors, coaches=coaches,
         income_rows=income_rows, income_total=inc["total"],
         expense_rows=expense_rows, expense_total=expense_total,
         diff=inc["total"] - expense_total,
@@ -257,10 +246,7 @@ def write(camp_id, out_path: Path):
     # 6. 未確定事項
     _para(doc, "６．未確定事項（確定後に改めて報告します）", bold=True, before=10)
     for i, item in enumerate(cfg.get("pending", []), 1):
-        text = item
-        if "引率顧問" in item:
-            text += f"。ホテル請求額のうち該当分は{yen(f['advisor_cost'])}（算出値）"
-        _para(doc, f"（{i}）{text}", size=10, after=1)
+        _para(doc, f"（{i}）{item}", size=10, after=1)
 
     # 7. 添付
     if cfg.get("attachments"):

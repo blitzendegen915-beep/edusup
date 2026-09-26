@@ -168,6 +168,38 @@ def main():
     test_add_category_a_claimed_default()
     test_claim()
 
+
+    # -- 保護者向け収支報告: コーチ謝礼の二重計上・別財源行の不在 ------------------
+    # コーチ謝礼（分類C）を台帳に足したとき、雑費行が分類Cを丸ごと合計していたため
+    # 謝礼が雑費に混ざり、コーチ行と二重計上になり得た不具合の再発防止。
+    import tempfile as _tf
+    from openpyxl import load_workbook as _lw
+    from scripts.kaikei import reports as _rp
+    _tmp = Path(_tf.mkdtemp())
+    try:
+        _rp.write_camp_report_xlsx(path=_tmp / "r.xlsx", camp=camp)
+        _ws = _lw(_tmp / "r.xlsx").worksheets[0]
+        _rows = {}
+        for _row in _ws.iter_rows(min_col=1, max_col=3):
+            _label = _row[0].value
+            if isinstance(_label, str) and isinstance(_row[1].value, (int, float)):
+                _rows[_label] = _row[1].value * (_row[2].value or 0)
+        _misc = next(v for k, v in _rows.items() if k.startswith("雑費"))
+        _coach = next(v for k, v in _rows.items() if k.startswith("コーチ"))
+        _c_total = sum(e.amount for e in camp.expenses if e.category == "C")
+        check("保護者向け報告: 雑費＋コーチ行＝分類C支出の合計（取りこぼしも二重計上もない）",
+              _misc + _coach == _c_total)
+        check("保護者向け報告: コーチ謝礼が雑費に混ざっていない", _coach > 0 and _misc < _c_total)
+        check("保護者向け報告: 『別財源』の収入行が無い（顧問・コーチの宿泊代は生徒徴収で賄う）",
+              not any("別財源" in k for k in _rows))
+        _full = [l for l in m.income(camp)["lines"] if l.is_full_time and l.person.role == "選手"]
+        check("保護者向け報告: 選手参加費の単価は会計モデルの計算値と一致",
+              _rows and any(k.startswith("選手参加費") for k in _rows)
+              and _ws.cell(row=next(c.row for c in _ws["A"] if str(c.value).startswith("選手参加費")),
+                           column=2).value == _full[0].total)
+    finally:
+        shutil.rmtree(_tmp, ignore_errors=True)
+
     print(f"\n{PASS} passed, {FAIL} failed")
     return 1 if FAIL else 0
 
