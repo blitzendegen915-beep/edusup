@@ -35,8 +35,8 @@ def client_or_die():
         _client = anthropic.Anthropic(max_retries=4)
     return _client
 
-# 累計コスト（$/1Mトークン: Haiku 1/5, Sonnet 3/15）
-_PRICES = {HAIKU: (1.0, 5.0), SONNET: (3.0, 15.0)}
+# 累計コスト（$/1Mトークン: Haiku 1/5, Sonnet 5 は 2/10。公式料金表 2026-09 時点）
+_PRICES = {HAIKU: (1.0, 5.0), SONNET: (2.0, 10.0)}
 usage_total = {"cost_usd": 0.0, "input": 0, "output": 0}
 
 
