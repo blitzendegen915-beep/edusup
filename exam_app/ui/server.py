@@ -150,8 +150,14 @@ def _clean_sections(sections) -> list:
             "choice_style": s.get("choice_style") if s.get("choice_style") in CHOICE_STYLES else "1",
             "bank": [b for b in _str_list(s.get("bank"), 30) if b.strip()],
             "bank_style": s.get("bank_style") if s.get("bank_style") in CHOICE_STYLES else "",
+            # 大問のまとまり: new_big=False は直前の大問の続きの設問（同じ本文の問2・問3…）
+            "new_big": i == 0 or s.get("new_big") is not False,
+            "big_title": str(s.get("big_title") or "")[:500],
+            "passage": str(s.get("passage") or "")[:30000],
+            "passage_src": str(s.get("passage_src") or "")[:200],
             "questions": qs,
         })
+    layout.apply_labels(out)
     return out
 
 
@@ -313,7 +319,8 @@ def _safe_filename(s: str) -> str:
 def _sources_md(p: dict) -> str:
     lines = [f"# {p['exam']['title']}　出典一覧", "", f"作成: {_now()}", ""]
     for s in p["sections"]:
-        lines += [f"## 大問{s['no']}（{s['points_each']}点×{len(s['questions'])}）", "",
+        lines += [f"## {s.get('label') or '大問' + str(s['no'])}（{s['points_each']}点×{len(s['questions'])}）", "",
+                  *([f"本文の出典: {s['passage_src']}", ""] if s.get("passage_src") else []),
                   "| 問 | 解答 | 出典 | 別解の検討 |", "|---|---|---|---|"]
         for q in s["questions"]:
             cells = [f"({q['number']})", q["answer"], q["source_ref"],
@@ -467,6 +474,7 @@ def _clean_template(t: dict, tid: str = "") -> dict:
     for s in _clean_sections(t.get("sections")):
         s.pop("questions", None)
         s.pop("source", None)
+        s.pop("passage", None)  # 本文は試験ごとに違うのでテンプレートには残さない
         secs.append(s)
     return {"id": tid if MATERIAL_ID.match(tid or "") else uuid.uuid4().hex[:8], "name": name,
             "category": str(t.get("category") or exam["category"])[:30], "desc": str(t.get("desc") or "")[:200],

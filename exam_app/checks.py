@@ -3,19 +3,25 @@
 generate直後・verify時・画面のチェックで必ず走らせる。LLMに頼らず確実に検出できるものは
 コードで検出する。
 """
-from .layout import answer_slots, q_points  # noqa: F401  (answer_slots は他モジュールも利用)
+from .layout import answer_slots, apply_labels, q_points  # noqa: F401  (answer_slots は他モジュールも利用)
+
+
+def _lab(s) -> str:
+    """設問の呼び名（「大問2 問1」。設問が1つの大問は「大問2」）。"""
+    return s.get("label") or f"大問{s['no']}"
 
 _CHOICE_MARKS = set("1234アイウエオ①②③④abcd")
 
 # 1つの本文・単語リストから複数問を出すのが普通の形式（出典の重複チェック対象外）
 PASSAGE_TYPES = {"reading_misfit", "content_match", "insertion", "choice_4", "choice_3",
                  "translation", "underline_grammar", "listening", "listening_choice", "qa",
-                 "table_fill", "definition", "listen_meaning", "vocab_meaning", "vocab_word",
+                 "table_fill", "referent", "definition", "listen_meaning", "vocab_meaning", "vocab_word",
                  "vocab_context", "vocab_spelling"}
 
 
 def run_all(draft: dict) -> list[str]:
     """問題点のリストを返す。空なら合格。"""
+    apply_labels(draft["sections"])  # 「大問2 問1」の呼び名を振る
     issues = []
     issues += check_points(draft)
     issues += check_numbering(draft)
@@ -41,9 +47,9 @@ def check_numbering(draft) -> list[str]:
     for s in draft["sections"]:
         nums = [q["number"] for q in s["questions"]]
         if nums != list(range(1, len(nums) + 1)):
-            issues.append(f"大問{s['no']}: 小問番号が連番でない {nums}")
+            issues.append(f"{_lab(s)}: 小問番号が連番でない {nums}")
         if len(s["questions"]) != s.get("count", len(nums)):
-            issues.append(f"大問{s['no']}: 作成済み{len(s['questions'])}問 ≠ 予定{s['count']}問")
+            issues.append(f"{_lab(s)}: 作成済み{len(s['questions'])}問 ≠ 予定{s['count']}問")
     return issues
 
 
@@ -52,7 +58,7 @@ def check_sources(draft) -> list[str]:
     for s in draft["sections"]:
         for q in s["questions"]:
             if not q.get("source_ref", "").strip():
-                issues.append(f"大問{s['no']}({q['number']}): 出典なし（破棄対象）")
+                issues.append(f"{_lab(s)}({q['number']}): 出典なし（破棄対象）")
     return issues
 
 
@@ -61,7 +67,7 @@ def check_empty(draft) -> list[str]:
     issues = []
     for s in draft["sections"]:
         for q in s["questions"]:
-            key = f"大問{s['no']}({q['number']})"
+            key = f"{_lab(s)}({q['number']})"
             if not str(q.get("body", "")).strip() and not str(q.get("script", "")).strip():
                 issues.append(f"{key}: 問題文が空")
             if not str(q.get("answer", "")).strip():
@@ -81,7 +87,7 @@ def check_slot_count(draft) -> list[str]:
             blanks = str(q.get("body", "")).count("（")
             n = len(answer_slots(q))
             if blanks and n != blanks:
-                issues.append(f"大問{s['no']}({q['number']}): 空所{blanks}個に対し"
+                issues.append(f"{_lab(s)}({q['number']}): 空所{blanks}個に対し"
                               f"解答枠{n}個（1枠1語になっていない）")
     return issues
 
@@ -94,7 +100,7 @@ def check_choices(draft) -> list[str]:
             ch = q.get("choices")
             if not ch:
                 continue
-            key = f"大問{s['no']}({q['number']})"
+            key = f"{_lab(s)}({q['number']})"
             clean = [str(c).strip().lower() for c in ch]
             if any(not c for c in clean):
                 issues.append(f"{key}: 空欄の選択肢がある")
@@ -113,7 +119,7 @@ def check_duplicates(draft) -> list[str]:
     seen_src: dict[str, str] = {}
     for s in draft["sections"]:
         for q in s["questions"]:
-            key = f"大問{s['no']}({q['number']})"
+            key = f"{_lab(s)}({q['number']})"
             a = str(q.get("answer", "")).strip().lower()
             if len(a) <= 1 or a in {c.lower() for c in _CHOICE_MARKS} or a.isdigit():
                 a = ""  # 選択記号は複数問で同じでも正常（偏りは別チェック）
@@ -122,7 +128,7 @@ def check_duplicates(draft) -> list[str]:
             elif a:
                 seen_ans[a] = key
             src = str(q.get("source_ref", "")).strip()
-            if s.get("type") in PASSAGE_TYPES:
+            if s.get("type") in PASSAGE_TYPES or s.get("part") or s.get("passage"):
                 src = ""  # 長文系・単語リスト系は同じ出典から複数問出すのが正常
             if src and src in seen_src:
                 issues.append(f"{key}: 出典 '{src}' が {seen_src[src]} と重複")
@@ -140,7 +146,7 @@ def check_choice_balance(draft) -> list[str]:
             continue
         top = max(set(answers), key=answers.count)
         if len(set(answers)) == 1:
-            issues.append(f"大問{s['no']}: 正解が全問 '{top}' に偏っている")
+            issues.append(f"{_lab(s)}: 正解が全問 '{top}' に偏っている")
         elif len(answers) >= 8 and answers.count(top) > len(answers) / 2:
-            issues.append(f"大問{s['no']}: 正解の半分以上が '{top}'（{answers.count(top)}/{len(answers)}問）")
+            issues.append(f"{_lab(s)}: 正解の半分以上が '{top}'（{answers.count(top)}/{len(answers)}問）")
     return issues

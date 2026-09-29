@@ -13,7 +13,7 @@ CHOICE_MARKS = {
 }
 
 # 解答欄を広く取る形式（1行に1問）
-LONG_TYPES = {"translation", "writing", "qa", "table_fill", "paraphrase", "underline_grammar", "rewrite"}
+LONG_TYPES = {"translation", "writing", "qa", "table_fill", "paraphrase", "underline_grammar", "rewrite", "referent"}
 # 答えが記号1つの形式（1行に5問）
 MARK_TYPES = {"choice_4", "choice_3", "definition", "listen_meaning", "vocab_meaning", "vocab_word",
               "vocab_context", "content_match", "accent", "pattern", "reading_misfit", "listening_choice"}
@@ -147,3 +147,49 @@ def heading(exam: dict, sec: dict) -> str:
         return f"【{sec['no']}】{instr}{p if qs else ''}"
     zen = str(sec["no"]).translate(str.maketrans("0123456789", "０１２３４５６７８９"))
     return f"{zen}　{instr}（{section_points(sec)}点）" if qs else f"{zen}　{instr}"
+
+
+# ---------------------------------------------------------------- 大問のまとまり
+# sections の1つ1つは「設問」。new_big=False の設問は直前の大問の続き（同じ本文を使う問2・問3…）。
+# 大問の先頭の設問が、大問の指示文 big_title と本文 passage を持つ。
+
+def groups(sections) -> list:
+    """大問ごとに設問の添字をまとめる。例: [[0], [1, 2, 3], [4]]"""
+    out = []
+    for i, s in enumerate(sections):
+        if not out or s.get("new_big") is not False:
+            out.append([i])
+        else:
+            out[-1].append(i)
+    return out
+
+
+def apply_labels(sections) -> None:
+    """no（大問番号）・part（問番号。設問が1つなら0）・label（「大問2 問1」）を振る。"""
+    for g_no, g in enumerate(groups(sections), 1):
+        multi = len(g) > 1
+        for k, i in enumerate(g, 1):
+            s = sections[i]
+            s["no"], s["part"] = g_no, (k if multi else 0)
+            s["new_big"] = k == 1
+            s["label"] = f"大問{g_no} 問{k}" if multi else f"大問{g_no}"
+
+
+def big_heading(exam: dict, secs: list) -> str:
+    """設問が複数ある大問の見出し。例: ２　次の英文を読んで、後の問いに答えなさい。（20点）"""
+    head = secs[0]
+    instr = (head.get("big_title") or "").strip()
+    total = sum(section_points(s) for s in secs)
+    if exam.get("heading") == "bracket":
+        return f"【{head['no']}】{instr}（{total}点）"
+    zen = str(head["no"]).translate(str.maketrans("0123456789", "０１２３４５６７８９"))
+    return f"{zen}　{instr}（{total}点）"
+
+
+def part_heading(exam: dict, sec: dict) -> str:
+    """大問の中の設問の見出し。例: 問1　下線部を和訳しなさい。（4点）"""
+    instr = (sec.get("instructions") or "").strip()
+    qs = sec.get("questions", [])
+    pts = {q_points(sec, q) for q in qs}
+    p = f"（各{pts.pop()}点）" if len(pts) == 1 and len(qs) > 1 else f"（{section_points(sec)}点）"
+    return f"問{sec.get('part') or 1}　{instr}{p if qs else ''}"

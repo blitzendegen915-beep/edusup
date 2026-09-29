@@ -20,27 +20,54 @@ function T(type, count, points_each, instructions, extra = {}) {
   return { type, count, points_each, instructions: instructions ?? DEFAULT_INSTR[type] ?? '', ...extra };
 }
 
+/** 大問を1つ作る。big_title は大問の指示文、parts は設問（問1・問2…） */
+function G(big_title, ...parts) {
+  return parts.map((x, k) => ({ ...x, new_big: k === 0, big_title: k === 0 ? big_title : '' }));
+}
+const READ = '次の英文を読んで、後の問いに答えなさい。';
+
 const BUILTIN_TEMPLATES = [
   {
+    id: 'builtin:reading', builtin: true, name: '長文総合型（本文＋設問）', category: '定期考査',
+    desc: '大問1 長文（空所・和訳・指示語・並べ替え・内容一致）→ 大問2 対話文 → 大問3 文法 → 大問4 英作文',
+    exam: { written_points: 100, numbering: 'section', heading: 'number', sheet_fields: '組,番,氏名,得点', cover: { enabled: false } },
+    sections: [
+      ...G(READ,
+        T('fill_blank', 3, 2, '本文中の空所（ 1 ）〜（ 3 ）に入る適切な語を答えなさい。'),
+        T('translation', 1, 4, '下線部(A)を日本語に訳しなさい。'),
+        T('referent', 1, 3, '下線部(B)の指す内容を日本語で具体的に説明しなさい。'),
+        T('reorder_2nd_5th', 1, 3, '下線部(C)の（　）内の語句を並べ替えて、意味の通る英文にしなさい。'),
+        T('content_match', 3, 3, '本文の内容と一致するものを選び、記号で答えなさい。')),
+      ...G('次の対話文を読んで、後の問いに答えなさい。',
+        T('choice_4', 3, 2, '空所に入る最も適切なものを選び、記号で答えなさい。'),
+        T('qa', 2, 4, '本文の内容について、次の問いに英語で答えなさい。')),
+      ...G('次の各問いに答えなさい。',
+        T('choice_4', 10, 2), T('reorder_2nd_5th', 5, 3), T('word_form', 5, 2)),
+      ...G('', T('writing', 2, 8, '次の問いに対するあなたの考えを、理由を含めて英語で書きなさい。')),
+    ],
+  },
+  {
     id: 'builtin:comm1', builtin: true, name: '英語コミュニケーションⅠ型', category: '定期考査',
-    desc: 'リスニング → 語義 → 空所補充 → 並べ替え → アクセント → 表 → 内容一致 → 英作文・Retelling（表紙・通し番号）',
+    desc: '大問1 リスニング（No.1〜3）→ 語義 → 空所補充 → 並べ替え → アクセント → 長文（表）→ 長文（内容一致）→ 英作文・Retelling（表紙・通し番号）',
     exam: { written_points: 90, numbering: 'global', heading: 'number', sheet_fields: '組,番,氏名,得点',
       cover: { enabled: true, grade: '１学年', subject: '英語コミュニケーションⅠ', name: '　学期　　試験', cautions: COVER_CAUTIONS } },
     sections: [
-      T('listening', 8, 1, 'No.1　放送を聞いて英文の空欄に聞き取った語を補いなさい。英語は２回放送されます。'),
-      T('qa', 1, 2, 'No.1の英文の直後に流れる質問に対し、英語で答えなさい。'),
-      T('listening', 8, 1, 'No.2　放送を聞いて英文の空欄に聞き取った語を補いなさい。英語は２回放送されます。'),
-      T('qa', 1, 2, 'No.2の英文の直後に流れる質問に対し、英語で答えなさい。'),
-      T('listening_choice', 5, 1, 'No.3　対話を聞き、最後の文に対する応答として最も適切なものを1〜3から選び、番号で答えなさい。選択肢は全て放送されます。'),
-      T('definition', 5, 2, '次の英文が定義する英単語を下の語群から選び、記号で答えなさい。', { choice_style: 'ア' }),
-      T('fill_blank', 5, 2, '日本語の意味に合うように、空所に適語を１語ずつ入れなさい。'),
-      T('reorder_2nd_5th', 5, 2, '日本語の意味に合うように［　］内の語句を並べ替えたとき、解答番号のある（　）に入る語句を番号で答えなさい。なお、文頭に来るべき語も小文字にしてある。'),
-      T('accent', 4, 1),
-      T('table_fill', 3, 2),
-      T('content_match', 5, 2, '本文の内容に合うものとして最も適切なものを(a)〜(d)から選び、記号で答えなさい。', { choice_style: 'a' }),
-      T('writing', 4, 3, '日本語の意味を表す英文を書きなさい。ただし、指示がある場合はそれに従うこと。'),
-      T('writing', 1, 3, 'Retelling　指示に従って英語で答えなさい。', {
-        scoring_note: '文の形式を保っていない文・同一内容の繰り返し・質問内容を理解していないと思われるものを除き、３文以上→３点　２文→２点　１文→１点　０文→０点' }),
+      ...G('リスニング試験　※試験開始５分後より放送します。',
+        T('listening', 8, 1, 'No.1　放送を聞いて英文の空欄に聞き取った語を補いなさい。英語は２回放送されます。'),
+        T('qa', 1, 2, 'No.1の英文の直後に流れる質問に対し、英語で答えなさい。'),
+        T('listening', 8, 1, 'No.2　放送を聞いて英文の空欄に聞き取った語を補いなさい。英語は２回放送されます。'),
+        T('qa', 1, 2, 'No.2の英文の直後に流れる質問に対し、英語で答えなさい。'),
+        T('listening_choice', 5, 1, 'No.3　対話を聞き、最後の文に対する応答として最も適切なものを1〜3から選び、番号で答えなさい。選択肢は全て放送されます。')),
+      ...G('', T('definition', 5, 2, '次の英文が定義する英単語を下の語群から選び、記号で答えなさい。', { choice_style: 'ア' })),
+      ...G('', T('fill_blank', 5, 2, '日本語の意味に合うように、空所に適語を１語ずつ入れなさい。')),
+      ...G('', T('reorder_2nd_5th', 5, 2, '日本語の意味に合うように［　］内の語句を並べ替えたとき、解答番号のある（　）に入る語句を番号で答えなさい。なお、文頭に来るべき語も小文字にしてある。')),
+      ...G('', T('accent', 4, 1)),
+      ...G(READ, T('table_fill', 3, 2)),
+      ...G(READ, T('content_match', 5, 2, '本文の内容に合うものとして最も適切なものを(a)〜(d)から選び、記号で答えなさい。', { choice_style: 'a' })),
+      ...G('英作文',
+        T('writing', 4, 3, '日本語の意味を表す英文を書きなさい。ただし、指示がある場合はそれに従うこと。'),
+        T('writing', 1, 3, 'Retelling　指示に従って英語で答えなさい。', {
+          scoring_note: '文の形式を保っていない文・同一内容の繰り返し・質問内容を理解していないと思われるものを除き、３文以上→３点　２文→２点　１文→１点　０文→０点' })),
     ],
   },
   {
@@ -48,8 +75,16 @@ const BUILTIN_TEMPLATES = [
     desc: '空所補充 → 読解 → 語句選択 → 語句挿入 → 英文解釈 → 並び替え → 長文 → 語群選択（大問ごとの番号）',
     exam: { written_points: 80, numbering: 'section', heading: 'number', sheet_fields: '組,番,氏名,得点', cover: { enabled: false } },
     sections: [
-      T('fill_blank', 9, 1), T('reading_misfit', 3, 2), T('choice_4', 4, 1), T('insertion', 5, 2),
-      T('translation', 4, 4), T('reorder_2nd_5th', 5, 2), T('content_match', 5, 3, null, { choice_style: '1' }), T('choice_4', 10, 1),
+      ...G('', T('fill_blank', 9, 1)),
+      ...G('Read the following text and answer the questions.',
+        T('reading_misfit', 1, 2, '段落の流れに合わない文を①〜④から１つ選びなさい。'),
+        T('choice_4', 2, 2, '空欄 A・B に入る最も適切な語句を語群から選び、記号で答えなさい。')),
+      ...G('', T('choice_4', 4, 1, '次の英文の（ 1 ）〜（ 4 ）に入る最も適切なものをア〜エから選び、記号で答えなさい。All the options are given in their base form.')),
+      ...G('', T('insertion', 5, 2)),
+      ...G('', T('translation', 4, 4)),
+      ...G('', T('reorder_2nd_5th', 5, 2)),
+      ...G(READ, T('content_match', 5, 3, '本文の内容に合うものを1〜4から選び、番号で答えなさい。', { choice_style: '1' })),
+      ...G('', T('choice_4', 10, 1)),
     ],
   },
   {
@@ -117,6 +152,8 @@ function templatePoints(t) { return t.sections.reduce((a, s) => a + (+s.points_e
 function sectionsFromTemplate(t) {
   return t.sections.map(s => ({
     ...newSection(s.type, +s.count || 0),
+    new_big: s.new_big !== false,
+    big_title: s.big_title || '',
     points_each: +s.points_each || 0,
     instructions: s.instructions ?? DEFAULT_INSTR[s.type] ?? '',
     choice_style: s.choice_style || DEFAULT_STYLE[s.type] || '1',
@@ -142,7 +179,8 @@ function examFromTemplate(t) {
 function templateMeta(t) {
   const e = t.exam || {};
   if (!t.sections.length) return '大問なし';
-  return [`大問${t.sections.length}`, `${templatePoints(t)}点`, e.numbering === 'global' ? '通し番号' : '大問ごとの番号',
+  const nb = groupsOf(t.sections).length, np = t.sections.length;
+  return [`大問${nb}` + (np > nb ? `（設問${np}）` : ''), `${templatePoints(t)}点`, e.numbering === 'global' ? '通し番号' : '大問ごとの番号',
     e.heading === 'bracket' ? '【1】見出し' : null, e.cover?.enabled ? '表紙あり' : null].filter(Boolean).join('・');
 }
 
@@ -188,8 +226,10 @@ function templateCard(t) {
     h('div', { class: 'tpl-card-head' }, h('b', {}, t.name), t.builtin ? h('span', { class: 'pill' }, '標準') : h('span', { class: 'pill mine' }, '自作')),
     h('div', { class: 'tpl-meta' }, templateMeta(t)),
     t.desc ? h('p', { class: 'tpl-desc' }, t.desc) : null,
-    t.sections.length ? h('div', { class: 'tpl-secs' }, t.sections.map((s, i) =>
-      h('span', { class: 'tpl-sec', title: TYPE_LABEL[s.type] || s.type }, h('i', {}, i + 1), SHORT[s.type] || s.type, h('small', {}, `${s.count}×${s.points_each}`)))) : null,
+    t.sections.length ? h('div', { class: 'tpl-bigs' }, groupsOf(t.sections).map((g, gi) => h('div', { class: 'tpl-big' },
+      h('i', {}, gi + 1),
+      t.sections[g[0]].big_title && g.length > 1 ? h('small', { class: 'tpl-big-title' }, t.sections[g[0]].big_title.slice(0, 18)) : null,
+      g.map(i => { const x = t.sections[i]; return h('span', { class: 'tpl-sec', title: TYPE_LABEL[x.type] || x.type }, SHORT[x.type] || x.type, h('small', {}, `${x.count}×${x.points_each}`)); })))) : null,
     h('div', { class: 'tpl-actions' },
       h('button', { class: 'btn primary sm', onclick: () => newProjectDialog({ tpl: t.id }) }, icon('plus', 14), 'この形で試験を作る'),
       t.builtin
@@ -236,12 +276,12 @@ function templateEditor(t) {
     total.replaceChildren(`大問の配点合計 ${sum}点 ／ 満点 ${d.exam.written_points}点`,
       sum !== d.exam.written_points ? h('button', { class: 'link', type: 'button', onclick: () => { d.exam.written_points = sum; draw(); } }, `満点を${sum}点にする`) : '');
   };
-  const secBox = h('div', { class: 'sec-list compact' });
+  const secBox = h('div');
   const ctx = { dirty: updateTotal, redraw: () => drawSections(), list: d.sections, template: true };
   const drawSections = () => {
-    d.sections.forEach((s, i) => { s.no = i + 1; });
-    secBox.replaceChildren(...(d.sections.length ? d.sections.map((s, i) => sectionRow(s, i, ctx))
-      : [h('div', { class: 'empty small' }, icon('layers', 24), h('b', {}, '大問がありません'), h('p', {}, '下の「大問を追加」から組み立てます'))]));
+    setChildren(secBox, d.sections.length ? structureEditor(d.sections, ctx)
+      : h('div', { class: 'empty small' }, icon('layers', 24), h('b', {}, '大問がありません'), h('p', {}, '下の「大問を追加」から組み立てます')),
+      addBigBar(d.sections, ctx));
     updateTotal();
   };
   const draw = () => {
@@ -254,8 +294,7 @@ function templateEditor(t) {
       h('div', { class: 'card flat' }, h('div', { class: 'card-title' }, icon('printer'), '用紙の体裁'), layoutFields(d.exam, () => {})),
       h('div', { class: 'card flat' },
         h('div', { class: 'card-title' }, icon('layers'), '大問の構成', total),
-        secBox,
-        h('button', { class: 'btn ghost', style: { marginTop: '10px' }, type: 'button', onclick: () => typePicker(type => { d.sections.push(newSection(type)); drawSections(); }) }, icon('plus'), '大問を追加')));
+        secBox));
     drawSections();
   };
   draw();
@@ -285,7 +324,7 @@ function saveAsTemplateDialog() {
   openModal({
     title: 'テンプレートとして保存', size: 'md',
     body: h('div', { class: 'stack' },
-      h('p', { class: 'muted', style: { margin: 0 } }, `大問${p.sections.length}つの構成・配点・指示文・語群・採点基準と、番号の振り方・表紙などの体裁を保存します。問題・素材は保存されません。`),
+      h('p', { class: 'muted', style: { margin: 0 } }, `大問${groupsOf(p.sections).length}つ（本文＋設問）の構成・配点・指示文・語群・採点基準と、番号の振り方・表紙などの体裁を保存します。問題・素材は保存されません。`),
       field('テンプレートの名前', input({ value: '', 'data-autofocus': true, placeholder: '例: 英コミュⅠ 期末（リスニングあり）', oninput: v => { st.name = v; } })),
       h('div', { class: 'grid-2' },
         field('カテゴリー', select(categoryList().map(c => [c, c]), st.category, v => { st.category = v; })),

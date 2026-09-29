@@ -11,7 +11,7 @@ const CHOICE_MARKS = {
   'a': [...'abcdefghijkl'],
 };
 const CHOICE_STYLES = [['1', '1. 2. 3. 4.'], ['ア', 'ア イ ウ エ'], ['①', '① ② ③ ④'], ['a', 'a. b. c. d.']];
-const LONG_TYPES = new Set(['translation', 'writing', 'qa', 'table_fill', 'paraphrase', 'underline_grammar', 'rewrite']);
+const LONG_TYPES = new Set(['translation', 'writing', 'qa', 'table_fill', 'paraphrase', 'underline_grammar', 'rewrite', 'referent']);
 const MARK_TYPES = new Set(['choice_4', 'choice_3', 'definition', 'listen_meaning', 'vocab_meaning', 'vocab_word',
   'vocab_context', 'content_match', 'accent', 'pattern', 'reading_misfit', 'listening_choice']);
 
@@ -117,4 +117,40 @@ function answerBalance(s) {
     if (a && a.length <= 2) counts[a] = (counts[a] || 0) + 1;
   });
   return counts;
+}
+
+// ---------------------------------------------------------------- 大問のまとまり（layout.py と同じ）
+// sections の1つ1つは「設問」。new_big=false は直前の大問の続き（同じ本文を使う問2・問3…）
+
+/** 大問ごとに設問の添字をまとめる。例: [[0], [1, 2, 3], [4]] */
+function groupsOf(sections) {
+  const out = [];
+  sections.forEach((s, i) => { if (!out.length || s.new_big !== false) out.push([i]); else out[out.length - 1].push(i); });
+  return out;
+}
+
+/** no（大問番号）・part（問番号。設問が1つなら0）・label（「大問2 問1」）を振る */
+function applyLabels(sections) {
+  groupsOf(sections).forEach((g, gi) => {
+    const multi = g.length > 1;
+    g.forEach((i, k) => {
+      const s = sections[i];
+      s.no = gi + 1; s.part = multi ? k + 1 : 0; s.new_big = k === 0;
+      s.label = multi ? `大問${gi + 1} 問${k + 1}` : `大問${gi + 1}`;
+    });
+  });
+}
+
+function bigHeadingText(exam, secs) {
+  const head = secs[0];
+  const instr = (head.big_title || '').trim();
+  const total = secs.reduce((a, s) => a + sectionPoints(s), 0);
+  return exam.heading === 'bracket' ? `【${head.no}】${instr}（${total}点）` : `${ZEN(head.no)}　${instr}（${total}点）`;
+}
+
+function partHeadingText(exam, s) {
+  const instr = (s.instructions || '').trim();
+  const pts = new Set(s.questions.map(q => qPoints(s, q)));
+  const p = pts.size === 1 && s.questions.length > 1 ? `（各${[...pts][0]}点）` : `（${sectionPoints(s)}点）`;
+  return `問${s.part || 1}　${instr}${s.questions.length ? p : ''}`;
 }

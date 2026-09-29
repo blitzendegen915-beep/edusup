@@ -367,7 +367,7 @@ function openWordList(si) {
       h('div', { class: 'warn-box info' }, icon('shield', 14), '誤答は同じ単語リストの同じ品詞の語から選び、意味が重なる語は除いています。品詞の推定は完全ではないので、配布前に必ず確認してください。'),
       h('div', { class: 'row', style: { justifyContent: 'space-between' } },
         h('button', { class: 'btn ghost', onclick: regenerate }, icon('shuffle'), '作り直す'),
-        h('button', { class: 'btn primary', disabled: !r.questions.length, onclick: commit }, icon('plus'), `大問${s.no}に${r.questions.length}問を入れる`)));
+        h('button', { class: 'btn primary', disabled: !r.questions.length, onclick: commit }, icon('plus'), `${s.label}に${r.questions.length}問を入れる`)));
   };
 
   const commit = async () => {
@@ -393,9 +393,9 @@ function openWordList(si) {
     renumber(); markDirty(); close();
     S.issues = null;
     render({ keepScroll: true });
-    toast(`大問${s.no}に${r.questions.length}問を入れました` + (grew ? `（問数を${s.count}問に増やしました。配点を確認してください）` : ''), 'ok');
+    toast(`${s.label}に${r.questions.length}問を入れました` + (grew ? `（問数を${s.count}問に増やしました。配点を確認してください）` : ''), 'ok');
   };
 
-  const close = openModal({ title: `単語リストから作成 — 大問${s.no}（${TYPE_LABEL[s.type] || s.type}）`, body: h('div', { class: 'qk wl' }, left, right), size: 'xl' });
+  const close = openModal({ title: `単語リストから作成 — ${s.label}（${TYPE_LABEL[s.type] || s.type}）`, body: h('div', { class: 'qk wl' }, left, right), size: 'xl' });
   parse();
 }

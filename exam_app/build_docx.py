@@ -182,6 +182,51 @@ def _compact_choices(sec) -> bool:
                             and len(q.get("body") or "") <= 40 for q in qs)
 
 
+def _passage(doc, text):
+    """本文を枠で囲んで載せる（段落は改行で分ける。__語句__ は下線）。"""
+    t = doc.add_table(rows=1, cols=1)
+    t.style = "Table Grid"
+    cell = t.rows[0].cells[0]
+    cell.text = ""
+    first = True
+    for line in str(text).split("\n"):
+        p = cell.paragraphs[0] if first else cell.add_paragraph()
+        first = False
+        p.paragraph_format.space_after = Pt(1)
+        p.paragraph_format.first_line_indent = Mm(4) if line.strip() else None
+        _rich(p, line.strip(), 10.5)
+    _para(doc, "", after=2)
+
+
+def _questions(doc, sec, nums):
+    """設問1つ分の問題を書く。"""
+    qs = sec.get("questions", [])
+    style = sec.get("choice_style") or "1"
+    if _compact_choices(sec):
+        _choice_table(doc, [(f"{n['label']} {q.get('body') or ''}".strip(), q["choices"])
+                            for q, n in zip(qs, nums)], style)
+    else:
+        for q, n in zip(qs, nums):
+            lines = (q.get("body") or "").split("\n")
+            _para(doc, f"{n['label']}　{lines[0]}", indent_mm=2, before=3)
+            for line in lines[1:]:
+                _para(doc, line, indent_mm=10)
+            labels = n["slots"] or q.get("slot_labels") or []
+            line = layout.reorder_line(q, labels)
+            if line:
+                _para(doc, line, indent_mm=10, before=2)
+            if q.get("choices"):
+                _choice_table(doc, [(None, q["choices"])], style, lead=False)
+    bank = [b for b in (sec.get("bank") or []) if str(b).strip()]
+    if bank:
+        _para(doc, "【語群】", 10.5, True, before=4)
+        items = layout.choice_line(sec.get("bank_style") or style, bank)
+        t = doc.add_table(rows=math.ceil(len(items) / 5), cols=5)
+        _no_borders(t)
+        for k, text in enumerate(items):
+            _cell(t.rows[k // 5].cells[k % 5], text, align=WD_ALIGN_PARAGRAPH.LEFT)
+
+
 def build_exam(draft: dict, outdir: Path) -> Path:
     doc = _new_doc()
     exam = draft["exam"]
@@ -189,35 +234,25 @@ def build_exam(draft: dict, outdir: Path) -> Path:
         _cover(doc, exam)
     _title_line(doc, exam)
     plan = layout.numbering(draft)
-    for sec, nums in zip(draft["sections"], plan):
-        qs = sec.get("questions", [])
-        if not qs:
+    secs = draft["sections"]
+    layout.apply_labels(secs)
+    for g in layout.groups(secs):
+        made = [i for i in g if secs[i].get("questions")]
+        head = secs[g[0]]
+        if not made:
             continue  # 未作成の大問は用紙に出さない（チェックで警告される）
-        _para(doc, layout.heading(exam, sec), 10.5, True, before=10, after=4)
-        style = sec.get("choice_style") or "1"
-        if _compact_choices(sec):
-            _choice_table(doc, [(f"{n['label']} {q.get('body') or ''}".strip(), q["choices"])
-                                for q, n in zip(qs, nums)], style)
+        multi = len(g) > 1
+        if multi:
+            _para(doc, layout.big_heading(exam, [secs[i] for i in g]), 10.5, True, before=10, after=4)
         else:
-            for q, n in zip(qs, nums):
-                lines = (q.get("body") or "").split("\n")
-                _para(doc, f"{n['label']}　{lines[0]}", indent_mm=2, before=3)
-                for line in lines[1:]:
-                    _para(doc, line, indent_mm=10)
-                labels = n["slots"] or q.get("slot_labels") or []
-                line = layout.reorder_line(q, labels)
-                if line:
-                    _para(doc, line, indent_mm=10, before=2)
-                if q.get("choices"):
-                    _choice_table(doc, [(None, q["choices"])], style, lead=False)
-        bank = [b for b in (sec.get("bank") or []) if str(b).strip()]
-        if bank:
-            _para(doc, "【語群】", 10.5, True, before=4)
-            items = layout.choice_line(sec.get("bank_style") or style, bank)
-            t = doc.add_table(rows=math.ceil(len(items) / 5), cols=5)
-            _no_borders(t)
-            for k, text in enumerate(items):
-                _cell(t.rows[k // 5].cells[k % 5], text, align=WD_ALIGN_PARAGRAPH.LEFT)
+            _para(doc, layout.heading(exam, head), 10.5, True, before=10, after=4)
+        if str(head.get("passage") or "").strip():
+            _passage(doc, head["passage"])
+        for i in made:
+            sec, nums = secs[i], plan[i]
+            if multi:
+                _para(doc, layout.part_heading(exam, sec), 10.5, True, before=6, after=2)
+            _questions(doc, sec, nums)
     _para(doc, exam.get("end_note") or "問題は以上です。", align=RIGHT, before=12)
     out = outdir / "exam_draft.docx"
     doc.save(str(out))
@@ -246,12 +281,26 @@ def build_answersheet(draft: dict, outdir: Path, model: bool) -> Path:
     if not model:
         _sheet_header(doc, exam)
     plan = layout.numbering(draft)
-    for sec, nums in zip(draft["sections"], plan):
-        qs = sec.get("questions", [])
-        if not qs:
+    secs = draft["sections"]
+    layout.apply_labels(secs)
+    order = []
+    for g in layout.groups(secs):
+        made = [i for i in g if secs[i].get("questions")]
+        if made and len(g) > 1:
+            no = secs[g[0]]["no"]
+            order.append((None, f"【{no}】" if exam.get("heading") == "bracket" else f"{no}"))
+        order += [(i, None) for i in made]
+    for i, big in order:
+        if big is not None:
+            _para(doc, big, 11, True, before=8, after=0)
             continue
+        sec, nums = secs[i], plan[i]
+        qs = sec.get("questions", [])
         pts = layout.points_label(sec, [n["cell"] for n in nums])
-        head = f"【{sec['no']}】（{pts.strip('【】')}）" if exam.get("heading") == "bracket" else f"{sec['no']}　{pts}"
+        if sec.get("part"):
+            head = f"問{sec['part']}　{pts}"
+        else:
+            head = f"【{sec['no']}】（{pts.strip('【】')}）" if exam.get("heading") == "bracket" else f"{sec['no']}　{pts}"
         _para(doc, head, 10.5, True, before=8, after=2)
         slots = [answer_slots(q) for q in qs]
         width = max(len(s) for s in slots)

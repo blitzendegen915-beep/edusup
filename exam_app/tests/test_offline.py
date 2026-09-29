@@ -124,6 +124,30 @@ def test_vocab_docx():
         assert "haven" not in text
 
 
+def test_big_question_groups():
+    """大問＝本文＋設問（問1・問2…）。見出し・本文・問番号・呼び名。"""
+    from docx import Document
+    from exam_app import layout
+    q = lambda b, a: {"number": 1, "body": b, "answer": a, "source_ref": "L5 Part1", "alt_answer_risk": "x"}
+    d = {"exam": {"title": "T", "written_points": 7}, "sections": [
+        {"type": "fill_blank", "points_each": 1, "count": 1, "questions": [q("He ( ) it.", "did")]},
+        {"type": "fill_blank", "points_each": 2, "count": 1, "big_title": "次の英文を読んで、後の問いに答えなさい。",
+         "passage": "Tokito had a __dream__.", "questions": [q("（ 1 ）に入る語", "dream")]},
+        {"type": "translation", "points_each": 4, "count": 1, "new_big": False, "instructions": "下線部を和訳しなさい。",
+         "questions": [q("下線部(A)", "夢")]}]}
+    assert checks.run_all(d) == [], checks.run_all(d)       # 同じ本文の設問は出典が同じでも警告しない
+    assert [s["label"] for s in d["sections"]] == ["大問1", "大問2 問1", "大問2 問2"]
+    assert layout.groups(d["sections"]) == [[0], [1, 2]]
+    with tempfile.TemporaryDirectory() as tmp:
+        files = build_docx.build_all(d, Path(tmp))
+        text = "\n".join(p.text for p in Document(str(files[0])).paragraphs)
+        assert "２　次の英文を読んで、後の問いに答えなさい。（6点）" in text and "問2　下線部を和訳しなさい。（4点）" in text
+        cells = [c.text for tb in Document(str(files[0])).tables for r in tb.rows for c in r.cells]
+        assert any("Tokito had a dream." in c for c in cells)   # 本文は枠（表）の中
+        sheet = "\n".join(p.text for p in Document(str(files[1])).paragraphs)
+        assert "問1　【2点×1】" in sheet
+
+
 def test_extract_three_layers():
     folder = Path(__file__).resolve().parents[2] / "materials"
     if not folder.is_dir():  # 配布用ZIPには試験の実物（materials/）を入れていない
