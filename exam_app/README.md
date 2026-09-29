@@ -1,5 +1,10 @@
 # 定期考査ジェネレーター (exam_app)
 
+> **画面で操作したい場合は「定期考査スタジオ」を使ってください（おすすめ）。**
+> `start_exam_studio.bat` をダブルクリック、または `python -m exam_app.ui`。
+> 使い方: [docs/exam_studio.md](../docs/exam_studio.md)
+> 以下はコマンドライン版（CLI）の説明です。チェック・Word出力は画面版と共通です。
+
 指定フォルダのWord/PDF教材を読み込み、オーダー（order.yaml）通りに定期考査の
 問題・解答用紙・模範解答のドラフトを自動生成するツール。
 

@@ -14,6 +14,15 @@
 
 ## ツール
 
+### 定期考査スタジオ（定期考査作成ツール）
+
+教材の文をクリックして、聞きたいところを聞きたい形式（空所補充・並び替え・4択・語形変化・下線部・和訳）で作問し、問題用紙・解答用紙・模範解答を Word で出力します。別解の警告・配点や解答枠の自動チェック付き。APIキーなしで使えます（AI作問は任意）。
+
+- 起動: `start_exam_studio.bat`（Windows）／`python -m exam_app.ui`
+- コード: `exam_app/`（画面: `exam_app/ui/`）
+- 使い方: `docs/exam_studio.md`
+- 作問ルール: `skills/README.md`
+
 ### Google Forms 小テスト自動作成
 
 Googleスプレッドシートの「問題」シートに入力した文法問題から、Google Forms の小テストを自動作成します。

@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# 定期考査スタジオのデータ（試験の実物を含む）
+exam_workspace/
