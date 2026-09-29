@@ -6,7 +6,12 @@ skills/ の再発防止ルールをプロンプトに焼き込んである:
 - 別解の自己チェック（並び替えは文頭移動・副詞位置を必ず検討）
 - 頭文字ヒント等の別解防止テクニック
 """
+import importlib.util
 import json
+import os
+import urllib.error
+import urllib.request
+from types import SimpleNamespace
 
 HAIKU = "claude-haiku-4-5"
 SONNET = "claude-sonnet-5"
@@ -25,7 +30,8 @@ def client_or_die():
             raise SystemExit(
                 "anthropic パッケージがありません。API機能を使うには "
                 "`pip install anthropic` と ANTHROPIC_API_KEY の設定が必要です。"
-                "（API抜き運用なら --no-api を付けてください）")
+                "（ChatGPTを使う場合は EXAM_AI_PROVIDER=openai と OPENAI_API_KEY を設定。"
+                "API抜き運用なら --no-api を付けてください）")
         _client = anthropic.Anthropic(max_retries=4)
     return _client
 
@@ -34,7 +40,73 @@ _PRICES = {HAIKU: (1.0, 5.0), SONNET: (3.0, 15.0)}
 usage_total = {"cost_usd": 0.0, "input": 0, "output": 0}
 
 
+# ---- AIの提供元の切り替え（Claude / ChatGPT）
+# EXAM_AI_PROVIDER=openai で ChatGPT（OpenAI API）を使う。未設定なら Claude。
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_DEFAULT_MODEL = "gpt-4.1"        # 作問・別解チェック用
+OPENAI_DEFAULT_FAST = "gpt-4.1-mini"    # 教材の索引化用（安価）
+
+
+def provider() -> str:
+    return "openai" if os.environ.get("EXAM_AI_PROVIDER") == "openai" else "anthropic"
+
+
+def provider_ready() -> bool:
+    if provider() == "openai":
+        return bool(os.environ.get("OPENAI_API_KEY"))
+    return importlib.util.find_spec("anthropic") is not None and bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+
+def _create(model, max_tokens, messages, output_config, system=None, thinking=None):
+    """Claude の messages.create と同じ形で呼べる窓口。ChatGPT選択時は OpenAI に振り替える。"""
+    if provider() != "openai":
+        kw = dict(model=model, max_tokens=max_tokens, messages=messages, output_config=output_config)
+        if system:
+            kw["system"] = system
+        if thinking:
+            kw["thinking"] = thinking
+        return client_or_die().messages.create(**kw)
+    return _create_openai(model, max_tokens, messages, output_config, system)
+
+
+def _create_openai(model, max_tokens, messages, output_config, system):
+    key = os.environ.get("OPENAI_API_KEY")
+    if not key:
+        raise SystemExit("OpenAIのAPIキーが設定されていません")
+    name = (os.environ.get("OPENAI_MODEL_FAST") or OPENAI_DEFAULT_FAST) if model == HAIKU \
+        else (os.environ.get("OPENAI_MODEL") or OPENAI_DEFAULT_MODEL)
+    msgs = ([{"role": "system", "content": system}] if system else []) + messages
+    body = {
+        "model": name, "messages": msgs, "max_completion_tokens": max_tokens,
+        "response_format": {"type": "json_schema", "json_schema": {
+            "name": "result", "strict": True, "schema": output_config["format"]["schema"]}},
+    }
+    req = urllib.request.Request(OPENAI_URL, data=json.dumps(body).encode("utf-8"), method="POST",
+                                 headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"})
+    try:
+        with urllib.request.urlopen(req, timeout=600) as r:
+            data = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.loads(e.read()).get("error", {}).get("message", "")
+        except ValueError:
+            msg = ""
+        raise SystemExit(f"ChatGPT（OpenAI）でエラーが発生しました（{e.code}）: {msg}")
+    except urllib.error.URLError as e:
+        raise SystemExit(f"OpenAIに接続できません: {e.reason}")
+    choice = data["choices"][0]["message"]
+    if choice.get("refusal"):
+        raise SystemExit("ChatGPTが回答を断りました: " + choice["refusal"])
+    u = data.get("usage", {})
+    usage_total["input"] += u.get("prompt_tokens", 0)
+    usage_total["output"] += u.get("completion_tokens", 0)
+    usage_total["provider"] = "openai"
+    return SimpleNamespace(content=[SimpleNamespace(type="text", text=choice["content"])], usage=None)
+
+
 def _track(model: str, usage):
+    if usage is None:  # ChatGPT分は _create_openai で集計済み
+        return
     pin, pout = _PRICES[model]
     usage_total["input"] += usage.input_tokens
     usage_total["output"] += usage.output_tokens
@@ -43,6 +115,9 @@ def _track(model: str, usage):
 
 
 def cost_report() -> str:
+    if usage_total.get("provider") == "openai":
+        return (f"ChatGPT使用量: 入力{usage_total['input']:,}tok / 出力{usage_total['output']:,}tok"
+                "（料金はOpenAIの管理画面で確認）")
     return (f"APIコスト: 約${usage_total['cost_usd']:.3f} "
             f"(入力{usage_total['input']:,}tok / 出力{usage_total['output']:,}tok)")
 
@@ -106,7 +181,7 @@ RULES = """作問ルール（違反禁止）:
 
 def index_material(doc_id: str, text: str) -> dict:
     """Haikuで教材を出題可能アイテムに索引化する。"""
-    resp = client_or_die().messages.create(
+    resp = _create(
         model=HAIKU,
         max_tokens=8000,
         system="あなたは英語教材の索引作成係です。教材テキストから出題に使える"
@@ -152,7 +227,7 @@ def make_section(section: dict, material_items: list, exam_context: str) -> dict
 
 使用可能な教材アイテム（この中からのみ出題）:
 {items_json}"""
-    resp = client_or_die().messages.create(
+    resp = _create(
         model=SONNET,
         max_tokens=16000,
         thinking={"type": "adaptive"},
@@ -190,7 +265,7 @@ def adversarial_verify(question: dict, qtype: str) -> dict:
 模範解答: {question['answer']}
 
 疑わしい場合は has_alternate_answer=true としてください。"""
-    resp = client_or_die().messages.create(
+    resp = _create(
         model=SONNET,
         max_tokens=4000,
         thinking={"type": "adaptive"},
@@ -229,7 +304,7 @@ def make_pinpoint(text: str, qformat: str, focus: str = "", note: str = "") -> d
 問いたい点が解答の核になるように設計すること。
 （例: 関係代名詞を問いたいなら、関係代名詞が空所/並び替えの答えの位置に来るように）
 別解の検討結果を alt_answer_risk に必ず書くこと。"""
-    resp = client_or_die().messages.create(
+    resp = _create(
         model=SONNET,
         max_tokens=8000,
         thinking={"type": "adaptive"},
@@ -270,7 +345,7 @@ questions配列には差し替え後の1問だけを入れてください。
 
 使用可能な教材アイテム:
 {items_json}"""
-    resp = client_or_die().messages.create(
+    resp = _create(
         model=SONNET,
         max_tokens=8000,
         thinking={"type": "adaptive"},

@@ -374,7 +374,7 @@ function refreshLive() {
 function statusChip() {
   const on = S.status.ai;
   return h('button', { class: 'status-chip', onclick: settingsDialog, title: 'AI機能の設定' },
-    h('span', { class: 'dot' + (on ? ' on' : '') }), h('span', {}, on ? 'AI 有効（Sonnet）' : 'API抜きモード'));
+    h('span', { class: 'dot' + (on ? ' on' : '') }), h('span', {}, on ? `AI 有効（${aiName()}）` : 'API抜きモード'));
 }
 
 function logo(sm = false) {
@@ -483,7 +483,7 @@ async function duplicateProject(p) {
 }
 
 async function deleteProject(p) {
-  if (!await confirmBox(`「${p.title}」を削除しますか？\n（exam_workspace/.trash フォルダに移動するので、あとから復元もできます）`, { ok: '削除する', danger: true })) return;
+  if (!await confirmBox(`「${p.title}」を削除しますか？\n（保存先の .trash フォルダに移動するので、あとから復元もできます）`, { ok: '削除する', danger: true })) return;
   try { await api('DELETE', `projects/${p.id}`); toast('削除しました', 'ok'); await loadProjects(); render(); }
   catch (e) { toast(e.message, 'error'); }
 }
@@ -866,7 +866,7 @@ function renderQuestions() {
       h('button', { class: 'btn primary', onclick: () => openQuick({ format: QUICK_FOR[s.type] || 'ai', target: si }) }, icon('sparkles'), 'クイック作問'),
       h('button', { class: 'btn ghost', onclick: () => gotoStep('materials') }, icon('book'), '教材から選ぶ'),
       h('button', { class: 'btn ghost', onclick: () => addBlankQuestion(si) }, icon('plus'), '空の問題'),
-      h('button', { class: 'btn ghost', disabled: !S.status.ai, title: S.status.ai ? '教材からこの大問をSonnetが作問します' : 'APIキーを設定すると使えます', onclick: () => aiSection(si) }, icon('sparkles'), 'AIで一括作問')));
+      h('button', { class: 'btn ghost', disabled: !S.status.ai, title: S.status.ai ? `教材からこの大問を${aiName()}が作問します` : 'APIキーを設定すると使えます', onclick: () => aiSection(si) }, icon('sparkles'), 'AIで一括作問')));
 
   const list = s.questions.length
     ? h('div', { class: 'q-list' }, s.questions.map((q, qi) => questionCard(s, si, q, qi)))
@@ -956,7 +956,7 @@ async function verifyOne(s, si, q, qi) {
 async function aiSection(si) {
   const s = S.project.sections[si];
   if (!S.project.materials.length) return toast('先に「教材」で教材を追加してください', 'error');
-  if (!await confirmBox(`大問${s.no}（${SHORT[s.type]}）を、教材からAI（Sonnet）で${s.count}問作ります。\n作成された問題は末尾に追加されます（数十秒かかります）。`, { ok: '作問する' })) return;
+  if (!await confirmBox(`大問${s.no}（${SHORT[s.type]}）を、教材からAI（${aiName()}）で${s.count}問作ります。\n作成された問題は末尾に追加されます（数十秒かかります）。`, { ok: '作問する' })) return;
   await flushSave();
   toast('AIが作問しています…（そのままお待ちください）');
   try {
@@ -1291,7 +1291,7 @@ function openQuick(init = {}) {
         field('補足指示（任意）', input({ value: Q.ai.note, placeholder: '例: who が解答位置に来るように', oninput: v => { Q.ai.note = v; } }))),
     ];
     if (S.status.ai) {
-      els.unshift(hint('Sonnetが対象文を無改変で使って作問し、別解チェックまで行います（10〜30秒）。'));
+      els.unshift(hint(aiName() + 'が対象文を無改変で使って作問し、別解チェックまで行います（10〜30秒）。'));
       els.push(h('button', { class: 'btn primary', disabled: Q.ai.busy || !Q.text.trim(), onclick: async () => {
         Q.ai.busy = true; drawAll();
         try {
@@ -1489,7 +1489,7 @@ function renderCheck() {
   const ai = h('div', { class: 'card' },
     h('div', { class: 'card-title' }, icon('sparkles'), '別解チェック'),
     S.status.ai ? [
-      h('p', { class: 'muted', style: { marginTop: 0 } }, 'Sonnetが各問について「別解がある」と反証するつもりで検証します。'),
+      h('p', { class: 'muted', style: { marginTop: 0 } }, aiName() + 'が各問について「別解がある」と反証するつもりで検証します。'),
       S.verify ? [h('div', { class: 'progress' }, h('i', { style: { width: (S.verify.done / S.verify.total * 100) + '%' } })), h('div', { class: 'muted' }, `${S.verify.done} / ${S.verify.total}問 チェック中…`)]
         : h('button', { class: 'btn primary', onclick: verifyAll }, icon('sparkles'), '全問をAIでチェック'),
       h('p', { class: 'muted' }, `チェック済み ${checked} / ${total}問`),
@@ -1594,26 +1594,45 @@ function renderOutput() {
 
 // ================================================================ ダイアログ（設定・使い方）
 
+function aiName(prov = S.status.provider) { return prov === 'openai' ? 'ChatGPT' : 'Claude'; }
+
 function settingsDialog() {
   const st = S.status;
-  let key = '';
-  openModal({
-    title: 'AI機能の設定', size: 'md',
-    body: h('div', { class: 'stack' },
+  const f = { provider: st.provider || 'anthropic', key: '', model: st.openai_model || 'gpt-4.1' };
+  const body = h('div', { class: 'stack' });
+  const draw = () => {
+    const isOA = f.provider === 'openai';
+    const keySet = isOA ? st.openai_key_set : st.anthropic_key_set;
+    body.replaceChildren(...[
       h('div', { class: 'warn-box ' + (st.ai ? 'ok' : 'info') }, icon(st.ai ? 'check' : 'key', 14),
-        st.ai ? 'AI機能が使えます（作問: Sonnet／別解チェック: Sonnet）' : 'いまは API抜きモードです。クイック作問（手作業）とチェック・出力はすべて無料で使えます。'),
-      h('p', { class: 'muted', style: { margin: 0 } }, 'APIキーを入れると「AIで一括作問」「AIで作問する」「AIで別解チェック」が使えます。キーはこのツールを閉じるまでの間だけ保持され、ファイルには保存されません。'),
-      !st.anthropic_installed ? h('div', { class: 'warn-box warn' }, icon('alert', 14), 'AI用のパッケージが未インストールです。黒い画面で「python -m pip install anthropic」を実行してから起動し直してください。') : null,
-      field('APIキー（sk-ant-…）', input({ type: 'password', placeholder: st.key_set ? '設定済み（変更する場合のみ入力）' : 'sk-ant-...', oninput: v => { key = v; } }))),
+        st.ai ? `いまは ${aiName()} でAI機能が使えます。` : 'いまは API抜きモードです。クイック作問（手作業）とチェック・出力はすべて無料で使えます。'),
+      h('div', { class: 'fld' }, h('span', {}, '使うAI'),
+        h('div', { class: 'seg' }, [['anthropic', 'Claude（Anthropic）'], ['openai', 'ChatGPT（OpenAI）']].map(([v, l]) =>
+          h('button', { class: 'seg-btn' + (f.provider === v ? ' on' : ''), onclick: () => { f.provider = v; f.key = ''; draw(); } }, l)))),
+      h('p', { class: 'muted', style: { margin: 0 } }, 'APIキーを入れると「AIで一括作問」「AIで作問する」「AIで別解チェック」が使えます（使った分だけ各社から従量課金）。キーはこのツールを閉じるまでの間だけ保持され、ファイルには保存されません。'),
+      !isOA && !st.anthropic_installed ? h('div', { class: 'warn-box warn' }, icon('alert', 14), 'Claude用のパッケージが未インストールです。黒い画面で「python -m pip install anthropic」を実行してから起動し直してください。') : null,
+      field(isOA ? 'OpenAIのAPIキー（sk-…）' : 'AnthropicのAPIキー（sk-ant-…）',
+        input({ type: 'password', value: f.key, placeholder: keySet ? '設定済み（変更する場合のみ入力）' : (isOA ? 'sk-...' : 'sk-ant-...'), oninput: v => { f.key = v; } })),
+      isOA ? field('モデル名（わからなければそのまま）', input({ value: f.model, oninput: v => { f.model = v; } })) : null,
+      isOA ? h('p', { class: 'muted', style: { margin: 0, fontSize: '12px' } }, 'ChatGPTの有料プラン（Plus等）とAPIは別契約です。APIキーは platform.openai.com で発行します。') : null,
+    ].filter(Boolean));
+  };
+  draw();
+  openModal({
+    title: 'AI機能の設定', size: 'md', body,
     actions: [
-      st.key_set ? { label: 'キーを消去', fn: async c => { S.status = (await api('POST', 'settings/apikey', { key: '' })).status; c(); render({ keepScroll: true }); toast('APIキーを消去しました', 'ok'); } } : null,
+      { label: 'キーを消去', fn: async c => {
+        S.status = (await api('POST', 'settings', { provider: f.provider, key: '', clear: true })).status;
+        c(); render({ keepScroll: true }); toast('APIキーを消去しました', 'ok');
+      } },
       { label: '閉じる', fn: c => c() },
       { label: '保存', kind: 'primary', fn: async c => {
-        if (!key.trim()) return toast('APIキーを入力してください', 'error');
+        const keySet = f.provider === 'openai' ? st.openai_key_set : st.anthropic_key_set;
+        if (!f.key.trim() && !keySet) return toast('APIキーを入力してください', 'error');
         try {
-          S.status = { ...S.status, ...(await api('POST', 'settings/apikey', { key })).status };
+          S.status = { ...S.status, ...(await api('POST', 'settings', { provider: f.provider, key: f.key.trim(), model: f.model })).status };
           c(); render({ keepScroll: true });
-          toast(S.status.ai ? 'AI機能が使えるようになりました' : 'キーは保存しましたが、パッケージが不足しています', S.status.ai ? 'ok' : 'error');
+          toast(S.status.ai ? `${aiName()} のAI機能が使えるようになりました` : 'キーは保存しましたが、パッケージが不足しています', S.status.ai ? 'ok' : 'error');
         } catch (e) { toast(e.message, 'error'); }
       } },
     ],
@@ -1643,7 +1662,7 @@ function helpDialog() {
       h('div', { class: 'card', style: { background: 'var(--surface-2)' } },
         h('div', { class: 'card-title' }, icon('shield'), '作問のルール（過去の事故の再発防止策）'),
         h('ul', { style: { margin: 0, paddingLeft: '20px' } }, rules.map(r => h('li', {}, r)))),
-      h('p', { class: 'muted', style: { margin: 0 } }, `データの保存先: ${S.status.workspace || 'exam_workspace'}（試験の実物を含むため、生徒が見られる場所に置かないでください）`)),
+      h('p', { class: 'muted', style: { margin: 0 } }, `データの保存先（このPC）: ${S.status.workspace || ''}　— 使う人ごとに、その人のPCの「ドキュメント」内に保存されます。生徒が見られる場所に移さないでください。`)),
     actions: [{ label: '閉じる', kind: 'primary', fn: c => c() }],
   });
 }

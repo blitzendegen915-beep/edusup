@@ -111,6 +111,14 @@ def test_all():
         # AI未設定なら案内付きで断る
         st, r = call("POST", "/api/ai/ask", {"text": "x"})
         assert st == 400 and "AI機能は使えません" in r["error"]
+
+        # ChatGPTに切り替え（キーはメモリのみ）→ 消去で元に戻る
+        st, r = call("POST", "/api/settings", {"provider": "openai", "key": "sk-test", "model": "gpt-x"})
+        assert r["status"]["provider"] == "openai" and r["status"]["ai"] and r["status"]["openai_model"] == "gpt-x"
+        assert not list((tmp / "ws").rglob("*sk-test*"))
+        st, r = call("POST", "/api/settings", {"provider": "openai", "key": "", "clear": True})
+        assert not r["status"]["ai"]
+        call("POST", "/api/settings", {"provider": "anthropic"})
     finally:
         httpd.shutdown()
 

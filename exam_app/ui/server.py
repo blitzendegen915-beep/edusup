@@ -5,8 +5,8 @@
 
 ・127.0.0.1 でのみ待ち受ける（校内LANの他のPCからは見えない）
 ・必要なのは python-docx だけ。AI機能を使う場合のみ anthropic と APIキー
-・データは ./exam_workspace/<プロジェクトID>/ に保存する。試験の実物を含むので
-  生徒が閲覧できる共有フォルダには置かないこと
+・データは起動した人のPCの「ドキュメント/ExamStudio」に保存する（--workspace で変更可）。
+  試験の実物を含むので、生徒が閲覧できる場所には置かないこと
 """
 from __future__ import annotations
 
@@ -307,15 +307,23 @@ def _export_file(pid: str, name: str) -> Path:
 # ---------------------------------------------------------------- AI（任意）
 
 def _ai_status() -> dict:
-    installed = importlib.util.find_spec("anthropic") is not None
-    key = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    return {"ai": installed and key, "anthropic_installed": installed, "key_set": key}
+    from .. import generate
+    prov = generate.provider()
+    return {
+        "ai": generate.provider_ready(),
+        "provider": prov,
+        "anthropic_installed": importlib.util.find_spec("anthropic") is not None,
+        "anthropic_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "openai_key_set": bool(os.environ.get("OPENAI_API_KEY")),
+        "openai_model": os.environ.get("OPENAI_MODEL") or generate.OPENAI_DEFAULT_MODEL,
+        "key_set": bool(os.environ.get("OPENAI_API_KEY" if prov == "openai" else "ANTHROPIC_API_KEY")),
+    }
 
 
 def _generate():
     if not _ai_status()["ai"]:
-        raise ApiError(400, "AI機能は使えません（anthropic 未インストール、またはAPIキー未設定）。"
-                            "クイック作問の手作業モード、または「作問依頼文」をご利用ください")
+        raise ApiError(400, "AI機能は使えません（APIキー未設定）。左下の設定からClaudeまたはChatGPTのキーを入れるか、"
+                            "クイック作問の手作業モード・「作問依頼文」をご利用ください")
     from .. import generate
     return generate
 
@@ -445,12 +453,26 @@ def route(method: str, parts: list, body) -> object:
                                        b.get("focus", ""), b.get("note", ""),
                                        b.get("source", ""))}
 
-    if parts == ["settings", "apikey"] and method == "POST":
-        key = str(body().get("key") or "").strip()
-        if key:
-            os.environ["ANTHROPIC_API_KEY"] = key  # ファイルには保存しない
+    if parts[:1] == ["settings"] and method == "POST":
+        # APIキーはメモリ（環境変数）にだけ保持し、ファイルには保存しない
+        b = body()
+        prov = str(b.get("provider") or "anthropic")
+        if prov not in ("anthropic", "openai"):
+            raise ApiError(400, "不明なAIです")
+        if parts == ["settings", "apikey"] or "key" in b:
+            env = "OPENAI_API_KEY" if prov == "openai" else "ANTHROPIC_API_KEY"
+            key = str(b.get("key") or "").strip()
+            if key:
+                os.environ[env] = key
+            elif b.get("clear"):
+                os.environ.pop(env, None)
+        if prov == "openai":
+            os.environ["EXAM_AI_PROVIDER"] = "openai"
+            model = str(b.get("model") or "").strip()
+            if model:
+                os.environ["OPENAI_MODEL"] = model
         else:
-            os.environ.pop("ANTHROPIC_API_KEY", None)
+            os.environ.pop("EXAM_AI_PROVIDER", None)
         mod = sys.modules.get("exam_app.generate")
         if mod is not None:
             mod._client = None
@@ -577,6 +599,17 @@ class Handler(BaseHTTPRequestHandler):
                    CONTENT_TYPES.get(f.suffix, "application/octet-stream"))
 
 
+def default_workspace() -> Path:
+    """保存先の既定値。起動した人のPCの「ドキュメント/ExamStudio」。
+    ツール本体を共有フォルダに置いても、試験データは各自のPCに保存される。
+    旧バージョンのデータ（起動フォルダの exam_workspace）があればそれを使い続ける。"""
+    legacy = Path("exam_workspace")
+    if legacy.is_dir() and any(p.is_dir() and PROJECT_ID.match(p.name) for p in legacy.iterdir()):
+        return legacy
+    docs = Path.home() / "Documents"
+    return (docs if docs.is_dir() else Path.home()) / "ExamStudio"
+
+
 def make_server(port: int, workspace: Path) -> ThreadingHTTPServer:
     global WORKSPACE
     WORKSPACE = workspace.resolve()
@@ -588,16 +621,16 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="python -m exam_app.ui",
                                  description="定期考査スタジオ（ローカルWeb UI）")
     ap.add_argument("--port", type=int, default=8765)
-    ap.add_argument("--workspace",
-                    default=os.environ.get("EXAM_WORKSPACE", "exam_workspace"),
-                    help="データの保存先フォルダ（既定: ./exam_workspace）")
+    ap.add_argument("--workspace", default=os.environ.get("EXAM_WORKSPACE") or None,
+                    help="データの保存先フォルダ（既定: 使っている人の ドキュメント/ExamStudio）")
     ap.add_argument("--no-browser", action="store_true", help="ブラウザを自動で開かない")
     args = ap.parse_args(argv)
 
+    workspace = Path(args.workspace) if args.workspace else default_workspace()
     httpd = None
     for port in range(args.port, args.port + 10):  # 使用中なら次の番号を試す
         try:
-            httpd = make_server(port, Path(args.workspace))
+            httpd = make_server(port, workspace)
             break
         except OSError:
             continue
@@ -605,7 +638,8 @@ def main(argv=None):
         sys.exit(f"ポート {args.port}〜{args.port + 9} がすべて使用中です。--port で別の番号を指定してください")
 
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
-    ai = "有効" if _ai_status()["ai"] else "オフ（API抜きモード）"
+    st = _ai_status()
+    ai = (("ChatGPT" if st["provider"] == "openai" else "Claude") + " 有効") if st["ai"] else "オフ（API抜きモード）"
     print("=" * 56)
     print("  定期考査スタジオ を起動しました")
     print(f"  ブラウザで開く: {url}")
