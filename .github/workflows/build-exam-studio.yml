@@ -1,0 +1,89 @@
+# 定期考査スタジオの Windows 版（Python不要の .exe）を組み立てて、GitHub の Releases に置く。
+# 組み立て後、Windows 上で実際に起動し、画面の配信と Word 出力まで自動テストする。
+name: Build Exam Studio (Windows)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "exam_app/**"
+      - "packaging/**"
+      - "docs/exam_studio.md"
+      - ".github/workflows/build-exam-studio.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install pyinstaller python-docx
+
+      - name: Build ExamStudio.exe
+        run: >
+          pyinstaller --noconfirm --clean --name ExamStudio
+          --add-data "exam_app/ui/static;exam_app/ui/static"
+          --paths .
+          --collect-submodules exam_app
+          --hidden-import exam_app.ui.server
+          packaging/exam_studio_launcher.py
+
+      - name: Smoke test (start, serve UI, export Word)
+        shell: pwsh
+        run: |
+          $p = Start-Process dist/ExamStudio/ExamStudio.exe -ArgumentList '--no-browser','--port','8790','--workspace','ws' -PassThru
+          Start-Sleep -Seconds 10
+          $base = 'http://127.0.0.1:8790'
+          $h = @{ 'X-Exam-Studio' = '1' }
+          (Invoke-RestMethod "$base/api/status") | ConvertTo-Json
+          $page = Invoke-WebRequest "$base/" -UseBasicParsing
+          if ($page.Content -notmatch 'app.js') { throw 'UI is not served' }
+          $body = @{ title = 'Smoke'; written_points = 1; sections = @(@{ type = 'fill_blank'; points_each = 1; count = 1;
+                     questions = @(@{ body = 'Hope is ( u ).'; answer = 'universal'; source_ref = 'test'; alt_answer_risk = 'ok' }) }) } | ConvertTo-Json -Depth 8
+          $proj = Invoke-RestMethod "$base/api/projects" -Method Post -Headers $h -ContentType 'application/json; charset=utf-8' -Body $body
+          $out = Invoke-RestMethod "$base/api/projects/$($proj.project.id)/export" -Method Post -Headers $h -ContentType 'application/json' -Body '{}'
+          if ($out.files.Count -ne 5) { throw "export failed: $($out | ConvertTo-Json)" }
+          $out.files
+          Stop-Process $p
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item docs/exam_studio.md dist/ExamStudio/使い方.md
+          Set-Content -Encoding utf8 dist/ExamStudio/はじめにお読みください.txt @"
+          定期考査スタジオ（Windows版）
+
+          1. このフォルダを好きな場所に置きます（ZIPは必ず「すべて展開」してから使ってください）
+          2. ExamStudio.exe をダブルクリックします
+          3. 黒い画面が開き、ブラウザで画面が開きます（黒い画面は閉じないでください）
+
+          ・Pythonのインストールは不要です
+          ・初回に「WindowsによってPCが保護されました」と出たら「詳細情報」→「実行」を押してください
+          ・データは各自のPCの「ドキュメント\ExamStudio」に保存されます
+          ・詳しくは「使い方.md」をご覧ください
+          "@
+          Compress-Archive -Path dist/ExamStudio -DestinationPath ExamStudio-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ExamStudio-windows
+          path: ExamStudio-windows.zip
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: exam-studio-v${{ github.run_number }}
+          name: 定期考査スタジオ Windows版 v${{ github.run_number }}
+          body: |
+            Pythonのインストール不要のWindows版です。
+            下の **ExamStudio-windows.zip** をダウンロードし、「すべて展開」してから ExamStudio.exe をダブルクリックしてください。
+          files: ExamStudio-windows.zip
+          target_commitish: ${{ github.sha }}
