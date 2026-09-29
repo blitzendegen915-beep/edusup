@@ -1,4 +1,4 @@
-# teacher-automation-lab
+# edusup
 
 高校英語教員の校務・教材制作・授業準備を自動化するためのツール置き場です。
 
@@ -21,3 +21,11 @@ Googleスプレッドシートの「問題」シートに入力した文法問�
 - コード: `gas/form_generator.gs`
 - 使い方: `docs/google_forms_generator.md`
 - タスク指示書: `tasks/done/001-google-forms-generator.md`
+
+### 教材ストア（販売サイト）
+
+自作教材（PDF・Excelなど）を販売する自前ストアサイトです。商品を `products.json` に書いて push するだけで GitHub Pages に自動公開されます。Google検索向けのSEO対応（商品ごとの個別ページ・構造化データ・sitemap.xml）と、Stripe 支払いリンクによる決済に対応しています。
+
+- コード: `web/shop/`
+- 使い方: `docs/material_shop.md`
+- タスク指示書: `tasks/done/002-material-shop-site.md`

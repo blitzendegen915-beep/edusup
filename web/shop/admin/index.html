@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>商品管理画面</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+  background: #f7f8fa;
+  color: #1f2933;
+  line-height: 1.7;
+}
+header {
+  background: #1f2933;
+  color: #fff;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+header h1 { font-size: 1.1rem; margin: 0; flex: 1; }
+.container { max-width: 1080px; margin: 0 auto; padding: 20px 16px 80px; }
+.panel {
+  background: #fff;
+  border: 1px solid #e4e7eb;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.panel h2 { font-size: 1rem; margin: 0 0 12px; }
+label { display: block; font-size: 0.85rem; font-weight: 600; margin: 14px 0 4px; }
+label .hint { font-weight: 400; color: #616e7c; }
+input[type="text"], input[type="number"], input[type="password"], textarea, select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #cbd2d9;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+textarea { min-height: 80px; }
+button {
+  font-family: inherit;
+  font-size: 0.9rem;
+  border: none;
+  border-radius: 6px;
+  padding: 9px 18px;
+  cursor: pointer;
+  background: #e4e7eb;
+}
+button.primary { background: #2563eb; color: #fff; font-weight: 700; }
+button.publish { background: #059669; color: #fff; font-weight: 700; font-size: 1rem; padding: 12px 28px; }
+button.danger { background: #fee2e2; color: #b91c1c; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+@media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+.product-list { list-style: none; margin: 0; padding: 0; }
+.product-list li {
+  border: 1px solid #e4e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.product-list li.selected { border-color: #2563eb; background: #eff6ff; }
+.product-list .p-title { flex: 1; font-size: 0.88rem; }
+.product-list .p-price { font-size: 0.8rem; color: #616e7c; white-space: nowrap; }
+.order-buttons button { padding: 2px 8px; font-size: 0.8rem; }
+.checkbox-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
+.checkbox-row label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 400; }
+.status {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 20px;
+  font-size: 0.9rem;
+  display: none;
+}
+.status.ok { display: block; background: #d1fae5; color: #065f46; }
+.status.error { display: block; background: #fee2e2; color: #b91c1c; }
+.status.busy { display: block; background: #fef3c7; color: #92400e; }
+.toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+.dirty-note { color: #b45309; font-size: 0.85rem; }
+.help { font-size: 0.85rem; color: #616e7c; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛠 商品管理画面</h1>
+  <span id="repoLabel" style="font-size:0.8rem; opacity:0.8;"></span>
+</header>
+
+<div class="container">
+
+  <!-- 接続設定 -->
+  <section class="panel" id="tokenPanel">
+    <h2>1. GitHubに接続する</h2>
+    <p class="help">
+      商品の保存には GitHub のアクセストークンが必要です（この端末のブラウザにのみ保存されます）。<br>
+      作り方: GitHub → Settings → Developer settings → Fine-grained personal access tokens → Generate new token。
+      Repository access でこのリポジトリだけを選び、Permissions の <strong>Contents</strong> を <strong>Read and write</strong> にしてください。
+    </p>
+    <label for="tokenInput">アクセストークン</label>
+    <input type="password" id="tokenInput" placeholder="github_pat_...">
+    <div class="toolbar">
+      <button class="primary" id="connectButton">接続して商品を読み込む</button>
+      <button id="forgetButton">この端末からトークンを削除</button>
+    </div>
+  </section>
+
+  <!-- 編集エリア -->
+  <section id="editorArea" style="display:none;">
+    <div class="layout">
+      <div class="panel">
+        <h2>2. 商品一覧</h2>
+        <ul class="product-list" id="productList"></ul>
+        <button class="primary" id="addButton" style="width:100%;">＋ 新しい商品を追加</button>
+      </div>
+
+      <div class="panel" id="formPanel" style="display:none;">
+        <h2>3. 商品を編集</h2>
+
+        <label for="f_id">商品ID <span class="hint">（半角英小文字・数字・ハイフン。ページのURLになります。例: grammar-worksheet-01）</span></label>
+        <input type="text" id="f_id">
+
+        <label for="f_title">商品名 <span class="hint">（検索されたいキーワードを入れると効果的）</span></label>
+        <input type="text" id="f_title">
+
+        <label for="f_category">カテゴリ</label>
+        <input type="text" id="f_category" list="categoryList">
+        <datalist id="categoryList">
+          <option value="ワークシート"><option value="小テスト"><option value="校務テンプレート"><option value="学び直し">
+        </datalist>
+
+        <label>対象（あてはまるものすべて）</label>
+        <div class="checkbox-row">
+          <label><input type="checkbox" class="f_audience" value="大人の英語学習者">大人の英語学習者</label>
+          <label><input type="checkbox" class="f_audience" value="高校生">高校生</label>
+          <label><input type="checkbox" class="f_audience" value="教員">教員</label>
+        </div>
+
+        <label for="f_price">価格（円・税込） <span class="hint">（0にすると無料配布になります）</span></label>
+        <input type="number" id="f_price" min="0" step="1">
+
+        <label for="f_fileType">ファイル形式</label>
+        <input type="text" id="f_fileType" list="fileTypeList">
+        <datalist id="fileTypeList">
+          <option value="PDF"><option value="Excel"><option value="Word"><option value="PowerPoint"><option value="ZIP">
+        </datalist>
+
+        <label for="f_summary">紹介文 <span class="hint">（検索結果にも表示されます。80〜120文字が目安）</span></label>
+        <textarea id="f_summary"></textarea>
+
+        <label for="f_details">内容の箇条書き <span class="hint">（1行に1項目）</span></label>
+        <textarea id="f_details"></textarea>
+
+        <label for="f_tags">タグ <span class="hint">（カンマ区切り。例: 高校英語, 文法, 仮定法）</span></label>
+        <input type="text" id="f_tags">
+
+        <label>サンプル画像 <span class="hint">（教材の1ページ目などを画像にして載せると購入率が大きく上がります）</span></label>
+        <input type="text" id="f_images" placeholder="例: my-worksheet-1.png, my-worksheet-2.png">
+        <input type="file" id="f_imageUpload" accept="image/png,image/jpeg,image/webp" style="margin-top:8px;">
+        <div class="toolbar">
+          <button id="uploadImageButton">この画像をアップロード</button>
+        </div>
+
+        <label for="f_paymentLink">Stripe支払いリンク <span class="hint">（https://buy.stripe.com/... を貼ると「購入する」ボタンになります）</span></label>
+        <input type="text" id="f_paymentLink">
+
+        <label for="f_downloadFile">無料配布ファイル名 <span class="hint">（価格0円のとき有効。下のアップロードを使うと自動入力されます）</span></label>
+        <input type="text" id="f_downloadFile">
+
+        <label>無料配布ファイルのアップロード <span class="hint">（公開リポジトリに置かれるため、有料商品のファイルは絶対に上げないでください）</span></label>
+        <input type="file" id="f_upload">
+        <div class="toolbar">
+          <button id="uploadButton">このファイルをアップロード</button>
+        </div>
+
+        <div class="toolbar" style="margin-top:24px; border-top:1px solid #e4e7eb; padding-top:16px;">
+          <button class="primary" id="applyButton">この内容を一覧に反映</button>
+          <button class="danger" id="deleteButton">この商品を削除</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>4. 保存して公開</h2>
+      <p class="help">「保存して公開」を押すと products.json がGitHubに保存され、1〜2分後にサイトへ自動反映されます。</p>
+      <div class="toolbar">
+        <button class="publish" id="publishButton">💾 保存して公開</button>
+        <span class="dirty-note" id="dirtyNote" style="display:none;">⚠ 未保存の変更があります</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="status" id="statusBar"></div>
+
+<script>
+"use strict";
+
+// build.js が site.json の内容を埋め込む
+var CONFIG = __SHOP_CONFIG__;
+
+var TOKEN_KEY = "shopAdminToken";
+var products = [];
+var productsSha = null;   // 保存時の競合検出に使う
+var selectedIndex = -1;
+var dirty = false;
+
+document.getElementById("repoLabel").textContent =
+  CONFIG.owner + "/" + CONFIG.repo + " (" + CONFIG.branch + ")";
+
+// ---------------------------------------------------------------------------
+// ユーティリティ
+// ---------------------------------------------------------------------------
+
+function $(id) { return document.getElementById(id); }
+
+function setStatus(kind, message) {
+  var bar = $("statusBar");
+  bar.className = "status " + kind;
+  bar.textContent = message;
+  if (kind === "ok") {
+    setTimeout(function () { bar.className = "status"; }, 5000);
+  }
+}
+
+function setDirty(value) {
+  dirty = value;
+  $("dirtyNote").style.display = value ? "" : "none";
+}
+
+window.addEventListener("beforeunload", function (e) {
+  if (dirty) { e.preventDefault(); e.returnValue = ""; }
+});
+
+// UTF-8文字列 <-> Base64（GitHub APIはBase64でファイル内容をやり取りする）
+function encodeBase64(text) {
+  var bytes = new TextEncoder().encode(text);
+  var binary = "";
+  bytes.forEach(function (b) { binary += String.fromCharCode(b); });
+  return btoa(binary);
+}
+function decodeBase64(base64) {
+  var binary = atob(base64.replace(/\n/g, ""));
+  var bytes = Uint8Array.from(binary, function (c) { return c.charCodeAt(0); });
+  return new TextDecoder().decode(bytes);
+}
+
+// ---------------------------------------------------------------------------
+// GitHub API
+// ---------------------------------------------------------------------------
+
+function apiHeaders() {
+  var headers = { "Accept": "application/vnd.github+json" };
+  var token = localStorage.getItem(TOKEN_KEY);
+  if (token) { headers["Authorization"] = "Bearer " + token; }
+  return headers;
+}
+
+function contentsUrl(path) {
+  return "https://api.github.com/repos/" + CONFIG.owner + "/" + CONFIG.repo +
+    "/contents/" + path;
+}
+
+async function apiGetFile(path) {
+  var res = await fetch(contentsUrl(path) + "?ref=" + CONFIG.branch, { headers: apiHeaders() });
+  if (res.status === 404) { return null; }
+  if (!res.ok) { throw new Error("読み込みに失敗しました (HTTP " + res.status + ")"); }
+  return res.json();
+}
+
+async function apiPutFile(path, base64Content, message, sha) {
+  var body = { message: message, content: base64Content, branch: CONFIG.branch };
+  if (sha) { body.sha = sha; }
+  var res = await fetch(contentsUrl(path), {
+    method: "PUT",
+    headers: apiHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) { throw new Error("トークンが無効です。作り直して再接続してください。"); }
+  if (res.status === 403) { throw new Error("権限がありません。トークンの Contents 権限が Read and write か確認してください。"); }
+  if (res.status === 409) { throw new Error("他の場所で同時に更新されたようです。ページを再読み込みしてやり直してください。"); }
+  if (!res.ok) { throw new Error("保存に失敗しました (HTTP " + res.status + ")"); }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// 読み込み
+// ---------------------------------------------------------------------------
+
+async function loadProducts() {
+  setStatus("busy", "商品データを読み込んでいます...");
+  var file = await apiGetFile(CONFIG.productsPath);
+  if (!file) { throw new Error(CONFIG.productsPath + " が見つかりません。"); }
+  products = JSON.parse(decodeBase64(file.content));
+  productsSha = file.sha;
+  selectedIndex = -1;
+  renderList();
+  $("formPanel").style.display = "none";
+  $("editorArea").style.display = "";
+  setDirty(false);
+  setStatus("ok", "商品 " + products.length + " 件を読み込みました。");
+}
+
+$("connectButton").addEventListener("click", async function () {
+  var token = $("tokenInput").value.trim();
+  if (token) { localStorage.setItem(TOKEN_KEY, token); }
+  if (!localStorage.getItem(TOKEN_KEY)) {
+    setStatus("error", "アクセストークンを入力してください。");
+    return;
+  }
+  try { await loadProducts(); }
+  catch (err) { setStatus("error", err.message); }
+});
+
+$("forgetButton").addEventListener("click", function () {
+  localStorage.removeItem(TOKEN_KEY);
+  $("tokenInput").value = "";
+  setStatus("ok", "トークンを削除しました。");
+});
+
+// トークン保存済みなら自動で読み込む
+if (localStorage.getItem(TOKEN_KEY)) {
+  $("tokenInput").placeholder = "（保存済みのトークンを使います）";
+  loadProducts().catch(function (err) { setStatus("error", err.message); });
+}
+
+// ---------------------------------------------------------------------------
+// 一覧と並べ替え
+// ---------------------------------------------------------------------------
+
+function renderList() {
+  var list = $("productList");
+  list.textContent = "";
+  products.forEach(function (product, index) {
+    var li = document.createElement("li");
+    if (index === selectedIndex) { li.className = "selected"; }
+
+    var title = document.createElement("span");
+    title.className = "p-title";
+    title.textContent = product.title || "（無題）";
+
+    var price = document.createElement("span");
+    price.className = "p-price";
+    price.textContent = product.price === 0 ? "無料" : "¥" + product.price;
+
+    var order = document.createElement("span");
+    order.className = "order-buttons";
+    [["↑", -1], ["↓", 1]].forEach(function (pair) {
+      var b = document.createElement("button");
+      b.textContent = pair[0];
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        moveProduct(index, pair[1]);
+      });
+      order.appendChild(b);
+    });
+
+    li.appendChild(title);
+    li.appendChild(price);
+    li.appendChild(order);
+    li.addEventListener("click", function () { selectProduct(index); });
+    list.appendChild(li);
+  });
+}
+
+function moveProduct(index, delta) {
+  var target = index + delta;
+  if (target < 0 || target >= products.length) { return; }
+  var tmp = products[index];
+  products[index] = products[target];
+  products[target] = tmp;
+  if (selectedIndex === index) { selectedIndex = target; }
+  else if (selectedIndex === target) { selectedIndex = index; }
+  renderList();
+  setDirty(true);
+}
+
+// ---------------------------------------------------------------------------
+// フォーム
+// ---------------------------------------------------------------------------
+
+function selectProduct(index) {
+  selectedIndex = index;
+  var p = products[index];
+  $("f_id").value = p.id || "";
+  $("f_title").value = p.title || "";
+  $("f_category").value = p.category || "";
+  document.querySelectorAll(".f_audience").forEach(function (box) {
+    box.checked = (p.audience || []).indexOf(box.value) !== -1;
+  });
+  $("f_price").value = typeof p.price === "number" ? p.price : "";
+  $("f_fileType").value = p.fileType || "PDF";
+  $("f_summary").value = p.summary || "";
+  $("f_details").value = (p.details || []).join("\n");
+  $("f_tags").value = (p.tags || []).join(", ");
+  $("f_images").value = (p.images || []).join(", ");
+  $("f_imageUpload").value = "";
+  $("f_paymentLink").value = p.paymentLink || "";
+  $("f_downloadFile").value = p.downloadFile || "";
+  $("f_upload").value = "";
+  $("formPanel").style.display = "";
+  renderList();
+}
+
+$("addButton").addEventListener("click", function () {
+  products.push({
+    id: "", title: "新しい商品", category: "", audience: [],
+    price: 0, fileType: "PDF", summary: "", details: [], tags: [],
+    paymentLink: "", downloadFile: "",
+    updated: new Date().toISOString().slice(0, 10),
+  });
+  setDirty(true);
+  selectProduct(products.length - 1);
+});
+
+function readForm() {
+  var id = $("f_id").value.trim();
+  if (!/^[a-z0-9-]+$/.test(id)) {
+    throw new Error("商品IDは半角英小文字・数字・ハイフンで入力してください。");
+  }
+  var duplicated = products.some(function (p, i) { return i !== selectedIndex && p.id === id; });
+  if (duplicated) { throw new Error("商品ID「" + id + "」は他の商品で使われています。"); }
+  var title = $("f_title").value.trim();
+  if (!title) { throw new Error("商品名を入力してください。"); }
+  var price = Number($("f_price").value);
+  if (!Number.isFinite(price) || price < 0) { throw new Error("価格は0以上の数字で入力してください。"); }
+
+  var audience = [];
+  document.querySelectorAll(".f_audience").forEach(function (box) {
+    if (box.checked) { audience.push(box.value); }
+  });
+
+  return {
+    id: id,
+    title: title,
+    category: $("f_category").value.trim() || "その他",
+    audience: audience,
+    price: price,
+    fileType: $("f_fileType").value.trim() || "PDF",
+    summary: $("f_summary").value.trim(),
+    details: $("f_details").value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean),
+    tags: $("f_tags").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean),
+    images: $("f_images").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean),
+    paymentLink: $("f_paymentLink").value.trim(),
+    downloadFile: $("f_downloadFile").value.trim(),
+    updated: new Date().toISOString().slice(0, 10),
+  };
+}
+
+$("applyButton").addEventListener("click", function () {
+  if (selectedIndex < 0) { return; }
+  try {
+    products[selectedIndex] = readForm();
+    renderList();
+    setDirty(true);
+    setStatus("ok", "一覧に反映しました。最後に「保存して公開」を押してください。");
+  } catch (err) {
+    setStatus("error", err.message);
+  }
+});
+
+$("deleteButton").addEventListener("click", function () {
+  if (selectedIndex < 0) { return; }
+  var p = products[selectedIndex];
+  if (!confirm("「" + (p.title || p.id) + "」を削除しますか？")) { return; }
+  products.splice(selectedIndex, 1);
+  selectedIndex = -1;
+  $("formPanel").style.display = "none";
+  renderList();
+  setDirty(true);
+});
+
+// ---------------------------------------------------------------------------
+// ファイルアップロード（無料配布ファイル・サンプル画像）
+// ---------------------------------------------------------------------------
+
+async function uploadFileTo(dir, inputId, commitPrefix) {
+  var input = $(inputId);
+  if (!input.files || !input.files[0]) {
+    throw new Error("アップロードするファイルを選んでください。");
+  }
+  var file = input.files[0];
+  if (!/^[A-Za-z0-9._-]+$/.test(file.name)) {
+    throw new Error("ファイル名は半角英数字・ドット・ハイフン・アンダースコアにしてください（日本語名は不可）。");
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error("20MBを超えるファイルはアップロードできません。");
+  }
+  setStatus("busy", "アップロード中...");
+  var base64 = await new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () { resolve(String(reader.result).split(",")[1]); };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  var path = dir + "/" + file.name;
+  var existing = await apiGetFile(path);   // 同名ファイルがあれば上書き
+  await apiPutFile(path, base64, commitPrefix + ": " + file.name, existing && existing.sha);
+  return file.name;
+}
+
+$("uploadButton").addEventListener("click", async function () {
+  try {
+    var name = await uploadFileTo(CONFIG.filesDir, "f_upload", "無料配布ファイルを追加");
+    $("f_downloadFile").value = name;
+    setStatus("ok", "アップロードしました。「この内容を一覧に反映」→「保存して公開」で公開されます。");
+  } catch (err) {
+    setStatus("error", err.message);
+  }
+});
+
+$("uploadImageButton").addEventListener("click", async function () {
+  try {
+    var name = await uploadFileTo(CONFIG.imagesDir, "f_imageUpload", "商品画像を追加");
+    var current = $("f_images").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+    if (current.indexOf(name) === -1) { current.push(name); }
+    $("f_images").value = current.join(", ");
+    setStatus("ok", "画像をアップロードしました。「この内容を一覧に反映」→「保存して公開」で公開されます。");
+  } catch (err) {
+    setStatus("error", err.message);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 保存して公開
+// ---------------------------------------------------------------------------
+
+$("publishButton").addEventListener("click", async function () {
+  var invalid = products.filter(function (p) { return !/^[a-z0-9-]+$/.test(p.id || ""); });
+  if (invalid.length > 0) {
+    setStatus("error", "商品IDが未入力の商品があります: " + invalid.map(function (p) { return p.title; }).join(", "));
+    return;
+  }
+  try {
+    $("publishButton").disabled = true;
+    setStatus("busy", "GitHubに保存しています...");
+    // 直前に最新のshaを取り直して競合を避ける
+    var latest = await apiGetFile(CONFIG.productsPath);
+    var json = JSON.stringify(products, null, 2) + "\n";
+    var result = await apiPutFile(
+      CONFIG.productsPath,
+      encodeBase64(json),
+      "管理画面から商品を更新",
+      latest && latest.sha
+    );
+    productsSha = result.content.sha;
+    setDirty(false);
+    setStatus("ok", "保存しました。1〜2分後にサイトへ反映されます。");
+  } catch (err) {
+    setStatus("error", err.message);
+  } finally {
+    $("publishButton").disabled = false;
+  }
+});
+</script>
+</body>
+</html>
