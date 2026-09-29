@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import base64
 import importlib.util
+import io
 import json
 import os
 import re
@@ -23,17 +24,20 @@ import time
 import traceback
 import uuid
 import webbrowser
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
-from .. import build_docx, checks, extract
+from .. import build_docx, checks, extract, layout
 
 VERSION = "2.0"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-MAX_BODY = 40 * 1024 * 1024
+MAX_BODY = 200 * 1024 * 1024  # バックアップの復元に備えて大きめ
 PROJECT_ID = re.compile(r"^[0-9a-f]{12}$")
 MATERIAL_ID = re.compile(r"^[0-9a-f]{8}$")
+CHOICE_STYLES = ("1", "ア", "①", "a")
+DEFAULT_CATEGORIES = ["定期考査", "英単語テスト", "小テスト", "その他"]
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
@@ -91,14 +95,30 @@ def _write(p: dict) -> dict:
     return p
 
 
+def _str_list(val, limit=40) -> list:
+    return [str(x)[:300] for x in val[:limit]] if isinstance(val, list) else []
+
+
 def _clean_question(q: dict, number: int) -> dict:
     out = {k: str(q.get(k) or "") for k in
-           ("body", "answer", "source_ref", "alt_answer_risk", "focus", "kind")}
+           ("body", "answer", "source_ref", "alt_answer_risk", "focus", "kind", "script")}
     out["number"] = number
     for key in ("answer_slots", "slot_labels"):
         val = q.get(key)
         if isinstance(val, list) and any(str(x).strip() for x in val):
             out[key] = [str(x) for x in val]
+    choices = _str_list(q.get("choices"), 12)
+    if choices:
+        out["choices"] = choices
+        if isinstance(q.get("correct"), int):
+            out["correct"] = q["correct"]
+    if q.get("points") not in (None, "") and str(q.get("points")).isdigit():
+        out["points"] = _to_int(q["points"], 1)  # この問だけ配点を変える（例: 9のみ2点）
+    r = q.get("reorder")
+    if isinstance(r, dict):
+        out["reorder"] = {"line": bool(r.get("line")), "n": _to_int(r.get("n"), 0),
+                          "pos": [_to_int(x, 0) for x in (r.get("pos") or [])][:4],
+                          "before": str(r.get("before") or "")[:300], "after": str(r.get("after") or "")[:300]}
     if isinstance(q.get("verdict"), dict):
         out["verdict"] = q["verdict"]
     return out
@@ -125,9 +145,21 @@ def _clean_sections(sections) -> list:
             "count": _to_int(s.get("count"), len(qs)),
             "instructions": str(s.get("instructions") or ""),
             "source": str(s.get("source") or ""),
+            "scoring_note": str(s.get("scoring_note") or "")[:500],
+            "per_row": _to_int(s.get("per_row"), 0, 0, 10),
+            "choice_style": s.get("choice_style") if s.get("choice_style") in CHOICE_STYLES else "1",
+            "bank": [b for b in _str_list(s.get("bank"), 30) if b.strip()],
+            "bank_style": s.get("bank_style") if s.get("bank_style") in CHOICE_STYLES else "",
             "questions": qs,
         })
     return out
+
+
+def _clean_cover(c) -> dict:
+    c = c if isinstance(c, dict) else {}
+    return {"enabled": bool(c.get("enabled")),
+            **{k: str(c.get(k) or "")[:120] for k in ("grade", "subject", "name")},
+            "cautions": str(c.get("cautions") or "")[:3000]}
 
 
 def _clean_exam(exam) -> dict:
@@ -136,13 +168,20 @@ def _clean_exam(exam) -> dict:
         "title": str(exam.get("title") or "新しい定期考査")[:200],
         "written_points": _to_int(exam.get("written_points"), 80),
         "notes": str(exam.get("notes") or "")[:500],
+        "category": str(exam.get("category") or "定期考査")[:30],
+        "date": str(exam.get("date") or "")[:60],
+        "numbering": "global" if exam.get("numbering") == "global" else "section",
+        "heading": "bracket" if exam.get("heading") == "bracket" else "number",
+        "sheet_fields": str(exam.get("sheet_fields") or "組,番,氏名,得点")[:100],
+        "cover": _clean_cover(exam.get("cover")),
+        "end_note": str(exam.get("end_note") or "問題は以上です。")[:200],
     }
 
 
-def _new_project(title="", written_points=80, sections=None) -> dict:
+def _new_project(title="", written_points=80, sections=None, exam=None) -> dict:
     return {
         "id": uuid.uuid4().hex[:12],
-        "exam": _clean_exam({"title": title, "written_points": written_points}),
+        "exam": _clean_exam({**(exam or {}), "title": title, "written_points": written_points}),
         "sections": _clean_sections(sections),
         "materials": [],
         "checklist": {},
@@ -160,8 +199,10 @@ def _summary(p: dict) -> dict:
         "sections": len(secs),
         "questions": sum(len(s.get("questions", [])) for s in secs),
         "count": sum(int(s.get("count", 0)) for s in secs),
-        "points": sum(int(s.get("points_each", 0)) * int(s.get("count", 0)) for s in secs),
+        "points": sum(layout.planned_points(s) for s in secs),
         "written_points": p["exam"].get("written_points"),
+        "category": p["exam"].get("category") or "定期考査",
+        "date": p["exam"].get("date", ""),
         "materials": len(p.get("materials", [])),
     }
 
@@ -359,6 +400,151 @@ def _prompt_text(text, fmt, focus, note, source) -> str:
 """
 
 
+# ---------------------------------------------------------------- 設定・テンプレート・バックアップ
+
+def _read_json_file(name: str, default):
+    f = WORKSPACE / name
+    try:
+        return json.loads(f.read_text(encoding="utf-8")) if f.is_file() else default
+    except (OSError, ValueError):
+        return default
+
+
+def _write_json_file(name: str, data):
+    WORKSPACE.mkdir(parents=True, exist_ok=True)
+    tmp = WORKSPACE / (name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, WORKSPACE / name)
+
+
+def _config() -> dict:
+    cfg = _read_json_file("settings.json", {})
+    cats = [c for c in cfg.get("categories", []) if isinstance(c, str) and c.strip()]
+    return {"categories": cats or list(DEFAULT_CATEGORIES)}
+
+
+def _rename_categories(rename) -> int:
+    """カテゴリー名の変更を、既存の試験とテンプレートにも反映する。{旧名: 新名}"""
+    if not isinstance(rename, dict):
+        return 0
+    table = {str(k): str(v).strip()[:30] for k, v in rename.items() if str(v).strip() and str(k) != str(v)}
+    if not table:
+        return 0
+    changed = 0
+    for d in WORKSPACE.iterdir() if WORKSPACE.exists() else []:
+        f = d / "project.json"
+        if not (d.is_dir() and PROJECT_ID.match(d.name) and f.is_file()):
+            continue
+        try:
+            p = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        cat = p.get("exam", {}).get("category") or "定期考査"
+        if cat in table:
+            p["exam"]["category"] = table[cat]
+            f.write_text(json.dumps(p, ensure_ascii=False, indent=1), encoding="utf-8")
+            changed += 1
+    items = _templates()
+    for t in items:
+        if t.get("category") in table:
+            t["category"] = table[t["category"]]
+            t.setdefault("exam", {})["category"] = t["category"]
+            changed += 1
+    if items:
+        _write_json_file("templates.json", items)
+    return changed
+
+
+def _clean_template(t: dict, tid: str = "") -> dict:
+    """ユーザーテンプレート（試験の構成だけ。問題そのものは含めない）。"""
+    if not isinstance(t, dict):
+        raise ApiError(400, "テンプレートの形式が正しくありません")
+    name = str(t.get("name") or "").strip()[:60]
+    if not name:
+        raise ApiError(400, "テンプレートの名前を入力してください")
+    exam = _clean_exam(t.get("exam"))
+    secs = []
+    for s in _clean_sections(t.get("sections")):
+        s.pop("questions", None)
+        s.pop("source", None)
+        secs.append(s)
+    return {"id": tid if MATERIAL_ID.match(tid or "") else uuid.uuid4().hex[:8], "name": name,
+            "category": str(t.get("category") or exam["category"])[:30], "desc": str(t.get("desc") or "")[:200],
+            "exam": {k: exam[k] for k in ("written_points", "numbering", "heading", "sheet_fields", "cover",
+                                          "category", "end_note")},
+            "sections": secs, "updated_at": _now()}
+
+
+def _templates() -> list:
+    items = _read_json_file("templates.json", [])
+    return [t for t in items if isinstance(t, dict) and MATERIAL_ID.match(str(t.get("id", "")))]
+
+
+BACKUP_FILE = re.compile(r"^([0-9a-f]{12})/(project\.json|materials/[0-9a-f]{8}\.(txt|docx))$")
+
+
+def _backup_zip() -> bytes:
+    """全試験・テンプレート・設定をZIPにまとめる（PCの引っ越し・保存用）。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for name in ("templates.json", "settings.json"):
+            if (WORKSPACE / name).is_file():
+                z.write(WORKSPACE / name, name)
+        for d in sorted(WORKSPACE.iterdir()) if WORKSPACE.exists() else []:
+            if not (d.is_dir() and PROJECT_ID.match(d.name) and (d / "project.json").is_file()):
+                continue
+            z.write(d / "project.json", f"{d.name}/project.json")
+            for f in sorted((d / "materials").glob("*")) if (d / "materials").is_dir() else []:
+                rel = f"{d.name}/materials/{f.name}"
+                if BACKUP_FILE.match(rel):
+                    z.write(f, rel)
+    return buf.getvalue()
+
+
+def _restore_zip(data_b64: str) -> dict:
+    """バックアップZIPを読み込む。既存の試験は上書きせず、同じIDがあれば別の試験として追加する。"""
+    try:
+        z = zipfile.ZipFile(io.BytesIO(base64.b64decode(data_b64 or "", validate=True)))
+    except (ValueError, zipfile.BadZipFile):
+        raise ApiError(400, "バックアップファイル（.zip）を読み込めませんでした")
+    added, remap = 0, {}
+    with z, _lock:
+        names = z.namelist()
+        for name in names:
+            m = BACKUP_FILE.match(name)
+            if not m:
+                continue  # 想定外のファイル（../ など）は無視する
+            old = m.group(1)
+            if old not in remap:
+                new = old if not (WORKSPACE / old).exists() else uuid.uuid4().hex[:12]
+                remap[old] = new
+            target = WORKSPACE / remap[old] / m.group(2)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            data = z.read(name)
+            if m.group(2) == "project.json":
+                p = json.loads(data.decode("utf-8"))
+                p["id"] = remap[old]
+                data = json.dumps(p, ensure_ascii=False, indent=1).encode("utf-8")
+                added += 1
+            target.write_bytes(data)
+        if "templates.json" in names:
+            mine = {t["id"]: t for t in _templates()}
+            for t in json.loads(z.read("templates.json").decode("utf-8")):
+                if isinstance(t, dict) and t.get("id") not in mine:
+                    try:
+                        mine[t["id"]] = _clean_template(t, t.get("id", ""))
+                    except (ApiError, KeyError):
+                        pass
+            _write_json_file("templates.json", list(mine.values()))
+        if "settings.json" in names:
+            cats = _config()["categories"]
+            for c in json.loads(z.read("settings.json").decode("utf-8")).get("categories", []):
+                if isinstance(c, str) and c.strip() and c not in cats:
+                    cats.append(c)
+            _write_json_file("settings.json", {"categories": cats})
+    return {"added": added}
+
+
 # ---------------------------------------------------------------- ルーティング
 
 def route(method: str, parts: list, body) -> object:
@@ -374,7 +560,7 @@ def route(method: str, parts: list, body) -> object:
             b = body()
             with _lock:
                 p = _write(_new_project(b.get("title"), b.get("written_points", 80),
-                                        b.get("sections")))
+                                        b.get("sections"), b.get("exam")))
             return {"project": p}
 
     if parts == ["projects", "import"] and method == "POST":
@@ -384,9 +570,7 @@ def route(method: str, parts: list, body) -> object:
         exam = data.get("exam") or {}
         with _lock:
             p = _write(_new_project(exam.get("title", "取り込んだ試験"),
-                                    exam.get("written_points", 80), data["sections"]))
-            p["exam"]["notes"] = str(exam.get("notes") or "")
-            _write(p)
+                                    exam.get("written_points", 80), data["sections"], exam))
         return {"project": p}
 
     if n >= 2 and parts[0] == "projects":
@@ -454,6 +638,50 @@ def route(method: str, parts: list, body) -> object:
             return _export(pid)
         if len(rest) == 2 and rest[0] == "files" and method == "GET":
             return ("file", _export_file(pid, rest[1]))
+
+    if parts == ["config"]:
+        if method == "GET":
+            return _config()
+        if method == "PUT":
+            cats = []
+            for c in body().get("categories") or []:
+                c = str(c).strip()[:30]
+                if c and c not in cats:
+                    cats.append(c)
+            if not cats:
+                raise ApiError(400, "カテゴリーを1つ以上残してください")
+            with _lock:
+                _write_json_file("settings.json", {**_read_json_file("settings.json", {}), "categories": cats})
+                _rename_categories(body().get("rename"))
+            return _config()
+
+    if parts == ["templates"]:
+        if method == "GET":
+            return {"templates": _templates()}
+        if method == "POST":
+            with _lock:
+                t = _clean_template(body().get("template"))
+                _write_json_file("templates.json", _templates() + [t])
+            return {"template": t}
+    if len(parts) == 2 and parts[0] == "templates":
+        with _lock:
+            items = _templates()
+            idx = next((i for i, t in enumerate(items) if t["id"] == parts[1]), -1)
+            if idx < 0:
+                raise ApiError(404, "テンプレートが見つかりません")
+            if method == "PUT":
+                items[idx] = _clean_template(body().get("template"), parts[1])
+                _write_json_file("templates.json", items)
+                return {"template": items[idx]}
+            if method == "DELETE":
+                items.pop(idx)
+                _write_json_file("templates.json", items)
+                return {"ok": True}
+
+    if parts == ["backup"] and method == "GET":
+        return ("bytes", _backup_zip(), f"ExamStudio_backup_{time.strftime('%Y%m%d')}.zip")
+    if parts == ["restore"] and method == "POST":
+        return _restore_zip(body().get("data"))
 
     if parts == ["prompt"] and method == "POST":
         b = body()
@@ -578,13 +806,22 @@ class Handler(BaseHTTPRequestHandler):
             self._guard(method)
             if path.startswith("/api/"):
                 parts = [unquote(x) for x in path[5:].split("/") if x]
-                result = route(method, parts, self._read_json)
+                cache = {}
+
+                def body():  # 本文は1回しか読めないので、2回目以降は読んだ結果を返す
+                    if "v" not in cache:
+                        cache["v"] = self._read_json()
+                    return cache["v"]
+                result = route(method, parts, body)
                 if isinstance(result, tuple) and result[0] == "file":
                     f = result[1]
                     self._send(200, f.read_bytes(),
                                CONTENT_TYPES.get(f.suffix, "application/octet-stream"),
                                {"Content-Disposition":
                                 f"attachment; filename*=UTF-8''{quote(f.name)}"})
+                elif isinstance(result, tuple) and result[0] == "bytes":
+                    self._send(200, result[1], "application/zip",
+                               {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(result[2])}"})
                 else:
                     self._json(result)
             elif method == "GET":

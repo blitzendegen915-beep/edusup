@@ -65,6 +65,65 @@ def test_docx_roundtrip():
         assert "universal" not in cells  # 解答用紙に答えが漏れていない
 
 
+def _vocab_draft():
+    """英単語テストの形（通し番号・【1】見出し・選択肢・並び替えの番号・個別配点）。"""
+    return {
+        "exam": {"title": "英単語試験", "written_points": 6, "numbering": "global", "heading": "bracket",
+                 "date": "2026.9.1（火）実施", "end_note": "問題は以上です。よく見直しましょう。"},
+        "sections": [
+            {"no": 1, "type": "listen_meaning", "points_each": 1, "count": 2, "choice_style": "1", "questions": [
+                {"number": 1, "body": "", "script": "haven", "choices": ["植民地", "議会", "避難所", "国籍"], "correct": 2,
+                 "answer": "3", "source_ref": "単語集 No.1", "alt_answer_risk": "自動"},
+                {"number": 2, "body": "", "script": "colony", "choices": ["植民地", "議会", "避難所", "国籍"], "correct": 0,
+                 "answer": "1", "source_ref": "単語集 No.2", "alt_answer_risk": "自動"}]},
+            {"no": 2, "type": "reorder_2nd_5th", "points_each": 2, "count": 1, "questions": [
+                {"number": 1, "body": "［ 1. ask　2. my　3. brother ］", "answer": "3 / 1", "answer_slots": ["3", "1"],
+                 "slot_labels": ["2番目", "5番目"], "kind": "reorder_2nd_5th", "source_ref": "L2", "alt_answer_risk": "x",
+                 "reorder": {"line": True, "n": 6, "pos": [2, 5], "before": "I will", "after": "my homework."}}]},
+            {"no": 3, "type": "vocab_spelling", "points_each": 1, "count": 1, "questions": [
+                {"number": 1, "body": "私たちはついに頂上に着いた。\nWe （ f　　　 ） reached the top.", "answer": "finally",
+                 "source_ref": "単語集 No.27", "alt_answer_risk": "頭文字", "points": 2}]},
+        ],
+    }
+
+
+def test_layout_numbering():
+    from exam_app import layout
+    d = _vocab_draft()
+    plan = layout.numbering(d)
+    assert [n["label"] for n in plan[0]] == ["1.", "2."]
+    assert plan[1][0]["label"] == "(1)" and plan[1][0]["slots"] == ["3", "4"]  # 並び替えは箇所ごとに通し番号
+    assert plan[2][0]["cell"] == "5"
+    assert layout.reorder_line(d["sections"][1]["questions"][0], ["3", "4"]) == \
+        "I will (　　) ( 3 ) (　　) (　　) ( 4 ) (　　) my homework."
+    assert layout.per_row(d["sections"][0]) == 5 and layout.per_row(d["sections"][1]) == 2
+    assert layout.heading(d["exam"], d["sections"][0]).endswith("（各1点）")
+    assert layout.points_label(d["sections"][2], ["5"]) == "【2点×1】"
+    sec = {"points_each": 1, "questions": [{}, {}, {"points": 2}]}
+    assert layout.points_label(sec, ["7", "8", "9"]) == "【1点×2・9のみ2点】"
+    assert layout.planned_points(d["sections"][2]) == 2
+    d["exam"]["numbering"] = "section"
+    assert layout.numbering(d)[2][0]["label"] == "(1)"
+
+
+def test_vocab_docx():
+    from docx import Document
+    d = _vocab_draft()
+    assert checks.run_all(d) == [], checks.run_all(d)
+    with tempfile.TemporaryDirectory() as tmp:
+        files = build_docx.build_all(d, Path(tmp))
+        exam = Document(str(files[0]))
+        text = "\n".join(p.text for p in exam.paragraphs)
+        cells = [c.text for t in exam.tables for r in t.rows for c in r.cells]
+        assert "【1】" in text and "2026.9.1" in text and "よく見直しましょう" in text
+        assert "3. 避難所" in cells and "1." in cells                     # 選択肢の表・通し番号
+        assert "I will (　　) ( 3 )" in text                              # 解答位置の行
+        model = Document(str(files[2]))
+        mtext = "\n".join(p.text for p in model.paragraphs)
+        assert "放送文" in mtext and "haven" in mtext                     # 放送文は模範解答にだけ
+        assert "haven" not in text
+
+
 def test_extract_three_layers():
     folder = Path(__file__).resolve().parents[2] / "materials"
     if not folder.is_dir():  # 配布用ZIPには試験の実物（materials/）を入れていない

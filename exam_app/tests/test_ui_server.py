@@ -112,6 +112,71 @@ def test_all():
         st, r = call("POST", "/api/ai/ask", {"text": "x"})
         assert st == 400 and "AI機能は使えません" in r["error"]
 
+
+        # カテゴリー（自分で編集）
+        st, r = call("GET", "/api/config")
+        assert "英単語テスト" in r["categories"]
+        st, r = call("PUT", "/api/config", {"categories": ["定期考査", "英単語テスト", "実力テスト"]})
+        assert r["categories"][-1] == "実力テスト"
+        st, r = call("PUT", "/api/config", {"categories": []})
+        assert st == 400
+
+        # テンプレート（作成・編集・削除。問題は含めない）
+        tpl = {"name": "英単語テスト型（自作）", "category": "英単語テスト",
+               "exam": {"written_points": 100, "numbering": "global", "heading": "bracket"},
+               "sections": [{"type": "vocab_meaning", "count": 20, "points_each": 1, "questions": [{"body": "x"}]}]}
+        st, r = call("POST", "/api/templates", {"template": tpl})
+        tid = r["template"]["id"]
+        assert st == 200 and "questions" not in r["template"]["sections"][0]
+        assert r["template"]["exam"]["numbering"] == "global"
+        st, r = call("PUT", f"/api/templates/{tid}", {"template": {**tpl, "name": "改名"}})
+        assert r["template"]["name"] == "改名"
+        st, r = call("GET", "/api/templates")
+        assert [t["name"] for t in r["templates"]] == ["改名"]
+        st, r = call("POST", "/api/templates", {"template": {"name": ""}})
+        assert st == 400
+
+        # 新しい項目（通し番号・表紙・選択肢・個別配点）が保存される
+        st, r = call("POST", "/api/projects", {"title": "単語", "written_points": 2,
+            "exam": {"category": "英単語テスト", "numbering": "global", "heading": "bracket",
+                     "cover": {"enabled": True, "grade": "1学年"}},
+            "sections": [{"type": "vocab_meaning", "points_each": 1, "count": 1, "choice_style": "1",
+                          "bank": ["a", "b"], "questions": [{"body": "haven", "choices": ["植民地", "議会", "避難所", "国籍"],
+                          "correct": 2, "answer": "3", "points": 2, "script": "haven", "source_ref": "L1",
+                          "reorder": {"line": True, "n": 6, "pos": [2, 5], "before": "I", "after": "."}}]}]})
+        p2 = r["project"]
+        assert p2["exam"]["category"] == "英単語テスト" and p2["exam"]["cover"]["enabled"]
+        q2 = p2["sections"][0]["questions"][0]
+        assert q2["choices"][2] == "避難所" and q2["correct"] == 2 and q2["points"] == 2 and q2["reorder"]["pos"] == [2, 5]
+        st, r = call("GET", "/api/projects")
+        assert any(x["category"] == "英単語テスト" for x in r["projects"])
+        assert p2["exam"]["end_note"] == "問題は以上です。"  # 最後の一言の既定値
+
+        # カテゴリー名の変更は、既存の試験とテンプレートにも反映される
+        st, r = call("PUT", "/api/config", {"categories": ["定期考査", "単語テスト", "実力テスト"],
+                                            "rename": {"英単語テスト": "単語テスト"}})
+        assert st == 200 and r["categories"][1] == "単語テスト"
+        st, r = call("GET", "/api/projects")
+        assert any(x["category"] == "単語テスト" for x in r["projects"])
+        assert not any(x["category"] == "英単語テスト" for x in r["projects"])
+        st, r = call("GET", "/api/templates")
+        assert r["templates"][0]["category"] == "単語テスト"
+
+        # バックアップ → 復元（同じIDは別の試験として追加）
+        st, zipdata = call("GET", "/api/backup", raw=True)
+        assert st == 200 and zipdata[:2] == b"PK"
+        before = len(call("GET", "/api/projects")[1]["projects"])
+        st, r = call("POST", "/api/restore", {"data": base64.b64encode(zipdata).decode()})
+        assert st == 200 and r["added"] == before, r
+        assert len(call("GET", "/api/projects")[1]["projects"]) == before * 2
+        # 不正なZIP（../ を含む）は中身を無視する
+        import io, zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("../evil.txt", "x")
+        st, r = call("POST", "/api/restore", {"data": base64.b64encode(buf.getvalue()).decode()})
+        assert st == 200 and r["added"] == 0 and not (tmp / "evil.txt").exists()
+
         # ChatGPTに切り替え（キーはメモリのみ）→ 消去で元に戻る
         st, r = call("POST", "/api/settings", {"provider": "openai", "key": "sk-test", "model": "gpt-x"})
         assert r["status"]["provider"] == "openai" and r["status"]["ai"] and r["status"]["openai_model"] == "gpt-x"
