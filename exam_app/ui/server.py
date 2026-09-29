@@ -114,7 +114,11 @@ def _clean_sections(sections) -> list:
         qs = [_clean_question(q, j + 1)
               for j, q in enumerate(q for q in (s.get("questions") or [])
                                     if isinstance(q, dict))]
+        sid = str(s.get("sid") or "")
+        if not MATERIAL_ID.match(sid):
+            sid = uuid.uuid4().hex[:8]  # 大問の固定ID（並べ替えても素材との対応が崩れない）
         out.append({
+            "sid": sid,
             "no": i + 1,
             "type": str(s.get("type") or "other"),
             "points_each": _to_int(s.get("points_each"), 1),
@@ -189,7 +193,7 @@ def _decode_text(raw: bytes) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
-def _add_material(pid: str, name: str, data_b64=None, text=None) -> dict:
+def _add_material(pid: str, name: str, data_b64=None, text=None, sid: str = "") -> dict:
     d = _project_dir(pid)
     mdir = d / "materials"
     mdir.mkdir(exist_ok=True)
@@ -225,6 +229,8 @@ def _add_material(pid: str, name: str, data_b64=None, text=None) -> dict:
 
     (mdir / f"{mid}.txt").write_text(body, encoding="utf-8")
     meta = {"id": mid, "name": name, "chars": len(body), "added_at": _now()}
+    if MATERIAL_ID.match(sid or ""):
+        meta["sid"] = sid  # どの大問の素材か
     with _lock:
         p = _load(pid)
         p.setdefault("materials", []).append(meta)
@@ -241,10 +247,12 @@ def _material_path(pid: str, mid: str) -> Path:
     return f
 
 
-def _material_items(p: dict, only_id: str = "") -> list:
+def _material_items(p: dict, only_id: str = "", sid: str = "") -> list:
     items = []
     for m in p.get("materials", []):
         if only_id and m["id"] != only_id:
+            continue
+        if sid and m.get("sid") != sid:
             continue
         try:
             text = _material_path(p["id"], m["id"]).read_text(encoding="utf-8")
@@ -418,7 +426,7 @@ def route(method: str, parts: list, body) -> object:
             return {"project": _summary(p)}
         if rest == ["materials"] and method == "POST":
             b = body()
-            return _add_material(pid, b.get("name"), b.get("data"), b.get("text"))
+            return _add_material(pid, b.get("name"), b.get("data"), b.get("text"), str(b.get("sid") or ""))
         if len(rest) == 2 and rest[0] == "materials":
             f = _material_path(pid, rest[1])
             if method == "GET":
@@ -496,7 +504,8 @@ def route(method: str, parts: list, body) -> object:
             if not 0 <= idx < len(p["sections"]):
                 raise ApiError(400, "大問が見つかりません")
             sec = p["sections"][idx]
-            items = _material_items(p, sec.get("source", "")) or _material_items(p)
+            items = (_material_items(p, sid=sec.get("sid", "")) or _material_items(p, sec.get("source", ""))
+                     or _material_items(p))
             if not items:
                 raise ApiError(400, "教材がありません。先に「教材」で教材を追加してください")
             res = gen.make_section(sec, items, p["exam"]["title"])

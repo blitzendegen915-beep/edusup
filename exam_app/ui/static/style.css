@@ -567,3 +567,81 @@ button.tok:hover { border-color: var(--accent); color: var(--accent-ink); }
   .paper { position: absolute; left: 0; top: 0; width: 100%; max-width: none; box-shadow: none; padding: 0; }
   .ws, .main, .main-scroll { height: auto; overflow: visible; display: block; }
 }
+
+/* ---------- 大問をつくる（素材＋問題の2列） ---------- */
+.step.wide { max-width: 1480px; }
+.sec-tab.add {
+  flex-direction: row; align-items: center; gap: 6px; min-width: 0; color: var(--accent);
+  border-style: dashed; background: transparent; font-weight: 700; font-size: 13px;
+}
+.sec-tab.add span { color: var(--accent); font-size: 13px; }
+.sec-head-title .link { font-size: 13px; margin-left: auto; }
+.sec-edit { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 10px; }
+.sec-edit.hidden { display: none; }
+.guide { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
+.guide-step {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 220px;
+  padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border);
+  font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.guide-step.done { background: var(--ok-soft); border-color: transparent; color: var(--ok); }
+.gs-num {
+  display: grid; place-items: center; width: 22px; height: 22px; flex: none; border-radius: 99px;
+  background: var(--accent); color: #fff; font-size: 12px;
+}
+.guide-step.done .gs-num { background: var(--ok); }
+.build { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.build .card + .card { margin-top: 0; }
+.pane { position: sticky; top: 0; }
+.build .pane:last-child { position: static; }
+.pane-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; flex-wrap: wrap; }
+.pane-head b { font-size: 15.5px; }
+.pane-head .muted { font-size: 12.5px; }
+.pane-head .pill { margin-left: auto; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pane-num {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px;
+  background: var(--accent); color: #fff; font-weight: 800; font-size: 13px;
+}
+.mat-tabs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.mat-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 280px; height: 32px; padding: 0 6px 0 11px;
+  border: 1px solid var(--border); border-radius: 99px; background: var(--surface-2); font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.mat-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mat-chip small { color: var(--faint); font-size: 10.5px; }
+.mat-chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+.mat-chip .x { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 99px; background: none; color: var(--faint); }
+.mat-chip .x:hover { background: var(--danger-soft); color: var(--danger); }
+.inp.mini { width: auto; min-height: 32px; padding: 4px 28px 4px 10px; font-size: 12.5px; border-radius: 99px; }
+.pane .viewer-tip { margin: 0 0 8px; padding: 8px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); font-size: 12.5px; }
+.pane .mat-text {
+  padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2);
+  max-height: calc(100vh - 420px); min-height: 220px;
+}
+.drop.compact { flex-direction: row; gap: 10px; padding: 8px 14px; text-align: left; flex: 1; }
+.drop.compact small { display: block; }
+.empty.small { padding: 28px 16px; }
+.fab-btn.rec { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+
+/* 問題カード（見た目表示／編集） */
+.build .qcard { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: none; }
+.build .qcard.open { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.q-look {
+  padding: 10px 12px; border-radius: 10px; background: var(--surface-2);
+  font-family: var(--font-en); font-size: 14.5px; line-height: 1.75;
+}
+.q-look .line2 { padding-left: 1.2em; }
+.q-ans { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); font-weight: 700; font-family: var(--font); font-size: 13.5px; }
+.q-src { margin-left: auto; font-weight: 500; color: var(--faint); font-size: 12px; }
+.q-edit { display: flex; flex-direction: column; gap: 10px; }
+.qhead .qactions .btn.sm { height: 28px; }
+
+@media (max-width: 1100px) {
+  .build { grid-template-columns: 1fr; }
+  .pane { position: static; }
+  .pane .mat-text { max-height: 420px; }
+}
+.nav-label { white-space: nowrap; }
+.nav-item { gap: 7px; }
+.drop small { display: block; }
