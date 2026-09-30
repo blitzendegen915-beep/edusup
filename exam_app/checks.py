@@ -68,7 +68,7 @@ def check_empty(draft) -> list[str]:
     for s in draft["sections"]:
         for q in s["questions"]:
             key = f"{_lab(s)}({q['number']})"
-            if not str(q.get("body", "")).strip() and not str(q.get("script", "")).strip():
+            if not str(q.get("body", "")).strip() and not str(q.get("script", "")).strip() and not q.get("choices"):
                 issues.append(f"{key}: 問題文が空")
             if not str(q.get("answer", "")).strip():
                 issues.append(f"{key}: 解答が空")

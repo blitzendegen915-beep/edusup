@@ -86,6 +86,7 @@ async function api(method, path, body) {
   let data = {};
   try { data = await res.json(); } catch { /* 本文なし */ }
   if (!res.ok) throw new Error(data.error || `エラーが発生しました（${res.status}）`);
+  if (path.startsWith('ai/') && typeof refreshUsage === 'function') setTimeout(refreshUsage, 0);  // 使用量の表示を更新
   return data;
 }
 
@@ -210,6 +211,7 @@ function rich(line) {
 
 // 大問の形式。画面では分類ごとにまとめて表示する（実物の定期考査・英単語テストの形式）
 const TYPE_GROUPS = [
+  ['おまかせ', [['auto', 'おまかせ（AIに注文した内容に合わせる）']]],
   ['語彙・文法', [
     ['fill_blank', '空所補充'],
     ['choice_4', '選択問題（語句・英文を選ぶ）'],
@@ -224,6 +226,7 @@ const TYPE_GROUPS = [
   ['読解', [
     ['reading_misfit', '読解（不要文・空所）'],
     ['content_match', '内容一致'],
+    ['synonym', '同意語選択'],
     ['insertion', '語句挿入位置'],
     ['referent', '指示語の内容'],
     ['table_fill', '表の穴埋め（本文の要約）'],
@@ -249,7 +252,7 @@ const TYPE_GROUPS = [
 const SECTION_TYPES = TYPE_GROUPS.flatMap(([, list]) => list);
 const TYPE_LABEL = Object.fromEntries(SECTION_TYPES);
 const SHORT = {
-  fill_blank: '空所補充', choice_4: '選択', word_form: '語形変化', reorder_2nd_5th: '並び替え',
+  auto: 'おまかせ', synonym: '同意語', fill_blank: '空所補充', choice_4: '選択', word_form: '語形変化', reorder_2nd_5th: '並び替え',
   error_correction: '誤文訂正', paraphrase: '同意文', rewrite: '書き換え', pattern: '文型・用法', accent: 'アクセント',
   reading_misfit: '読解', content_match: '内容一致', insertion: '語句挿入', referent: '指示語', table_fill: '表の穴埋め',
   underline_grammar: '下線部', translation: '和訳', listening: 'リスニング', listening_choice: 'リスニング選択',
@@ -257,7 +260,7 @@ const SHORT = {
   vocab_meaning: '英→日', vocab_word: '日→英', vocab_context: '例文4択', vocab_spelling: '綴り', other: 'その他',
 };
 const DEFAULT_POINTS = {
-  fill_blank: 1, choice_4: 1, word_form: 1, reorder_2nd_5th: 2, error_correction: 2, paraphrase: 2, rewrite: 2,
+  auto: 2, synonym: 2, fill_blank: 1, choice_4: 1, word_form: 1, reorder_2nd_5th: 2, error_correction: 2, paraphrase: 2, rewrite: 2,
   pattern: 1, accent: 1, reading_misfit: 2, content_match: 2, insertion: 2, referent: 3, table_fill: 2, underline_grammar: 2,
   translation: 4, listening: 1, listening_choice: 1, qa: 2, writing: 3, listen_meaning: 1, definition: 1,
   vocab_meaning: 1, vocab_word: 1, vocab_context: 1, vocab_spelling: 1, other: 1,
@@ -265,6 +268,8 @@ const DEFAULT_POINTS = {
 const DEFAULT_INSTR = {
   fill_blank: '日本文の意味になるように英文の空所に適語を入れなさい。空欄にアルファベットがあるものは、それではじまる単語を答えること。',
   choice_4: '（　）に入る最も適切なものを選び、記号で答えなさい。',
+  synonym: '下線部の語句に最も近い意味のものを選び、記号で答えなさい。',
+  auto: '',
   word_form: '（　）内の語を適切な形に直しなさい。',
   reorder_2nd_5th: '日本語の意味を表す英文になるように（　）内の語句を並べ替え，（　）内で２番目と５番目に来る語句を答えなさい。なお，複数の単語からなる選択肢も一つの語句として数える。また，文頭に来る語も１文字目は小文字になっている。',
   error_correction: '次の各英文について、誤った表現を含んだ部分がそれぞれ１つある。その箇所をア～ウから選び、その記号と正しい形を答えなさい。',
@@ -293,7 +298,7 @@ const DEFAULT_INSTR = {
 };
 // 大問の形式ごとの選択肢の記号（実物に合わせた初期値）
 const DEFAULT_STYLE = {
-  choice_4: 'ア', error_correction: 'ア', pattern: 'ア', accent: 'ア', definition: '1', content_match: '1',
+  synonym: 'ア', choice_4: 'ア', error_correction: 'ア', pattern: 'ア', accent: 'ア', definition: '1', content_match: '1',
   reading_misfit: '1', listening_choice: '1', listen_meaning: '1', vocab_meaning: '1', vocab_word: '1', vocab_context: '1',
 };
 const VOCAB_TYPES = new Set(['listen_meaning', 'definition', 'vocab_meaning', 'vocab_word', 'vocab_context', 'vocab_spelling']);
@@ -303,12 +308,13 @@ const SCRIPT_TYPES = new Set(['listening', 'listening_choice', 'qa', 'listen_mea
 const QUICK_FOR = {
   fill_blank: 'fill_blank', reorder_2nd_5th: 'reorder_2nd_5th', choice_4: 'choice_4', word_form: 'word_form',
   underline_grammar: 'underline_grammar', translation: 'translation', error_correction: 'error_correction', referent: 'underline_grammar',
-  vocab_context: 'choice_4', vocab_spelling: 'fill_blank', listening: 'fill_blank', paraphrase: 'fill_blank',
+  vocab_context: 'choice_4', vocab_spelling: 'fill_blank', content_match: 'content_match', synonym: 'choice_4', listening: 'fill_blank', paraphrase: 'fill_blank',
 };
 const QUICK_FORMATS = [
   ['fill_blank', '空所補充', 'type'],
   ['reorder_2nd_5th', '並び替え', 'shuffle'],
   ['choice_4', '4択', 'list'],
+  ['content_match', '内容一致', 'check'],
   ['error_correction', '誤文訂正', 'alert'],
   ['word_form', '語形変化', 'edit'],
   ['underline_grammar', '下線部', 'underline'],
@@ -483,7 +489,7 @@ function renderHome() {
       h('div', { class: 'brand' }, logo(),
         h('div', {}, h('h1', {}, '定期考査スタジオ'), h('p', {}, '教材の文をクリックして、聞きたいところを、聞きたい形式で。'))),
       h('div', { class: 'hero-actions' },
-        statusChip(),
+        statusChip(), usageChip(),
         h('button', { class: 'btn ghost', onclick: helpDialog }, icon('help'), '使い方'),
         more,
         h('button', { class: 'btn primary', onclick: () => newProjectDialog() }, icon('plus'), '新しい試験'))),
@@ -712,7 +718,7 @@ function renderWorkspace() {
       h('button', { class: 'back', onclick: goHome }, icon('back', 14), h('span', {}, '試験の一覧へ')),
       renderNav(),
       h('div', { class: 'side-foot' },
-        statusChip(),
+        statusChip(), usageChip(),
         h('button', { class: 'status-chip', onclick: helpDialog }, icon('help', 14), h('span', {}, '使い方・作問のルール')))),
     h('main', { class: 'main' },
       h('header', { class: 'topbar' },
@@ -967,7 +973,9 @@ function addBigBar(list, ctx) {
     applyLabels(list); if (!ctx.template) renumber(); ctx.dirty(); ctx.redraw();
     if (!ctx.template) requestAnimationFrame(() => { const sc = $('.main-scroll'); if (sc) sc.scrollTo({ top: sc.scrollHeight, behavior: 'smooth' }); });
   };
-  return h('div', { class: 'add-bar' }, h('span', {}, '大問を追加'),
+  return h('div', { class: 'add-bar' },
+    h('button', { class: 'btn primary sm', onclick: () => addParts('', [['auto', 1, 2]]) }, icon('plus', 14), '大問を追加'),
+    h('span', {}, 'またはひな型から'),
     BIG_PRESETS.map(([name, title, parts]) => h('button', { class: 'chip', title: parts.map(([t, c]) => `${SHORT[t]}${c}問`).join('・'),
       onclick: () => addParts(title, parts) }, icon('plus', 13), name)),
     h('button', { class: 'chip solid', onclick: () => typePicker(v => addParts('', [[v, 5, DEFAULT_POINTS[v] ?? 1]])) }, icon('list', 13), '形式を1つ選んで追加'));
@@ -1024,6 +1032,9 @@ function bigCard(list, gs, gi, ctx) {
       h('div', { class: 'big-main' },
         field(multi ? '大問の指示文（見出しになります）' : '大問の指示文（設問を2つ以上にしたとき見出しになります）',
           input({ value: head.big_title || '', placeholder: '例: 次の英文を読んで、後の問いに答えなさい。', oninput: v => { head.big_title = v; ctx.dirty(); } })),
+        field('作りたい問題（自由に書く。AIへの注文になります・任意）',
+          textarea({ value: head.order || '', rows: 2, placeholder: '例: 内容一致を2問、同意語選択を1問。「環境問題に関する問題」を中心に。形式を選ばなくても、ここに書けばAIが問1・問2…に振り分けます',
+            oninput: v => { head.order = v; ctx.dirty(); } })),
         h('div', { class: 'big-meta' },
           h('span', { class: 'pill' }, `設問 ${g.length}つ`), h('span', { class: 'pill' }, `${pts}点`),
           ctx.template ? null : h('span', { class: 'pill' + (head.passage ? ' ok' : '') }, head.passage ? `本文あり（${head.passage.length}字）` : '本文なし'),
@@ -1222,6 +1233,7 @@ function renderBuild() {
           ? [h('b', {}, `本文（問題用紙に載せる・${passage.length}字）`), h('span', {}, rich(passage.slice(0, 140).replace(/\n/g, ' ') + (passage.length > 140 ? '…' : '')))]
           : [h('b', {}, '本文（問題用紙に載せる）: なし'), h('span', {}, '長文・対話文の大問は、本文を入れると問題用紙の大問の最初に枠つきで載ります')]),
         h('button', { class: 'btn ghost sm', onclick: () => passageDialog(big, mats) }, icon('edit', 13), passage ? '本文を編集' : '本文を入れる')),
+      orderBox(big, g[0]),
       partTabs,
       h('div', { class: 'sec-head-title' }, `${s.label}　${TYPE_LABEL[s.type] || s.type}`,
         h('span', { class: 'pill' }, `${s.points_each}点 × ${s.count}問 ＝ ${plannedPoints(s)}点`),
@@ -1289,6 +1301,138 @@ function renderBuild() {
     tabs, head, guide, h('div', { class: 'build' }, matPane, qPane));
 }
 
+// ================================================================ AIに注文して作る（自然言語）
+
+function orderBox(big, headIdx) {
+  const busy = S.ordering === big.sid;
+  return h('div', { class: 'order-box' },
+    h('div', { class: 'order-head' }, icon('sparkles', 15), h('b', {}, 'AIに注文して作る'),
+      h('span', { class: 'muted' }, '作りたい問題を普通の文章で書くだけ。種類ごとに問1・問2…へ自動で振り分けます')),
+    textarea({ value: big.order || '', rows: 2, cls: 'inp order-inp',
+      placeholder: '例: 内容一致を2問、同意語選択を1問、下線部(A)の和訳を1問。第2段落の筆者の主張に関する問題を中心に。',
+      oninput: v => { big.order = v; markDirty(); } }),
+    h('div', { class: 'row' },
+      S.status.ai
+        ? h('button', { class: 'btn primary sm', disabled: busy, onclick: () => runOrder(big, headIdx) }, icon('sparkles', 14), busy ? 'AIが作問中…（数十秒）' : `${aiName()}で作る`)
+        : [h('button', { class: 'btn primary sm', onclick: () => copyOrderPrompt(big, headIdx) }, icon('clipboard', 14), '依頼文をコピー（API抜き）'),
+          h('button', { class: 'btn ghost sm', onclick: () => pasteOrderResult(headIdx) }, icon('download', 14), '結果を貼り付けて取り込む')],
+      h('span', { class: 'muted small' }, S.status.ai ? '本文と素材だけを根拠に作ります。作った問題は必ず確認してください'
+        : 'APIキーなしでも、依頼文を Claude / ChatGPT の画面に貼り付ければ同じことができます')));
+}
+
+async function runOrder(big, headIdx) {
+  if (!(big.order || '').trim()) return toast('作りたい問題を入力してください（例: 内容一致を2問、同意語選択を1問）', 'error');
+  await flushSave();
+  S.ordering = big.sid; render({ keepScroll: true });
+  try {
+    const r = await api('POST', 'ai/order', { pid: S.project.id, index: headIdx, order: big.order });
+    const n = placeOrdered(headIdx, r.questions);
+    toast(`${n}問を作りました` + (r.dropped ? `（根拠のない${r.dropped}問は破棄）` : '') + `　${r.cost}`, 'ok');
+  } catch (e) { toast(e.message, 'error'); }
+  S.ordering = null; refreshUsage(); render({ keepScroll: true });
+}
+
+async function copyOrderPrompt(big, headIdx) {
+  if (!(big.order || '').trim()) return toast('作りたい問題を入力してください', 'error');
+  await flushSave();
+  try {
+    const r = await api('POST', 'prompt/order', { pid: S.project.id, index: headIdx, order: big.order });
+    await copyText(r.prompt, '依頼文をコピーしました。Claude / ChatGPT に貼り付け、返ってきた結果を「結果を貼り付けて取り込む」から入れてください');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function pasteOrderResult(headIdx) {
+  let raw = '';
+  openModal({
+    title: 'AIの結果を取り込む', size: 'md',
+    body: h('div', { class: 'stack' }, h('p', { class: 'muted', style: { margin: 0 } }, 'Claude / ChatGPT から返ってきた {"questions": [...]} をそのまま貼り付けてください。'),
+      textarea({ rows: 10, cls: 'inp prompt-box', 'data-autofocus': true, oninput: v => { raw = v; } })),
+    actions: [{ label: 'キャンセル', fn: c => c() }, { label: '取り込む', kind: 'primary', fn: c => {
+      try {
+        const obj = JSON.parse(raw.slice(raw.search(/[[{]/), Math.max(raw.lastIndexOf('}'), raw.lastIndexOf(']')) + 1));
+        const qs = (Array.isArray(obj) ? obj : obj.questions || []).filter(q => q.body && q.answer);
+        if (!qs.length) throw new Error('問題が見つかりません');
+        const noSrc = qs.filter(q => !String(q.source_ref || '').trim()).length;
+        const n = placeOrdered(headIdx, qs.filter(q => String(q.source_ref || '').trim()));
+        c(); render({ keepScroll: true });
+        toast(`${n}問を取り込みました` + (noSrc ? `（出典のない${noSrc}問は除外）` : ''), 'ok');
+      } catch (e) { toast('取り込めませんでした: ' + e.message, 'error'); }
+    } }],
+  });
+}
+
+/** AIの結果を、種類ごとに大問の設問（問1・問2…）へ振り分ける。無ければ設問を足す */
+function placeOrdered(headIdx, qs) {
+  const p = S.project;
+  let n = 0, last = null;
+  qs.forEach(r => {
+    const kind = TYPE_LABEL[r.kind] && r.kind !== 'auto' ? r.kind : 'other';
+    applyLabels(p.sections);
+    const g = groupsOf(p.sections).find(x => x.includes(headIdx));
+    let si = g.find(i => p.sections[i].type === kind);
+    if (si == null) si = g.find(i => p.sections[i].type === 'auto' && !p.sections[i].questions.length);
+    if (si == null) {
+      si = g[g.length - 1] + 1;
+      p.sections.splice(si, 0, { ...newSection(kind, 0), new_big: false, instructions: r.instructions || DEFAULT_INSTR[kind] || '' });
+    }
+    const s = p.sections[si];
+    if (s.type === 'auto') {
+      Object.assign(s, { type: kind, instructions: r.instructions || DEFAULT_INSTR[kind] || '', choice_style: DEFAULT_STYLE[kind] || '1', points_each: DEFAULT_POINTS[kind] ?? 1 });
+    } else if (!s.instructions.trim() && r.instructions) s.instructions = r.instructions;
+    const q = { body: r.body, answer: r.answer, source_ref: r.source_ref || '', focus: r.focus || '', kind, number: 0,
+      alt_answer_risk: '【AI作問・要確認】' + (r.alt_answer_risk || '') };
+    if (Array.isArray(r.choices) && r.choices.length) {
+      q.choices = r.choices.map(String);
+      if (Number.isInteger(r.correct) && r.correct >= 0 && r.correct < q.choices.length) q.correct = r.correct;
+    }
+    s.questions.push(q);
+    if (q.choices && Number.isInteger(q.correct)) syncChoiceAnswers({ ...s, questions: [q] });
+    if (s.questions.length > s.count) s.count = s.questions.length;
+    n++; last = s;
+  });
+  renumber(); markDirty();
+  if (last) S.secIdx = p.sections.indexOf(last);
+  S.issues = null; S.student = null;
+  return n;
+}
+
+// ================================================================ API使用量
+
+async function refreshUsage() {
+  try { S.usage = await api('GET', 'usage'); } catch { /* 表示しないだけ */ }
+  const c = $('#usage-chip'); if (c) c.replaceWith(usageChip());
+}
+
+const yen = usd => `約${Math.round(usd * 150).toLocaleString()}円`;  // 1ドル150円で換算（目安）
+
+function usageChip() {
+  const u = S.usage;
+  if (!u || (!S.status.ai && !u.all.calls)) return h('span', { id: 'usage-chip' });
+  return h('button', { id: 'usage-chip', class: 'status-chip', onclick: usageDialog, title: 'APIの使用量と料金の目安' },
+    icon('key', 14), h('span', {}, `API 今月 ${yen(u.month.cost_usd)}`));
+}
+
+async function usageDialog() {
+  await refreshUsage();
+  const u = S.usage;
+  const tile = (label, v, sub) => h('div', { class: 'u-tile' }, h('small', {}, label), h('b', {}, yen(v)), h('span', {}, sub));
+  openModal({
+    title: 'APIの使用量（料金の目安）', size: 'md',
+    body: h('div', { class: 'stack' },
+      h('div', { class: 'u-tiles' },
+        tile('今回（ツールを起動してから）', u.session.cost_usd, `$${u.session.cost_usd.toFixed(3)}・${u.session.calls}回`),
+        tile(`今月（${u.month.label}）`, u.month.cost_usd, `$${u.month.cost_usd.toFixed(3)}・${u.month.calls}回`),
+        tile('これまでの合計', u.all.cost_usd, `$${u.all.cost_usd.toFixed(3)}・${u.all.calls}回`)),
+      u.recent.length ? h('table', { class: 'u-table' },
+        h('tr', {}, ['日時', '内容', 'モデル', 'トークン（入力／出力）', '目安'].map(t => h('th', {}, t))),
+        u.recent.map(e => h('tr', {}, h('td', {}, e.at), h('td', {}, e.task), h('td', {}, e.model),
+          h('td', {}, `${e.input.toLocaleString()} / ${e.output.toLocaleString()}`), h('td', {}, yen(e.cost_usd)))))
+        : h('p', { class: 'muted' }, 'まだAIを使っていません。'),
+      h('p', { class: 'muted small', style: { margin: 0 } }, u.note + ' 円は1ドル150円で換算しています。')),
+    actions: [{ label: '閉じる', kind: 'primary', fn: c => c() }],
+  });
+}
+
 /** 素材の全文を大問の本文にする */
 async function useAsPassage(big, m) {
   let text = S.materialText[m.id];
@@ -1333,7 +1477,7 @@ function guideStep(n, text, done) {
 
 function qBadges(q) {
   const b = [];
-  if (!q.body.trim() && !(q.script || '').trim()) b.push(['bad', '問題文なし']);
+  if (!q.body.trim() && !(q.script || '').trim() && !q.choices?.length) b.push(['bad', '問題文なし']);
   if (!q.answer.trim()) b.push(['bad', '解答なし']);
   if (q.choices?.length) {
     const clean = q.choices.map(c => String(c).trim().toLowerCase());
@@ -1390,7 +1534,7 @@ function slotRow(slots, labels) {
 
 /** 問題の見た目（カード・クイック作問のプレビューで共通） */
 function questionLook(s, q, num) {
-  const lines = (q.body || (q.script ? '' : '（問題文が空です）')).split('\n');
+  const lines = (q.body || (q.script || q.choices?.length ? '' : '（問題文が空です）')).split('\n');
   const labels = num?.slots || q.slot_labels || [];
   const rl = reorderLine(q, labels);
   return [
@@ -1673,6 +1817,16 @@ function buildQuick(Q, toks) {
     const r = Q.ai.result;
     Object.assign(res, { body: r.body || '', answer: r.answer || '', slots: slotsOf({ answer: r.answer || '', answer_slots: r.answer_slots }), fromAI: true, verdict: r.verdict });
     if (!res.body || !res.answer) res.error = 'AIの結果に問題文か解答がありません';
+  } else if (f === 'content_match') {
+    // 内容一致: 選択肢の文は教員が書く（根拠は本文。本文そのものは変えない）
+    const opts = Q.M.opts.map(x => x.trim());
+    res.body = Q.M.stem.trim();
+    res.choices = opts; res.correct = Q.M.correct;
+    res.answer = markOf(Q.style || '1', Q.M.correct); res.slots = [res.answer];
+    if (!res.body) res.error = '設問文を入力してください';
+    else if (opts.filter(Boolean).length < 2 || opts.some(x => !x)) res.error = '選択肢をすべて入力してください';
+    else if (new Set(opts.map(x => x.toLowerCase())).size < opts.length) res.error = '選択肢が重複しています';
+    else res.warns.push({ lvl: 'info', msg: '正解の選択肢は本文のどこが根拠か、誤りの選択肢は本文のどこと食い違うか、別解の検討メモに書いておくと安心です' });
   } else if (!Q.text.trim()) {
     res.error = '対象の英文を入力してください（教材画面で文をクリックすると自動で入ります）';
     return res;
@@ -1757,6 +1911,7 @@ function openQuick(init = {}) {
       style: p.exam.numbering === 'global' ? 'num' : 'text', extra: '', line: p.exam.numbering === 'global' },
     C: { d: ['', '', ''], pos: Math.floor(Math.random() * 4) },
     E: { groups: [], pending: null, err: 0, wrong: '', fix: '' },
+    M: { stem: '本文の内容と一致するものを1つ選びなさい。', opts: ['', '', '', ''], correct: 0 },
     base: '', prompt: '', answerText: '', alt: '', altTouched: false,
     ai: { fmt: 'reorder_2nd_5th', note: '', result: null, busy: false, prompt: '', paste: '' },
   };
@@ -1815,6 +1970,19 @@ function openQuick(init = {}) {
       }
       drawAll();
     };
+    if (Q.format === 'content_match') {
+      const M = Q.M;
+      const name = 'cm' + Math.random().toString(36).slice(2, 7);
+      box.append(hint('本文の内容と一致する選択肢（正解）と、食い違う選択肢を書き、●で正解を選びます。上の英文欄は本文のメモとして使えます（空でも可）。'),
+        field('設問文', input({ value: M.stem, oninput: v => { M.stem = v; drawPreview(); } })),
+        h('div', { class: 'choice-edit' }, M.opts.map((o, k) => h('div', { class: 'choice-row' + (M.correct === k ? ' right' : '') },
+          h('input', { type: 'radio', name, checked: M.correct === k, onchange: () => { M.correct = k; drawAll(); } }),
+          h('span', { class: 'cmark' }, markOf(Q.style || '1', k)),
+          input({ value: o, cls: 'inp en', placeholder: k === M.correct ? '本文と一致する文（正解）' : '本文と食い違う文', oninput: v => { M.opts[k] = v; drawPreview(); } }),
+          iconBtn('x', '削除', () => { M.opts.splice(k, 1); if (M.correct >= M.opts.length) M.correct = 0; drawAll(); }, { disabled: M.opts.length <= 2 }))),
+          h('button', { class: 'link small', onclick: () => { M.opts.push(''); drawAll(); } }, '＋ 選択肢を追加')));
+      return box;
+    }
     if (Q.format !== 'ai' && !toks.some(t => t.word)) {
       box.append(hint('上の欄に英文を入れてください。教材画面で文をクリックすると、ここに自動で入ります。'));
       return box;
@@ -2027,6 +2195,7 @@ function openQuick(init = {}) {
       focus: Q.focus, kind, number: 0, verdict: b.verdict || undefined,
     };
     if (b.choices) { q.choices = b.choices; q.correct = b.correct; }
+    if (Q.format === 'content_match' && Q.text.trim() && !Q.altTouched) q.alt_answer_risk = '【内容一致】根拠の本文: ' + Q.text.trim().slice(0, 200);
     if (b.reorder) q.reorder = b.reorder;
     let si = Q.target;
     if (si === 'new' || !p.sections[si]) {
@@ -2035,6 +2204,7 @@ function openQuick(init = {}) {
       si = p.sections.length - 1;
     }
     const s = p.sections[si];
+    if (s.type === 'auto') Object.assign(s, { type: TYPE_LABEL[kind] ? kind : 'other', instructions: s.instructions || DEFAULT_INSTR[kind] || '', choice_style: DEFAULT_STYLE[kind] || s.choice_style });
     if (q.choices) syncChoiceAnswers({ ...s, questions: [q] });  // 正解の記号を追加先の大問に合わせる
     s.questions.push(q);
     let grew = false;
@@ -2169,7 +2339,71 @@ function renderCheck() {
 
   return h('div', { class: 'step' },
     stepHead('チェック', '機械で確実に見つけられるものは自動で、別解は AI または依頼文で、最後に教員が確認します。'),
-    h('div', { class: 'check-grid' }, auto, h('div', { class: 'stack' }, ai, list)));
+    studentCard(),
+    h('div', { class: 'check-grid', style: { marginTop: '16px' } }, auto, h('div', { class: 'stack' }, ai, list)));
+}
+
+// ================================================================ 仮想の生徒
+
+const STUDENT_LEVELS = [['', '平均的な高校生'], ['英語が苦手な高校1年生', '英語が苦手な生徒'], ['英語が得意で大学受験を目指す高校生', '英語が得意な生徒']];
+
+function studentCard() {
+  const p = S.project;
+  S.studentOpt ||= { level: '', scope: -1 };
+  const o = S.studentOpt;
+  const gs = groupsOf(p.sections);
+  const r = S.student;
+  const run = async () => {
+    await flushSave();
+    S.studentBusy = true; render({ keepScroll: true });
+    try {
+      const res = await api('POST', 'ai/student', { pid: p.id, level: o.level, scope: o.scope });
+      S.student = res; toast(`仮想の生徒が${res.count}問を解きました　${res.cost}`, 'ok');
+    } catch (e) { toast(e.message, 'error'); }
+    S.studentBusy = false; render({ keepScroll: true });
+  };
+  const copy = async () => {
+    await flushSave();
+    try { copyText((await api('POST', 'prompt/student', { pid: p.id, scope: o.scope })).prompt, '仮想の生徒の依頼文をコピーしました。Claude / ChatGPT に貼り付けてください'); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  const jump = id => jumpToIssue(id);
+  let body = null;
+  if (r) {
+    const rs = r.report.results;
+    const ok = rs.filter(x => x.correct && !x.problem).length;
+    const alt = rs.filter(x => x.alternate_ok);
+    const bad = rs.filter(x => !x.correct && !x.alternate_ok);
+    const warn = rs.filter(x => x.problem && !x.alternate_ok);
+    const row = x => h('li', {}, h('button', { class: 'issue stu', onclick: () => jump(x.id) },
+      h('span', { class: 'stu-mark ' + (x.alternate_ok ? 'alt' : !x.correct ? 'bad' : x.problem ? 'warn' : 'ok') }, x.alternate_ok ? '別解' : !x.correct ? '誤答' : x.problem ? '要確認' : '正解'),
+      h('span', { class: 'stu-body' }, h('b', {}, x.id), `　生徒の答え: ${x.student_answer || '—'}`,
+        x.problem ? h('small', {}, '指摘: ' + x.problem + (x.fix ? '　→ ' + x.fix : '')) : null,
+        x.trouble ? h('small', { class: 'muted' }, '生徒が迷った点: ' + x.trouble) : null),
+      h('span', { class: 'issue-go' }, '見る →')));
+    body = h('div', { class: 'stack' },
+      h('div', { class: 'stu-sum' },
+        h('div', { class: 'u-tile' }, h('small', {}, '正答'), h('b', {}, `${rs.filter(x => x.correct).length} / ${rs.length}`), h('span', {}, '想定どおり解けた問題')),
+        h('div', { class: 'u-tile' + (alt.length ? ' bad' : '') }, h('small', {}, '別解の疑い'), h('b', {}, alt.length), h('span', {}, '生徒の別の答えも成立')),
+        h('div', { class: 'u-tile' + (r.report.duplicates.length ? ' warn' : '') }, h('small', {}, '聞いている要素の重複'), h('b', {}, r.report.duplicates.length), h('span', {}, '同じ箇所・文法を問う組'))),
+      h('div', { class: 'warn-box info' }, icon('sparkles', 14), r.report.summary),
+      alt.length || bad.length || warn.length ? h('ul', { class: 'issue-list' }, [...alt, ...bad, ...warn].map(row)) : h('div', { class: 'all-ok' }, icon('check', 20), h('b', {}, '全問、想定どおりに解けました')),
+      r.report.duplicates.length ? h('div', {}, h('div', { class: 'qk-label' }, '聞いている要素が重なっている問題'),
+        h('ul', { class: 'issue-list' }, r.report.duplicates.map(d => h('li', {}, h('div', { class: 'issue' }, icon('layers', 15),
+          h('span', {}, h('b', {}, d.ids.join(' と ')), '　' + d.reason)))))) : null,
+      h('details', {}, h('summary', {}, `正解した問題（${ok}問）も見る`), h('ul', { class: 'issue-list' }, rs.filter(x => x.correct && !x.problem).map(row))));
+  }
+  return h('div', { class: 'card stu-card' },
+    h('div', { class: 'card-title' }, icon('help'), '仮想の生徒に解かせる'),
+    h('p', { class: 'muted', style: { marginTop: 0 } }, 'AIの生徒が模範解答を見ずに全問を解き、別のAIが採点します。想定どおり解けたか・別解が成立しないか・問題文が分かりにくくないか・同じ要素を2回聞いていないかをチェックします。'),
+    h('div', { class: 'row' },
+      select(STUDENT_LEVELS, o.level, v => { o.level = v; }, 'inp mini'),
+      select([['-1', 'すべての大問'], ...gs.map((g, k) => [String(g[0]), `大問${k + 1}だけ`])], String(o.scope), v => { o.scope = +v; }, 'inp mini'),
+      S.status.ai
+        ? h('button', { class: 'btn primary', disabled: !!S.studentBusy, onclick: run }, icon('sparkles'), S.studentBusy ? '解いています…（1〜2分）' : '仮想の生徒に解かせる')
+        : h('button', { class: 'btn ghost', onclick: copy }, icon('clipboard'), '依頼文をコピー（API抜き）'),
+      h('span', { class: 'muted small' }, S.status.ai ? '生徒役は安いモデル、採点は上位モデルを使います（1回 数円〜数十円の目安）' : 'Claude / ChatGPT に貼り付けると、解答と指摘が返ってきます')),
+    body);
 }
 
 // ================================================================ 5. 出力
@@ -2418,6 +2652,7 @@ window.addEventListener('popstate', async () => {
 async function boot() {
   try { S.status = await api('GET', 'status'); } catch (e) { toast(e.message, 'error'); }
   await loadConfig();
+  refreshUsage();
   const m = location.hash.match(/^#\/p\/([0-9a-f]{12})$/);
   if (m) { try { await openProject(m[1]); return; } catch { history.replaceState(null, '', location.pathname); } }
   render();

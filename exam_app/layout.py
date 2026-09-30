@@ -16,7 +16,7 @@ CHOICE_MARKS = {
 LONG_TYPES = {"translation", "writing", "qa", "table_fill", "paraphrase", "underline_grammar", "rewrite", "referent"}
 # 答えが記号1つの形式（1行に5問）
 MARK_TYPES = {"choice_4", "choice_3", "definition", "listen_meaning", "vocab_meaning", "vocab_word",
-              "vocab_context", "content_match", "accent", "pattern", "reading_misfit", "listening_choice"}
+              "vocab_context", "content_match", "accent", "pattern", "reading_misfit", "listening_choice", "synonym"}
 
 
 def mark(style: str, i: int) -> str:

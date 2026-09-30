@@ -177,6 +177,52 @@ def test_all():
         st, r = call("POST", "/api/restore", {"data": base64.b64encode(buf.getvalue()).decode()})
         assert st == 200 and r["added"] == 0 and not (tmp / "evil.txt").exists()
 
+        # AIに注文（自然言語）・仮想の生徒・使用量（AIは偽物に差し替えて確認）
+        from exam_app import generate
+        from types import SimpleNamespace
+        fake_usage = SimpleNamespace(input_tokens=1000, output_tokens=500)
+        seen = {}
+
+        def fake_order(order, passage, material, context=""):
+            seen["order"], seen["passage"], seen["material"] = order, passage, material
+            generate._track(generate.SONNET, fake_usage)
+            return [{"kind": "content_match", "instructions": "一致するものを選べ", "body": "Which is true?", "choices": ["a", "b"],
+                     "correct": 1, "answer": "b", "focus": "第1段落", "source_ref": "本文 第1段落", "alt_answer_risk": "x"},
+                    {"kind": "synonym", "instructions": "", "body": "x", "choices": [], "correct": -1, "answer": "y",
+                     "focus": "", "source_ref": "", "alt_answer_risk": ""}]
+
+        def fake_student(items, level=""):
+            seen["items"] = items
+            generate._track(generate.HAIKU, fake_usage)
+            return {"results": [{"id": items[0]["id"], "correct": False, "alternate_ok": True, "problem": "別解", "fix": "",
+                                 "focus": "", "student_answer": "c", "confidence": "mid", "trouble": ""}],
+                    "duplicates": [], "summary": "ok"}
+        orig = (generate.provider_ready, generate.make_order, generate.virtual_student)
+        generate.provider_ready, generate.make_order, generate.virtual_student = (lambda: True), fake_order, fake_student
+        try:
+            st, r = call("POST", "/api/projects", {"title": "長文", "sections": [
+                {"type": "auto", "count": 1, "passage": "Tom likes dogs.", "big_title": "読んで答えよ",
+                 "questions": [{"body": "Q1", "answer": "A1", "source_ref": "s"}]}]})
+            lp = r["project"]["id"]
+            call("POST", f"/api/projects/{lp}/materials", {"name": "L1", "text": "Tom likes dogs. He has two.",
+                                                          "sid": r["project"]["sections"][0]["sid"]})
+            st, r = call("POST", "/api/ai/order", {"pid": lp, "index": 0, "order": "内容一致を1問、同意語を1問"})
+            assert st == 200 and len(r["questions"]) == 1 and r["dropped"] == 1, r   # 出典のない問題は破棄
+            assert seen["passage"] == "Tom likes dogs." and "He has two." in seen["material"]
+            st, r = call("POST", "/api/ai/order", {"pid": lp, "index": 0, "order": ""})
+            assert st == 400
+            st, r = call("POST", "/api/ai/student", {"pid": lp})
+            assert st == 200 and r["report"]["results"][0]["alternate_ok"] and seen["items"][0]["id"] == "大問1(1)"
+            assert seen["items"][0]["passage"] == "Tom likes dogs."
+            st, r = call("POST", "/api/prompt/student", {"pid": lp})
+            assert "模範解答: A1" in r["prompt"]
+            st, r = call("POST", "/api/prompt/order", {"pid": lp, "index": 0, "order": "内容一致を2問"})
+            assert "内容一致を2問" in r["prompt"] and "Tom likes dogs." in r["prompt"]
+            st, u = call("GET", "/api/usage")
+            assert u["month"]["calls"] == 2 and u["month"]["cost_usd"] > 0 and u["recent"][0]["task"]
+        finally:
+            generate.provider_ready, generate.make_order, generate.virtual_student = orig
+
         # ChatGPTに切り替え（キーはメモリのみ）→ 消去で元に戻る
         st, r = call("POST", "/api/settings", {"provider": "openai", "key": "sk-test", "model": "gpt-x"})
         assert r["status"]["provider"] == "openai" and r["status"]["ai"] and r["status"]["openai_model"] == "gpt-x"

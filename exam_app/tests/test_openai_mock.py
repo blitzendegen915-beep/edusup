@@ -54,7 +54,7 @@ def main():
         assert auth == "Bearer sk-test" and body["model"] == "gpt-test"
         assert body["response_format"]["json_schema"]["strict"] is True
         assert body["messages"][0]["role"] == "system"
-        assert "ChatGPT使用量" in generate.cost_report()
+        assert "APIコスト" in generate.cost_report() and generate.usage_log[-1]["model"].startswith("gpt")  # 目安の料金も記録
         print("PASS test_openai_mock（ChatGPT連携）")
     finally:
         srv.shutdown()

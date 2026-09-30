@@ -844,3 +844,30 @@ button.tok:hover { border-color: var(--accent); color: var(--accent-ink); }
 .tpl-big > i { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--accent); color: #fff; font-style: normal; font-size: 11px; font-weight: 800; }
 .tpl-big-title { color: var(--faint); font-size: 10.5px; }
 .tpl-sec { padding: 0 8px; }
+
+/* ================= AI注文・仮想の生徒・使用量（v5） ================= */
+.order-box { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; margin-bottom: 10px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent-soft), var(--teal-soft)); border: 1px solid var(--border); }
+.order-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--accent-ink); }
+.order-head .muted { font-size: 12px; }
+.order-inp { background: var(--surface); }
+.u-tiles, .stu-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.u-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.u-tile small { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.u-tile b { font-size: 22px; }
+.u-tile span { font-size: 11.5px; color: var(--faint); }
+.u-tile.bad { background: var(--danger-soft); } .u-tile.bad b { color: var(--danger); }
+.u-tile.warn { background: var(--warn-soft); } .u-tile.warn b { color: var(--warn); }
+.u-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.u-table th, .u-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+.u-table th { color: var(--muted); }
+.stu-card { margin-bottom: 0; }
+.issue.stu { align-items: flex-start; }
+.stu-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.stu-body small { font-size: 12px; }
+.stu-mark { flex: none; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 800; }
+.stu-mark.ok { background: var(--ok-soft); color: var(--ok); }
+.stu-mark.bad { background: var(--danger-soft); color: var(--danger); }
+.stu-mark.alt { background: var(--danger); color: #fff; }
+.stu-mark.warn { background: var(--warn-soft); color: var(--warn); }
+details summary { cursor: pointer; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }

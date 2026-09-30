@@ -13,7 +13,7 @@ const CHOICE_MARKS = {
 const CHOICE_STYLES = [['1', '1. 2. 3. 4.'], ['ア', 'ア イ ウ エ'], ['①', '① ② ③ ④'], ['a', 'a. b. c. d.']];
 const LONG_TYPES = new Set(['translation', 'writing', 'qa', 'table_fill', 'paraphrase', 'underline_grammar', 'rewrite', 'referent']);
 const MARK_TYPES = new Set(['choice_4', 'choice_3', 'definition', 'listen_meaning', 'vocab_meaning', 'vocab_word',
-  'vocab_context', 'content_match', 'accent', 'pattern', 'reading_misfit', 'listening_choice']);
+  'vocab_context', 'content_match', 'accent', 'pattern', 'reading_misfit', 'listening_choice', 'synonym']);
 
 function markOf(style, i) {
   const m = CHOICE_MARKS[style || '1'] || CHOICE_MARKS['1'];

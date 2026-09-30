@@ -155,6 +155,7 @@ def _clean_sections(sections) -> list:
             "big_title": str(s.get("big_title") or "")[:500],
             "passage": str(s.get("passage") or "")[:30000],
             "passage_src": str(s.get("passage_src") or "")[:200],
+            "order": str(s.get("order") or "")[:2000],  # 大問の「作りたい問題」（自然言語の注文）
             "questions": qs,
         })
     layout.apply_labels(out)
@@ -405,6 +406,82 @@ def _prompt_text(text, fmt, focus, note, source) -> str:
  "source_ref": "出典",
  "alt_answer_risk": "別解の検討結果と、潰すために行った工夫"}}
 """
+
+
+def _group_of(p: dict, idx: int) -> list:
+    """設問 idx を含む大問の設問の添字。"""
+    for g in layout.groups(p["sections"]):
+        if idx in g:
+            return g
+    raise ApiError(400, "大問が見つかりません")
+
+
+def _order_context(p: dict, idx: int):
+    """注文作問に渡す本文・教材（大問の素材）。"""
+    g = _group_of(p, idx)
+    head = p["sections"][g[0]]
+    sids = {p["sections"][i].get("sid") for i in g}
+    mats = [m for m in p.get("materials", []) if not m.get("sid") or m.get("sid") in sids]
+    material = "\n\n".join(f"【{it['ref']}】\n{it['text']}" for m in mats for it in _material_items(p, only_id=m["id"]))
+    return head.get("passage", ""), material
+
+
+def _student_items(p: dict, scope: int = -1) -> list:
+    """仮想の生徒に渡す試験（id = 「大問2 問1(3)」）。scope>=0 ならその大問だけ。"""
+    items = []
+    groups = layout.groups(p["sections"])
+    for g in groups:
+        if scope >= 0 and scope not in g:
+            continue
+        head = p["sections"][g[0]]
+        first = True
+        for i in g:
+            s = p["sections"][i]
+            for q in s["questions"]:
+                if not (q.get("body") or q.get("script") or q.get("choices")) or not q.get("answer"):
+                    continue
+                ch = q.get("choices") or []
+                ans = q["answer"]
+                if ch and isinstance(q.get("correct"), int) and 0 <= q["correct"] < len(ch):
+                    ans = f"{ans}（{ch[q['correct']]}）"
+                body = q.get("body") or (f"（放送文）{q.get('script')}" if q.get("script") else "")
+                items.append({"id": f"{s['label']}({q['number']})", "group": f"大問{head['no']}",
+                              "passage": head.get("passage", "") if first else "",
+                              "instructions": s.get("instructions", ""), "body": body,
+                              "choices": [f"{layout.mark(s.get('choice_style') or '1', k)} {c}" for k, c in enumerate(ch)],
+                              "answer": ans})
+                first = False
+    return items
+
+
+USAGE_FILE = "usage.json"
+
+
+def _record_usage(start: int):
+    """この呼び出しで増えたAI使用量を保存先の usage.json に追記する（月ごとの合計を出すため）。"""
+    from .. import generate
+    new = generate.usage_log[start:]
+    if not new:
+        return
+    with _lock:
+        log = _read_json_file(USAGE_FILE, [])
+        for e in new:
+            log.append({**e, "at": _now()})
+        _write_json_file(USAGE_FILE, log[-5000:])
+
+
+def _usage() -> dict:
+    from .. import generate
+    log = _read_json_file(USAGE_FILE, [])
+    month = time.strftime("%Y-%m")
+    this_month = [e for e in log if str(e.get("at", "")).startswith(month)]
+    total = lambda es: round(sum(float(e.get("cost_usd", 0)) for e in es), 4)
+    return {"session": {"cost_usd": round(generate.usage_total["cost_usd"], 4), "input": generate.usage_total["input"],
+                        "output": generate.usage_total["output"], "calls": len(generate.usage_log)},
+            "month": {"cost_usd": total(this_month), "calls": len(this_month), "label": month},
+            "all": {"cost_usd": total(log), "calls": len(log)},
+            "recent": list(reversed(log[-30:])),
+            "note": "料金は公式料金表から計算した目安です（為替・キャッシュ割引は含みません）。正確な請求額は各社の管理画面で確認してください。"}
 
 
 # ---------------------------------------------------------------- 設定・テンプレート・バックアップ
@@ -722,9 +799,57 @@ def route(method: str, parts: list, body) -> object:
             mod._client = None
         return {"status": _ai_status()}
 
+    if parts == ["usage"] and method == "GET":
+        return _usage()
+
+    if n == 2 and parts[0] == "prompt" and method == "POST":  # API抜き: 依頼文を作る
+        from .. import generate as g0
+        b = body()
+        p = _load(b.get("pid", ""))
+        if parts[1] == "order":
+            passage, material = _order_context(p, _to_int(b.get("index"), 0))
+            return {"prompt": g0.order_prompt(str(b.get("order", "")), passage, material, p["exam"]["title"])}
+        if parts[1] == "student":
+            items = _student_items(p, _to_int(b.get("scope"), -1, -1))
+            return {"prompt": g0.student_prompt(items) + "\n\n解き終わったら、次の模範解答と照合し、別解・曖昧な問題・"
+                    "同じ要素を問う問題の重複を指摘してください。\n\n" + g0._student_sheet(items, with_key=True)}
+
     if n == 2 and parts[0] == "ai" and method == "POST":
         b = body()
         gen = _generate()
+        start = len(gen.usage_log)
+        try:
+            return _ai_route(gen, parts[1], b)
+        finally:
+            _record_usage(start)
+
+    raise ApiError(404, "見つかりません")
+
+
+def _ai_route(gen, action: str, b: dict):
+    if True:
+        parts = ["ai", action]
+        gen.current_task["name"] = {"ask": "クイック作問（AI）", "verify_one": "別解チェック", "section": "大問の一括作問",
+                                    "order": "注文で作問", "student": "仮想の生徒"}.get(action, "AI")
+        if parts[1] == "order":
+            p = _load(b.get("pid", ""))
+            idx = _to_int(b.get("index"), 0)
+            order = str(b.get("order", "")).strip()
+            if not order:
+                raise ApiError(400, "作りたい問題を入力してください（例: 内容一致を2問、同意語選択を1問）")
+            passage, material = _order_context(p, idx)
+            if not passage.strip() and not material.strip():
+                raise ApiError(400, "この大問に本文も素材もありません。先に素材を入れてください")
+            qs = gen.make_order(order, passage, material, p["exam"]["title"])
+            kept = [q for q in qs if str(q.get("source_ref", "")).strip()]
+            return {"questions": kept, "dropped": len(qs) - len(kept), "cost": gen.cost_report()}
+        if parts[1] == "student":
+            p = _load(b.get("pid", ""))
+            items = _student_items(p, _to_int(b.get("scope"), -1, -1))
+            if not items:
+                raise ApiError(400, "解かせる問題がありません（問題文と解答が入った問題が必要です）")
+            return {"report": gen.virtual_student(items, str(b.get("level", ""))), "count": len(items),
+                    "cost": gen.cost_report()}
         if parts[1] == "ask":
             q = gen.make_pinpoint(b.get("text", ""), b.get("format", ""),
                                   b.get("focus", ""), b.get("note", ""))
@@ -748,7 +873,6 @@ def route(method: str, parts: list, body) -> object:
             kept = [q for q in res["questions"] if str(q.get("source_ref", "")).strip()]
             return {"questions": kept, "dropped": len(res["questions"]) - len(kept),
                     "cost": gen.cost_report()}
-
     raise ApiError(404, "見つかりません")
 
 

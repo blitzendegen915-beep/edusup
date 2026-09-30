@@ -36,8 +36,13 @@ def client_or_die():
     return _client
 
 # 累計コスト（$/1Mトークン: Haiku 1/5, Sonnet 5 は 2/10。公式料金表 2026-09 時点）
-_PRICES = {HAIKU: (1.0, 5.0), SONNET: (2.0, 10.0)}
+_PRICES = {HAIKU: (1.0, 5.0), SONNET: (2.0, 10.0),
+           # ChatGPT（目安。OpenAIの料金表 2026-09 時点）
+           "gpt-4.1": (2.0, 8.0), "gpt-4.1-mini": (0.4, 1.6)}
 usage_total = {"cost_usd": 0.0, "input": 0, "output": 0}
+# 1回ごとのAI呼び出しの記録（画面の「API使用量」に出す）。task は呼び出し側で current_task に入れる
+usage_log = []
+current_task = {"name": ""}
 
 
 # ---- AIの提供元の切り替え（Claude / ChatGPT）
@@ -98,26 +103,25 @@ def _create_openai(model, max_tokens, messages, output_config, system):
     if choice.get("refusal"):
         raise SystemExit("ChatGPTが回答を断りました: " + choice["refusal"])
     u = data.get("usage", {})
-    usage_total["input"] += u.get("prompt_tokens", 0)
-    usage_total["output"] += u.get("completion_tokens", 0)
-    usage_total["provider"] = "openai"
-    return SimpleNamespace(content=[SimpleNamespace(type="text", text=choice["content"])], usage=None)
+    usage = SimpleNamespace(input_tokens=u.get("prompt_tokens", 0), output_tokens=u.get("completion_tokens", 0), model=name)
+    return SimpleNamespace(content=[SimpleNamespace(type="text", text=choice["content"])], usage=usage)
 
 
 def _track(model: str, usage):
-    if usage is None:  # ChatGPT分は _create_openai で集計済み
+    if usage is None:
         return
-    pin, pout = _PRICES[model]
+    name = getattr(usage, "model", None) or model
+    pin, pout = _PRICES.get(name, _PRICES.get(model, (0.0, 0.0)))
+    cost = (usage.input_tokens * pin + usage.output_tokens * pout) / 1_000_000
     usage_total["input"] += usage.input_tokens
     usage_total["output"] += usage.output_tokens
-    usage_total["cost_usd"] += (usage.input_tokens * pin
-                                + usage.output_tokens * pout) / 1_000_000
+    usage_total["cost_usd"] += cost
+    usage_total["provider"] = provider()
+    usage_log.append({"task": current_task["name"] or "AI", "model": name, "input": usage.input_tokens,
+                      "output": usage.output_tokens, "cost_usd": round(cost, 6)})
 
 
 def cost_report() -> str:
-    if usage_total.get("provider") == "openai":
-        return (f"ChatGPT使用量: 入力{usage_total['input']:,}tok / 出力{usage_total['output']:,}tok"
-                "（料金はOpenAIの管理画面で確認）")
     return (f"APIコスト: 約${usage_total['cost_usd']:.3f} "
             f"(入力{usage_total['input']:,}tok / 出力{usage_total['output']:,}tok)")
 
@@ -362,3 +366,172 @@ questions配列には差し替え後の1問だけを入れてください。
     _track(SONNET, resp.usage)
     text_out = next(b.text for b in resp.content if b.type == "text")
     return json.loads(text_out)["questions"][0]
+
+
+# ---------------------------------------------------------------- 自然言語で注文して作問
+
+KINDS = {
+    "content_match": "内容一致（本文の内容と一致する／しない選択肢を選ぶ）",
+    "synonym": "同意語選択（本文中の語句と最も近い意味の語句を選ぶ）",
+    "fill_blank": "空所補充", "choice_4": "選択問題", "translation": "和訳", "referent": "指示語の内容",
+    "reorder_2nd_5th": "並び替え", "underline_grammar": "下線部の文法・書き換え", "qa": "英問英答",
+    "writing": "英作文", "word_form": "語形変化", "table_fill": "表の穴埋め", "insertion": "語句挿入位置",
+    "reading_misfit": "不要文の指摘", "paraphrase": "同意文の空所補充", "other": "その他",
+}
+
+ORDER_SCHEMA = {
+    "type": "object",
+    "properties": {"questions": {"type": "array", "items": {
+        "type": "object",
+        "properties": {
+            "kind": {"type": "string", "enum": list(KINDS)},
+            "instructions": {"type": "string", "description": "この種類の設問の指示文（例: 本文の内容と一致するものを1つ選びなさい。）"},
+            "body": {"type": "string", "description": "問題文（生徒に見せる形。改行は\\n）"},
+            "choices": {"type": "array", "items": {"type": "string"}, "description": "選択肢（記号なし）。記述式なら空配列"},
+            "correct": {"type": "integer", "description": "正解の選択肢の番号（0始まり）。記述式は -1"},
+            "answer": {"type": "string", "description": "模範解答（選択式は正解の選択肢の本文）"},
+            "focus": {"type": "string", "description": "この問題が問う要素（例: 第2段落の筆者の主張／関係代名詞which）"},
+            "source_ref": {"type": "string", "description": "根拠となる本文・教材の位置。空欄禁止"},
+            "alt_answer_risk": {"type": "string", "description": "別解の自己チェックの結果"},
+        },
+        "required": ["kind", "instructions", "body", "choices", "correct", "answer", "focus", "source_ref", "alt_answer_risk"],
+        "additionalProperties": False}}},
+    "required": ["questions"], "additionalProperties": False,
+}
+
+ORDER_RULES = RULES + """
+6. 内容一致・同意語選択などの選択肢の文はあなたが書いてよいが、根拠は必ず本文にあること。
+   正解はちょうど1つ（「一致しないもの」を問う場合も1つ）。誤りの選択肢は本文のどこと食い違うかを alt_answer_risk に書く。
+7. 同じ要素（同じ文・同じ語句・同じ文法事項）を2問以上で問わない。focus にその問題が問う要素を書く。
+8. 教員の注文にある種類と問数を必ず守る。注文にない種類は作らない。"""
+
+
+def order_prompt(order: str, passage: str, material: str, context: str = "") -> str:
+    kinds = "\n".join(f"- {k}: {v}" for k, v in KINDS.items())
+    return f"""{ORDER_RULES}
+
+試験: {context or '高校英語の定期考査'}
+
+■ 教員の注文（この通りに作る）
+{order}
+
+■ 本文（問題用紙に載っている英文。一語も改変しない）
+{passage or '（本文の指定なし。下の教材から出題する）'}
+
+■ 教材（出典として使える範囲）
+{material[:40000] or '（なし）'}
+
+■ 使える問題の種類（kind）
+{kinds}
+
+■ 出力: 次の形のJSONだけを返す（説明文は不要）
+{{"questions": [{{"kind": "content_match", "instructions": "...", "body": "...", "choices": ["..."], "correct": 0,
+  "answer": "...", "focus": "...", "source_ref": "...", "alt_answer_risk": "..."}}]}}"""
+
+
+def make_order(order: str, passage: str, material: str, context: str = "") -> list:
+    """教員が自然言語で書いた注文（例: 内容一致を2問、同意語選択を1問）から複数の種類の問題を作る。"""
+    current_task["name"] = "注文で作問"
+    resp = _create(model=SONNET, max_tokens=16000, thinking={"type": "adaptive"},
+                   system="あなたは高校英語の定期考査の作問者です。ルールを厳守してください。",
+                   messages=[{"role": "user", "content": order_prompt(order, passage, material, context)}],
+                   output_config={"format": {"type": "json_schema", "schema": ORDER_SCHEMA}})
+    _track(SONNET, resp.usage)
+    return json.loads(next(b.text for b in resp.content if b.type == "text"))["questions"]
+
+
+# ---------------------------------------------------------------- 仮想の生徒
+
+SOLVE_SCHEMA = {
+    "type": "object",
+    "properties": {"answers": {"type": "array", "items": {
+        "type": "object",
+        "properties": {"id": {"type": "string"}, "answer": {"type": "string"},
+                       "confidence": {"type": "string", "enum": ["high", "mid", "low"]},
+                       "trouble": {"type": "string", "description": "迷った点・問題文の分かりにくさ（なければ空）"}},
+        "required": ["id", "answer", "confidence", "trouble"], "additionalProperties": False}}},
+    "required": ["answers"], "additionalProperties": False,
+}
+
+JUDGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "results": {"type": "array", "items": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "correct": {"type": "boolean", "description": "生徒の答えが模範解答と同じ意味で正しいか"},
+                "alternate_ok": {"type": "boolean", "description": "生徒の答えは模範解答と違うが、それも正解として成立する（＝別解）"},
+                "problem": {"type": "string", "description": "問題の欠陥（別解・曖昧さ・本文と矛盾・解答不能など）。なければ空"},
+                "fix": {"type": "string", "description": "直し方の提案。なければ空"},
+                "focus": {"type": "string", "description": "この問題が問うている要素"},
+            },
+            "required": ["id", "correct", "alternate_ok", "problem", "fix", "focus"], "additionalProperties": False}},
+        "duplicates": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"ids": {"type": "array", "items": {"type": "string"}}, "reason": {"type": "string"}},
+            "required": ["ids", "reason"], "additionalProperties": False}},
+        "summary": {"type": "string"},
+    },
+    "required": ["results", "duplicates", "summary"], "additionalProperties": False,
+}
+
+
+def _student_sheet(items: list, with_key: bool) -> str:
+    out = []
+    for it in items:
+        if it.get("passage"):
+            out.append(f"\n【{it['group']} の本文】\n{it['passage']}")
+        lines = [f"[{it['id']}] （{it['instructions']}）", it["body"]]
+        if it.get("choices"):
+            lines.append("選択肢: " + " / ".join(it["choices"]))
+        if with_key:
+            lines.append(f"模範解答: {it['answer']}")
+        out.append("\n".join(lines))
+    return "\n\n".join(out)
+
+
+def student_prompt(items: list, level: str = "") -> str:
+    return f"""あなたは{level or '日本の高校生（平均的な学力）'}です。次の英語の試験を、模範解答を見ずに解いてください。
+各問に答え（選択式は選択肢の本文）、自信の度合い、迷った点・問題文の分かりにくさを書きます。
+
+{_student_sheet(items, with_key=False)}"""
+
+
+def judge_prompt(items: list, answers: list) -> str:
+    ans = "\n".join(f"[{a['id']}] 生徒の答え: {a['answer']}（自信: {a['confidence']}）{' 迷った点: ' + a['trouble'] if a['trouble'] else ''}"
+                    for a in answers)
+    return f"""あなたは高校英語の試験の検証者です。仮想の生徒が次の試験を解きました。
+1. 生徒の答えを模範解答と照合する（correct）。
+2. 生徒の答えが模範解答と違っても正解として成立するなら alternate_ok=true（＝別解があるので問題の欠陥）。
+3. 生徒が迷った点・本文との矛盾・正解が2つ以上ある選択肢・解答不能などを problem に書き、fix に直し方を書く。
+4. 同じ要素（同じ文・語句・文法事項・本文の同じ箇所）を問う問題の組を duplicates に挙げる。
+5. summary に全体の講評（難易度・偏り・直すべき問題）を日本語で3文以内で書く。
+
+■ 試験（模範解答つき）
+{_student_sheet(items, with_key=True)}
+
+■ 生徒の答え
+{ans}"""
+
+
+def virtual_student(items: list, level: str = "") -> dict:
+    """仮想の生徒（Haiku）が解き、検証者（Sonnet）が照合・別解・重複をチェックする。"""
+    current_task["name"] = "仮想の生徒が解答"
+    r1 = _create(model=HAIKU, max_tokens=8000, messages=[{"role": "user", "content": student_prompt(items, level)}],
+                 output_config={"format": {"type": "json_schema", "schema": SOLVE_SCHEMA}})
+    _track(HAIKU, r1.usage)
+    answers = json.loads(next(b.text for b in r1.content if b.type == "text"))["answers"]
+    current_task["name"] = "仮想の生徒の採点・検証"
+    r2 = _create(model=SONNET, max_tokens=12000, thinking={"type": "adaptive"},
+                 messages=[{"role": "user", "content": judge_prompt(items, answers)}],
+                 output_config={"format": {"type": "json_schema", "schema": JUDGE_SCHEMA}})
+    _track(SONNET, r2.usage)
+    judged = json.loads(next(b.text for b in r2.content if b.type == "text"))
+    by_id = {a["id"]: a for a in answers}
+    for r in judged["results"]:
+        a = by_id.get(r["id"], {})
+        r["student_answer"] = a.get("answer", "")
+        r["confidence"] = a.get("confidence", "")
+        r["trouble"] = a.get("trouble", "")
+    return judged
