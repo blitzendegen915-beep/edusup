@@ -369,7 +369,7 @@ def _ai_status() -> dict:
     return {
         "ai": generate.provider_ready(),
         "provider": prov,
-        "anthropic_installed": importlib.util.find_spec("anthropic") is not None,
+        "anthropic_installed": True,  # 追加パッケージ不要になった（画面の互換のため残す）
         "anthropic_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "openai_key_set": bool(os.environ.get("OPENAI_API_KEY")),
         "openai_model": os.environ.get("OPENAI_MODEL") or generate.OPENAI_DEFAULT_MODEL,

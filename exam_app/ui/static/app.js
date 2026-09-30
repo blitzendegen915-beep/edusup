@@ -2574,7 +2574,6 @@ function settingsDialog() {
         h('div', { class: 'seg' }, [['anthropic', 'Claude（Anthropic）'], ['openai', 'ChatGPT（OpenAI）']].map(([v, l]) =>
           h('button', { class: 'seg-btn' + (f.provider === v ? ' on' : ''), onclick: () => { f.provider = v; f.key = ''; draw(); } }, l)))),
       h('p', { class: 'muted', style: { margin: 0 } }, 'APIキーを入れると「AIで一括作問」「AIで作問する」「AIで別解チェック」が使えます（使った分だけ各社から従量課金）。キーはこのツールを閉じるまでの間だけ保持され、ファイルには保存されません。'),
-      !isOA && !st.anthropic_installed ? h('div', { class: 'warn-box warn' }, icon('alert', 14), 'Claude用のパッケージが未インストールです。黒い画面で「python -m pip install anthropic」を実行してから起動し直してください。') : null,
       field(isOA ? 'OpenAIのAPIキー（sk-…）' : 'AnthropicのAPIキー（sk-ant-…）',
         input({ type: 'password', value: f.key, placeholder: keySet ? '設定済み（変更する場合のみ入力）' : (isOA ? 'sk-...' : 'sk-ant-...'), oninput: v => { f.key = v; } })),
       isOA ? field('モデル名（わからなければそのまま）', input({ value: f.model, oninput: v => { f.model = v; } })) : null,
@@ -2596,7 +2595,7 @@ function settingsDialog() {
         try {
           S.status = { ...S.status, ...(await api('POST', 'settings', { provider: f.provider, key: f.key.trim(), model: f.model })).status };
           c(); render({ keepScroll: true });
-          toast(S.status.ai ? `${aiName()} のAI機能が使えるようになりました` : 'キーは保存しましたが、パッケージが不足しています', S.status.ai ? 'ok' : 'error');
+          toast(S.status.ai ? `${aiName()} のAI機能が使えるようになりました` : 'キーを保存できませんでした。もう一度入力してください', S.status.ai ? 'ok' : 'error');
         } catch (e) { toast(e.message, 'error'); }
       } },
     ],

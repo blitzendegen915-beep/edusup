@@ -59,19 +59,58 @@ def provider() -> str:
 def provider_ready() -> bool:
     if provider() == "openai":
         return bool(os.environ.get("OPENAI_API_KEY"))
-    return importlib.util.find_spec("anthropic") is not None and bool(os.environ.get("ANTHROPIC_API_KEY"))
+    return bool(os.environ.get("ANTHROPIC_API_KEY"))  # 追加の部品は不要（標準ライブラリで直接つなぐ）
 
 
 def _create(model, max_tokens, messages, output_config, system=None, thinking=None):
     """Claude の messages.create と同じ形で呼べる窓口。ChatGPT選択時は OpenAI に振り替える。"""
     if provider() != "openai":
-        kw = dict(model=model, max_tokens=max_tokens, messages=messages, output_config=output_config)
-        if system:
-            kw["system"] = system
-        if thinking:
-            kw["thinking"] = thinking
-        return client_or_die().messages.create(**kw)
+        return _create_anthropic(model, max_tokens, messages, output_config, system, thinking)
     return _create_openai(model, max_tokens, messages, output_config, system)
+
+
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+
+
+def _create_anthropic(model, max_tokens, messages, output_config, system=None, thinking=None):
+    """Claude（Anthropic API）を標準ライブラリだけで呼ぶ。
+    Windows版（exe）に anthropic パッケージを入れなくても動くようにするため。"""
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise SystemExit("AnthropicのAPIキーが設定されていません")
+    body = {"model": model, "max_tokens": max_tokens, "messages": messages, "output_config": output_config}
+    if system:
+        body["system"] = system
+    if thinking:
+        body["thinking"] = thinking
+    req = urllib.request.Request(ANTHROPIC_URL, data=json.dumps(body).encode("utf-8"), method="POST", headers={
+        "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01"})
+    data = None
+    for attempt in range(4):  # 混雑（429/529）や一時的なエラーは少し待って再試行
+        try:
+            with urllib.request.urlopen(req, timeout=600) as r:
+                data = json.loads(r.read())
+            break
+        except urllib.error.HTTPError as e:
+            try:
+                msg = json.loads(e.read()).get("error", {}).get("message", "")
+            except ValueError:
+                msg = ""
+            if e.code in (429, 500, 502, 503, 529) and attempt < 3:
+                import time
+                time.sleep(2 ** attempt * 2)
+                continue
+            if e.code == 401:
+                raise SystemExit("Claude のAPIキーが正しくありません。設定からキーを入れ直してください")
+            raise SystemExit(f"Claude（Anthropic）でエラーが発生しました（{e.code}）: {msg}")
+        except urllib.error.URLError as e:
+            raise SystemExit(f"Anthropicに接続できません（インターネット接続を確認してください）: {e.reason}")
+    blocks = [SimpleNamespace(type=b.get("type"), text=b.get("text", "")) for b in data.get("content", [])]
+    if not any(b.type == "text" for b in blocks):
+        raise SystemExit("Claude から回答が得られませんでした（stop_reason: %s）" % data.get("stop_reason"))
+    u = data.get("usage", {})
+    return SimpleNamespace(content=blocks, usage=SimpleNamespace(
+        input_tokens=u.get("input_tokens", 0), output_tokens=u.get("output_tokens", 0), model=model))
 
 
 def _create_openai(model, max_tokens, messages, output_config, system):
