@@ -62,6 +62,7 @@ const ICONS = {
   globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
   list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
   logo: '<path d="M7 7h10M7 12h10M7 17h6"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
   search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
 };
 
@@ -96,8 +97,8 @@ function toast(msg, kind = 'info', action) {
   const el = h('div', { class: `toast ${kind}` }, h('span', {}, msg),
     action ? h('button', { class: 'toast-act', onclick: () => { el.remove(); action.fn(); } }, action.label) : null);
   box.append(el);
-  while (box.children.length > 3) box.firstChild.remove();
-  const life = kind === 'error' ? 7000 : action ? 5000 : 3500;
+  while (box.children.length > 2) box.firstChild.remove();  // 画面をふさがないよう最大2つ
+  const life = kind === 'error' ? 7000 : action ? 4500 : 2800;
   setTimeout(() => el.classList.add('out'), life);
   setTimeout(() => el.remove(), life + 400);
 }
@@ -724,6 +725,7 @@ function renderWorkspace() {
       h('header', { class: 'topbar' },
         h('input', { id: 'title-input', class: 'title-input', value: S.project.exam.title, placeholder: '試験名', 'aria-label': '試験名',
           oninput: e => { S.project.exam.title = e.target.value; markDirty(); } }),
+        h('button', { class: 'btn ghost sm preview-btn', onclick: previewDialog, title: '問題用紙・解答用紙・模範解答の仕上がりを見る（P）' }, icon('eye', 15), 'プレビュー'),
         renderMeter(),
         h('span', { id: 'save-state', class: 'save-state' })),
       h('div', { class: 'main-scroll' }, renderStep())));
@@ -1298,7 +1300,7 @@ function renderBuild() {
 
   return h('div', { class: 'step wide' },
     stepHead('大問をつくる', '上のタブで大問、その下の「問1・問2…」で設問を選びます。素材（本文）は大問で共通です。文をクリックすると、選んでいる設問に問題が入ります。'),
-    tabs, head, guide, h('div', { class: 'build' }, matPane, qPane));
+    tabs, head, h('div', { class: 'build' }, matPane, qPane));
 }
 
 // ================================================================ AIに注文して作る（自然言語）
@@ -1403,7 +1405,7 @@ async function refreshUsage() {
   const c = $('#usage-chip'); if (c) c.replaceWith(usageChip());
 }
 
-const yen = usd => `約${Math.round(usd * 150).toLocaleString()}円`;  // 1ドル150円で換算（目安）
+const yen = usd => usd > 0 && usd * 150 < 1 ? '1円未満' : `約${Math.round(usd * 150).toLocaleString()}円`;  // 1ドル150円で換算（目安）
 
 function usageChip() {
   const u = S.usage;
@@ -1469,6 +1471,31 @@ function passageDialog(big, mats, init) {
       } },
     ],
   });
+}
+
+/** プレビューモード: どの画面からでも、用紙の仕上がりを大きく確認する */
+function previewDialog() {
+  const p = S.project;
+  let tab = S.previewTab || 'exam', zoom = 1;
+  const box = h('div', { class: 'pv-stage' });
+  const tabs = h('div', { class: 'seg' });
+  const draw = () => {
+    tabs.replaceChildren(...[['exam', '問題用紙'], ['sheet', '解答用紙'], ['model', '模範解答']].map(([k, l]) =>
+      h('button', { class: 'seg-btn' + (tab === k ? ' on' : ''), onclick: () => { tab = S.previewTab = k; draw(); } }, l)));
+    const paper = paperView(tab);
+    paper.style.zoom = zoom;
+    box.replaceChildren(paper);
+  };
+  const st = stats();
+  const bar = h('div', { class: 'pv-bar' }, tabs,
+    h('span', { class: 'muted small' }, `大問${groupsOf(p.sections).length}・作問 ${st.made}/${st.count}問・配点 ${p.sections.reduce((a, x) => a + sectionPoints(x), 0)}/${p.exam.written_points}点`),
+    h('div', { class: 'row', style: { marginLeft: 'auto' } },
+      iconBtn('down', '縮小', () => { zoom = Math.max(.6, zoom - .1); draw(); }),
+      iconBtn('up', '拡大', () => { zoom = Math.min(1.6, zoom + .1); draw(); }),
+      h('button', { class: 'btn ghost sm', onclick: () => window.print() }, icon('printer', 14), '印刷'),
+      h('button', { class: 'btn primary sm', onclick: () => { closeTop(); gotoStep('output'); doExport(); } }, icon('download', 14), 'Wordで出力')));
+  draw();
+  openModal({ title: `プレビュー — ${p.exam.title}`, size: 'xl preview', body: h('div', { class: 'pv' }, bar, box) });
 }
 
 function guideStep(n, text, done) {
@@ -2458,7 +2485,8 @@ function paperView(kind) {
       if (!s.questions.length) return;  // 未作成の設問は用紙に出さない
       const nums = plan[si];
       if (s.part) paper.append(h('div', { class: 'paper-part' }, partHeadingText(e, s)));
-      const compact = s.questions.every(q => q.choices?.length && !q.body.includes('\n') && q.body.length <= 40);
+      const short = ch => Math.max(0, ...ch.map(c => String(c).length)) <= 18;  // 横に並べても読める選択肢
+      const compact = s.questions.every(q => q.choices?.length && !q.body.includes('\n') && q.body.length <= 40 && short(q.choices));
       if (compact) {
         const narrow = s.questions.every(q => !q.body.trim());  // 単語リスニングは番号だけ
         paper.append(h('table', { class: 'ch-table' }, s.questions.map((q, i) => h('tr', {},
@@ -2470,7 +2498,7 @@ function paperView(kind) {
           const rl = reorderLine(q, nums[i].slots || q.slot_labels || []);
           paper.append(h('div', { class: 'paper-q' }, h('span', { class: 'paper-qn' }, nums[i].label),
             h('div', {}, lines.map(l => h('div', {}, rich(l))), rl ? h('div', {}, rl) : null,
-              q.choices?.length ? h('div', { class: 'paper-ch' }, choiceLine(s.choice_style, q.choices).map(c => h('span', {}, c))) : null)));
+              q.choices?.length ? h('div', { class: 'paper-ch' + (short(q.choices) ? '' : ' long') }, choiceLine(s.choice_style, q.choices).map(c => h('span', {}, c))) : null)));
         });
       }
       if (s.bank?.length) {
@@ -2497,7 +2525,7 @@ function paperView(kind) {
       : e.heading === 'bracket' ? `【${s.no}】（${pts.slice(1, -1)}）` : `${s.no}　${pts}`));
     const slots = s.questions.map(slotsOf);
     const width = Math.max(...slots.map(x => x.length));
-    const per = perRowOf(s);
+    const per = Math.min(perRowOf(s), s.questions.length);
     const long = LONG_TYPES.has(s.type);
     const table = h('table', { class: 'grid' });
     for (let r = 0; r < Math.ceil(s.questions.length / per); r++) {
@@ -2636,6 +2664,8 @@ document.addEventListener('keydown', e => {
     if (fabEl) return hideFab();
     if (modalStack.length) modalStack[modalStack.length - 1]();
   }
+  if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.metaKey && S.project && !modalStack.length
+      && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) { e.preventDefault(); previewDialog(); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     if (S.project) saveNow().then(() => toast('保存しました', 'ok'));

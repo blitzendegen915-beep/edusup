@@ -871,3 +871,18 @@ button.tok:hover { border-color: var(--accent); color: var(--accent-ink); }
 .stu-mark.alt { background: var(--danger); color: #fff; }
 .stu-mark.warn { background: var(--warn-soft); color: var(--warn); }
 details summary { cursor: pointer; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.paper-ch.long { flex-direction: column; gap: 0; }
+.paper-title.left { border: 1px solid #333; padding: 0; }
+.paper-title.left b { padding: 6px 12px; flex: 1; }
+.paper-title.left span { padding: 6px 12px; border-left: 1px solid #333; white-space: nowrap; }
+
+/* ================= プレビューモード・すっきり（v7） ================= */
+.preview-btn { flex: none; }
+.modal.xl.preview { width: min(1100px, 100%); }
+.pv { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+.pv-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: sticky; top: 0; z-index: 2; background: var(--surface); padding-bottom: 8px; }
+.pv-stage { flex: 1; overflow: auto; background: var(--surface-3); border-radius: 12px; padding: 24px 12px; }
+.pv-stage .paper { margin: 0 auto; }
+.sec-head { padding: 14px 16px; }
+.build { margin-top: 14px; }
+@media print { .overlay { position: static; background: none; backdrop-filter: none; } .modal { box-shadow: none; } }
