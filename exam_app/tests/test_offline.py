@@ -115,7 +115,8 @@ def test_vocab_docx():
         exam = Document(str(files[0]))
         text = "\n".join(p.text for p in exam.paragraphs)
         cells = [c.text for t in exam.tables for r in t.rows for c in r.cells]
-        assert "【1】" in text and "2026.9.1" in text and "よく見直しましょう" in text
+        assert "【1】" in text and "よく見直しましょう" in text
+        assert any("2026.9.1" in c for c in [c.text for t in exam.tables for r in t.rows for c in r.cells])  # 実施日は試験名の枠の中
         assert "3. 避難所" in cells and "1." in cells                     # 選択肢の表・通し番号
         assert "I will (　　) ( 3 )" in text                              # 解答位置の行
         model = Document(str(files[2]))
