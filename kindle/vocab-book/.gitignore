@@ -1,0 +1,2 @@
+# build.js が生成するファイル（コミット不要。node kindle/vocab-book/build.js でいつでも作り直せます）
+dist/

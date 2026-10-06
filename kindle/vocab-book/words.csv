@@ -1,0 +1,101 @@
+﻿stage,word,pos,meaning,reading,rarity,hook,example,example_ja,plus
+1,avoid,動詞,～を避ける,ア[ヴォ]イド,N,void＝「空っぽ」。その場を空っぽにして近づかない → 避ける。,I avoid eye contact when the teacher asks a question.,先生が質問するとき、目を合わせるのを避ける。,avoid ～ing（～するのを避ける）
+1,achieve,動詞,～を達成する,ア[チー]ヴ,R,chief（チーフ＝頭・トップ）の仲間。てっぺんまでたどり着く → 達成する。,I finally achieved a 100-day login streak.,ついに100日連続ログインを達成した。,achieve a goal（目標を達成する）
+1,decide,動詞,～を決める,ディ[サイ]ド,N,de（離して）＋cide（切る）。迷いをスパッと切る → 決める。,I can't decide what to eat for lunch.,お昼に何を食べるか決められない。,decide to ～（～することに決める）
+1,improve,動詞,～を改善する、上達する,イン[プルー]ヴ,N,アプリの「アップデートで改善しました」のイメージ。昨日より少し良くする。,My English improved after I started this book.,この本を始めてから英語が上達した。,improve my skills（自分のスキルを上げる）
+1,increase,動詞,増える、～を増やす,イン[クリー]ス,N,in（中で）＋crease（育つ）。中でどんどん育つ → 増える。,The number of my followers increased overnight.,フォロワー数が一晩で増えた。,⇔ decrease（減る、～を減らす）
+1,reduce,動詞,～を減らす,リ[デュー]ス,N,エコの「3R」のリデュース＝ゴミを減らすこと。,I want to reduce my screen time. Starting tomorrow.,スクリーンタイムを減らしたい。明日から。,reduce waste（ゴミを減らす）
+1,suggest,動詞,～を提案する,サ[ジェ]スト,R,検索の「サジェスト」＝おすすめ候補を出すこと。「〜しない？」と軽く提案する。,My friend suggested that we study together. Then we played games.,友達が一緒に勉強しようと提案した。そしてゲームをした。,suggest ～ing（～しようと提案する）
+1,require,動詞,～を必要とする,リ[クワイ]ア,R,request（リクエスト）の仲間。「求める」→ 必要とする。,This game requires a lot of storage.,このゲームはたくさんの容量を必要とする。,be required to ～（～することが求められる）
+1,provide,動詞,～を与える、提供する,プロ[ヴァイ]ド,R,pro（前もって）＋vide（見る）。先を見て用意しておく → 与える。,Our school provides free Wi-Fi. But it's super slow.,学校は無料Wi-Fiを提供している。でも超遅い。,provide A with B（AにBを与える）
+1,consider,動詞,～をよく考える、検討する,コン[シ]ダー,R,語源は「星（sider）をじっと見る」という説も。星占いのようにじっくり考える。,I'm considering quitting the club. But I'd miss my friends.,部活をやめようかと考えている。でも友達と会えなくなるのはさみしい。,consider ～ing（～しようかと考える）
+2,allow,動詞,～を許可する、可能にする,ア[ラウ],R,スマホの「許可する（Allow）」ボタンのアレ。押すと許可される。,My parents allow me to use my phone until 10 p.m.,親は夜10時までスマホを使うことを許してくれる。,allow 人 to ～（人が～するのを許す）
+2,prevent,動詞,～を防ぐ、妨げる,プリ[ヴェ]ント,R,pre（前に）＋vent（来る）。来る前に立ちはだかる → 防ぐ。,Even three alarms can't prevent me from oversleeping.,アラーム3つでも私の寝坊は防げない。,prevent A from ～ing（Aが～するのを妨げる）
+2,explain,動詞,～を説明する,イクスプ[レイ]ン,N,ex（外へ）＋plain（平らな・わかりやすい）。わかりやすく外に出す → 説明する。,Can you explain this meme to me?,このミームの意味を説明してくれる？,× explain me ～ ／ ○ explain ～ to me
+2,compare,動詞,～を比べる,コン[ペ]ア,N,com（一緒に）＋pare（ペア・等しい）。並べてペアにする → 比べる。,Stop comparing yourself with influencers.,インフルエンサーと自分を比べるのはやめよう。,compare A with B（AとBを比べる）
+2,remind,動詞,～に思い出させる,リ[マイ]ンド,R,re（再び）＋mind（心）。もう一度心に入れる → 思い出させる。リマインダーのアレ。,Remind me to charge my phone.,スマホを充電するように声をかけて（思い出させて）。,remind 人 of A（人にAを思い出させる）
+2,encourage,動詞,～を励ます,イン[カ]リッジ,SR,en（与える）＋courage（勇気）。勇気を与える → 励ます。,My friends encouraged me to try out for the team.,友達がチームの入部テストを受けるよう励ましてくれた。,encourage 人 to ～（人を励まして～させる）
+2,expect,動詞,～を予想する、期待する,イクス[ペ]クト,R,ex（外を）＋spect（見る）。外をながめて待つ → 予想する・期待する。,I didn't expect the test to be this hard.,テストがこんなに難しいとは予想していなかった。,expect 人 to ～（人が～すると思う・期待する）
+2,depend,動詞,頼る、～次第である,ディ[ペ]ンド,R,de（下に）＋pend（ぶら下がる）。ペンダントのようにぶら下がる → 頼る。,It depends on my mood.,それは私の気分次第。,depend on A（Aに頼る、A次第だ）
+2,develop,動詞,～を発達させる、開発する,ディ[ヴェ]ロップ,R,ゲーム開発者＝デベロッパー（developer）。少しずつ育てて広げるイメージ。,This company develops mobile games.,この会社はスマホゲームを開発している。,developing country（発展途上国）
+2,complain,動詞,不満を言う、文句を言う,コンプ[レイ]ン,R,日本語の「クレーム」は英語では complaint（文句）。その動詞が complain。,Everyone complains about the school rules.,みんな校則に文句を言う。,complain about A（Aについて文句を言う）
+3,apologize,動詞,謝る,ア[パ]ロジャイズ,SR,つづりの頭は「アポロ（apolo）」。アポロに乗ってでも謝りに行く！と覚えよう。,I apologized to my mom for breaking her mug.,母のマグカップを割ったことを謝った。,apologize to 人 for A（人にAのことで謝る）
+3,admit,動詞,（ミスなど）を認める,アド[ミ]ット,R,ad（～へ）＋mit（送る）。中へ入れる → 受け入れて、しぶしぶ認める。,I admit that I was wrong. Just this once.,自分が間違っていたと認める。今回だけは。,admit ～ing（～したことを認める）
+3,refuse,動詞,～を断る、拒む,リ[フュー]ズ,R,「リフューズ！」＝「イヤです！」と突っぱねるイメージ。,My cat refuses to get off my homework.,うちの猫は宿題の上からどこうとしない。,refuse to ～（～するのを拒む）
+3,attract,動詞,～を引きつける,アト[ラ]クト,R,アトラクション（attraction）＝人を引きつけるもの。,Cute animal videos attract millions of views.,かわいい動物の動画は何百万回もの再生を集める。,be attracted to A（Aに引かれる）
+3,survive,動詞,生き残る、～を乗り切る,サ[ヴァイ]ヴ,R,サバイバル（survival）の動詞。sur（越えて）＋vive（生きる）。,I survived three tests in one day.,1日3つのテストを乗り切った。,survival（生き残ること）
+3,waste,動詞,～を無駄にする,[ウェイ]スト,N,名詞だと「ゴミ・浪費」。大事なものをゴミにしちゃう → 無駄にする。,I wasted all my allowance on a gacha game.,おこづかいを全部ガチャゲーにつぎこんで無駄にした。,waste time ～ing（～して時間を無駄にする）
+3,spend,動詞,（時間・お金）を使う、過ごす,ス[ペ]ンド,N,お金も時間も「使う」なら spend。過去形 spent もセットで。,I spend three hours a day on my phone.,1日3時間をスマホに使っている。,spend 時間 ～ing（～して時間を過ごす）
+3,borrow,動詞,～を借りる,[バ]ロウ,N,borrow の b は Back（返す）の b。返す前提で借りる、と覚えよう。,Can I borrow your charger?,充電器、借りていい？,⇔ lend（貸す）
+3,lend,動詞,～を貸す,[レ]ンド,N,borrow（借りる）の逆。lend 人 物 ＝ 人に物を貸す。,Can you lend me 100 yen?,100円貸してくれない？,lend 人 物（人に物を貸す）
+3,deny,動詞,～を否定する,ディ[ナイ],SR,「ディナイ」→「でない！（やってない！）」と否定する。,He denied eating my pudding.,彼は私のプリンを食べたことを否定した。,deny ～ing（～したことを否定する）
+4,ignore,動詞,～を無視する,イグ[ノー]ア,R,既読スルーのイメージ。わかっているのに無視する。,My friend ignored my message for two days.,友達に2日間メッセージを無視された。,ignore a warning（警告を無視する）
+4,respect,動詞,～を尊敬する,リス[ペ]クト,N,「リスペクトしてる」はもう日本語。re（振り返って）＋spect（見る）。,I really respect people who wake up early.,早起きできる人を本気で尊敬する。,respect A for B（BのことでAを尊敬する）
+4,affect,動詞,～に影響を与える,ア[フェ]クト,SR,effect（エフェクト＝影響・効果）は名詞、affect は動詞。,Lack of sleep affects your grades.,睡眠不足は成績に影響する。,be affected by A（Aの影響を受ける）
+4,focus,動詞,集中する,[フォウ]カス,N,カメラの「フォーカス（ピント）」を1点に合わせる → 集中する。,I can't focus when my phone is next to me.,スマホがそばにあると集中できない。,focus on A（Aに集中する）
+4,imagine,動詞,～を想像する,イ[マ]ジン,N,image（イメージ）を頭に浮かべる → 想像する。,Imagine a world without homework.,宿題のない世界を想像してみて。,imagine ～ing（～することを想像する）
+4,notice,動詞,～に気づく,[ノウ]ティス,N,スマホの「通知（notification）」の仲間。ピコンと来て気づく。,Nobody noticed my new haircut.,誰も私の新しい髪型に気づかなかった。,notice that ～（～だと気づく）
+4,prefer,動詞,～のほうを好む,プリ[ファー],R,pre（前に）＋fer（運ぶ）。好きなほうを前に持ってくる。,I prefer cats to dogs.,犬より猫のほうが好き。,prefer A to B（BよりAを好む）
+4,persuade,動詞,～を説得する,パ[スウェイ]ド,SR,sway（スウェイ＝揺らす）と音が似てる。相手の心を揺らして動かす → 説得する。,I persuaded my parents to buy me a new phone.,新しいスマホを買ってもらうよう親を説得した。,persuade 人 to ～（人を説得して～させる）
+4,replace,動詞,～を取り替える,リプ[レイ]ス,R,re（もう一度）＋place（置く）。別の物を置き直す → 取り替える。,I need to replace my cracked screen.,ひび割れた画面を交換しないと。,replace A with B（AをBと取り替える）
+4,protect,動詞,～を守る,プロ[テ]クト,N,スマホの「プロテクター（保護フィルム）」で画面を守る。,This case protects my phone. Sometimes.,このケースはスマホを守ってくれる。たまに。,protect A from B（AをBから守る）
+5,available,形容詞,利用できる、（人が）空いている,ア[ヴェ]イラブル,SR,「Update available（アップデートできます）」の available。今すぐ使える状態。,Are you available this Saturday?,今度の土曜、空いてる？,available seats（空いている席）
+5,necessary,形容詞,必要な,[ネ]セサリー,R,アクセサリー（accessory）はなくてもいい。ネセサリー（necessary）はないと困る。,Sleep is necessary for your brain.,睡眠は脳にとって必要だ。,It is necessary to ～（～する必要がある）
+5,possible,形容詞,可能な、ありうる,[パ]シブル,N,「インポッシブル（不可能）」の反対。im を外せば「可能な」。,Is it possible to finish this by tomorrow?,これを明日までに終わらせるのは可能？,as soon as possible（できるだけ早く＝ASAP）
+5,similar,形容詞,似ている,[シ]ミラー,R,シミュレーション（simulation＝まねて似せる）の仲間。,My handwriting is similar to my dad's.,私の字は父の字に似ている。,be similar to A（Aに似ている）
+5,various,形容詞,さまざまな,[ヴェ]アリアス,R,バリエーション（variation）の仲間。いろいろある → さまざまな。,This shop sells various kinds of snacks.,この店はさまざまな種類のお菓子を売っている。,various kinds of A（さまざまな種類のA）
+5,common,形容詞,よくある、共通の,[カ]モン,N,「カモン（Come on）」じゃない。common sense ＝ みんなに共通の感覚 → 常識。,Forgetting your password is very common.,パスワードを忘れるのはよくあること。,common sense（常識）
+5,familiar,形容詞,よく知っている、なじみのある,ファ[ミ]リア,SR,family（家族）の仲間。家族みたいになじみがある。,This song sounds familiar.,この曲、聞き覚えがある。,be familiar with A（Aをよく知っている）
+5,serious,形容詞,深刻な、まじめな,[シ]リアス,N,「シリアスな展開」＝ふざけていない、深刻な。,Are you serious?,マジで言ってる？,a serious problem（深刻な問題）
+5,recent,形容詞,最近の,[リー]セント,R,recently（最近）から ly を取ると recent（最近の）。,My most recent post got zero likes.,最新の投稿、いいねゼロだった。,in recent years（近年）
+5,ancient,形容詞,古代の、大昔の,[エイ]ンシェント,SR,ゲームの「エンシェント（古代の）ドラゴン」でおなじみ。,My dad's phone is ancient.,父のスマホは大昔の物（化石レベル）だ。,ancient Rome（古代ローマ）
+6,huge,形容詞,巨大な、ばく大な,[ヒュー]ジ,N,big の強化版。「ヒュージ」→ とにかくデカい。,I have a huge amount of homework today.,今日は宿題がとんでもない量ある。,a huge fan（大ファン）
+6,tiny,形容詞,とても小さい,[タイ]ニー,N,small の強化版。「タイニー」→ ちっちゃ！,"There's a tiny bug on my screen. Wait, it's moving!",画面に小さな虫が…待って、動いてる！,⇔ huge（巨大な）
+6,positive,形容詞,前向きな、肯定的な,[パ]ジティヴ,N,「ポジティブ」はそのまま日本語。,"Try to stay positive, even on Mondays.",月曜日でも前向きでいよう。,⇔ negative（後ろ向きな）
+6,negative,形容詞,否定的な、後ろ向きな,[ネ]ガティヴ,N,「ネガティブ」も日本語。positive の反対。,Don't read negative comments.,否定的なコメントは読まないこと。,⇔ positive（前向きな）
+6,obvious,形容詞,明らかな,[ア]ブヴィアス,SR,「It's obvious!」＝「見ればわかるでしょ！」。,It's obvious that he likes her.,彼が彼女を好きなのは明らかだ。,It is obvious that ～（～なのは明らかだ）
+6,curious,形容詞,好奇心の強い、知りたがる,[キュ]アリアス,R,curiosity（キュリオシティ＝好奇心）の形容詞。気になる！知りたい！,I'm curious about what's inside the box.,箱の中身が気になる。,be curious about A（Aに興味しんしんだ）
+6,anxious,形容詞,不安な、心配して,[ア]ンクシャス,SR,テスト前の「ソワソワ」が anxious。,I'm anxious about the test results.,テストの結果が不安だ。,be anxious about A（Aを心配している）
+6,confident,形容詞,自信がある,[カ]ンフィデント,R,con（しっかり）＋fide（信じる）。自分をしっかり信じている → 自信がある。,I'm confident about this answer. About 80 percent.,この答えには自信がある。80％くらい。,confidence（自信）
+6,honest,形容詞,正直な,[ア]ニスト,N,h は読まない！ To be honest ＝ 正直に言うと（TBH）。,"To be honest, I didn't read the book.",正直に言うと、その本読んでない。,to be honest（正直に言うと）
+6,polite,形容詞,礼儀正しい、ていねいな,ポ[ライ]ト,R,あいさつやお礼がきちんとできる人が polite。⇔ rude（失礼な）。,She is always polite to everyone.,彼女はいつも誰にでも礼儀正しい。,be polite to 人（人に礼儀正しい）
+7,rude,形容詞,失礼な,[ルー]ド,R,rule（ルール）と音が似てる。ルール無視で失礼！,It's rude to look at your phone while someone is talking.,人が話しているときにスマホを見るのは失礼だ。,⇔ polite（礼儀正しい）
+7,lazy,形容詞,なまけた、だらけた,[レイ]ジー,N,休みの日の自分。「レイジー」→ ダラダラ。,I feel lazy on Sunday mornings.,日曜の朝はだらけてしまう。,a lazy day（だらだらする日）
+7,awkward,形容詞,気まずい、ぎこちない,[オー]クワード,SR,会話が止まったときの「……（気まずっ）」が awkward。,There was an awkward silence after my joke.,私のギャグのあと、気まずい沈黙が流れた。,an awkward moment（気まずい瞬間）
+7,annoying,形容詞,イライラさせる、うざい,ア[ノイ]イング,R,noise（ノイズ）と音が似てる。うるさくてイライラさせる。,My alarm sound is so annoying.,目覚ましの音がほんとにうざい。,be annoyed（〈人が〉イライラしている）
+7,boring,形容詞,退屈な、つまらない,[ボー]リング,N,ボウリング（bowling）じゃない。〈物事が〉退屈な＝boring。,This video is boring. Skip!,この動画、つまらない。スキップ！,be bored（〈人が〉退屈している）
+7,exhausted,形容詞,へとへとに疲れた,イグ[ゾー]スティッド,SR,車の排気ガスは exhaust gas。エネルギーを全部出しきった → へとへと。,I'm exhausted after club practice.,部活のあとはへとへとだ。,tired の強化版
+7,embarrassed,形容詞,恥ずかしい思いをした,イン[バ]ラスト,SSR,r と s が2つずつ！人前でやらかして顔が真っ赤、の状態。,"I was embarrassed when I called my teacher ""Mom.""",先生を「お母さん」と呼んでしまって恥ずかしかった。,embarrassing（〈物事が〉恥ずかしい）
+7,efficient,形容詞,効率のよい,イ[フィ]シェント,SSR,タイパ（タイムパフォーマンス）がいい、ムダがない状態。,Studying with this book is efficient. Probably.,この本での勉強は効率がいい。たぶん。,efficiency（効率）
+7,convenient,形容詞,便利な、都合のよい,コン[ヴィー]ニエント,SR,コンビニ＝convenience store（便利な店）。,Online shopping is convenient but dangerous for my wallet.,ネットショッピングは便利だけど、財布には危険。,convenience store（コンビニ）
+7,rare,形容詞,まれな、珍しい,[レ]ア,N,ガチャの「レア」！ めったに出ない → 珍しい。,I finally got a rare character!,ついにレアキャラを引いた！,rarely（めったに～ない）
+8,opinion,名詞,意見,ア[ピ]ニョン,N,病院の「セカンドオピニオン」＝別の医者の意見。,"In my opinion, Friday should be a holiday.",私の意見では、金曜日は休日にするべきだ。,in my opinion（私の意見では）
+8,experience,名詞,経験,イクス[ピ]アリエンス,R,RPGの「EXP（経験値）」は experience points の略。,My part-time job was a good experience.,アルバイトはいい経験だった。,experience points（経験値＝EXP）
+8,advantage,名詞,利点、有利な点,アド[ヴァ]ンテッジ,SR,テニスの「アドバンテージ」＝有利な状態。,Being tall is an advantage in basketball.,バスケでは背が高いことが有利だ。,take advantage of A（Aを利用する）
+8,effort,名詞,努力,[エ]ファート,R,ef（外へ）＋fort（力）。力を外へ出しきる → 努力。,All my effort disappeared when I forgot to save.,セーブし忘れて、努力が全部消えた。,make an effort（努力する）
+8,habit,名詞,習慣、くせ,[ハ]ビット,R,ついやってしまうこと。毎朝スマホを見るのも habit。,Checking my phone in bed is a bad habit.,ベッドでスマホを見るのは悪い習慣だ。,a bad habit（悪い習慣、悪いくせ）
+8,goal,名詞,目標,[ゴウ]ル,N,サッカーの「ゴール」＝目指す場所 → 目標。,My goal is to finish this book.,私の目標はこの本をやりきることだ。,achieve a goal（目標を達成する）
+8,opportunity,名詞,機会、チャンス,アパ[トゥー]ニティ,SSR,op（～の方へ）＋port（港）。港へ運んでくれる追い風 → チャンス。,Don't miss this opportunity!,この機会を逃すな！,have an opportunity to ～（～する機会がある）
+8,result,名詞,結果,リ[ザ]ルト,N,ゲーム終了後の「リザルト画面」＝結果発表。,The test results will come out tomorrow.,テストの結果は明日出る。,as a result（その結果）
+8,reason,名詞,理由,[リー]ズン,N,「なんで？」の答えが reason。,Give me one reason to get up early.,早起きする理由を1つちょうだい。,for this reason（この理由で）
+8,situation,名詞,状況,シチュ[エイ]ション,R,「シチュエーション」は日本語でも使う。今どんな状況？,I'm in a difficult situation. My phone is at 1%.,困った状況だ。スマホの充電が1%。,in this situation（この状況では）
+9,environment,名詞,環境,イン[ヴァイ]ロンメント,SR,en（中に）＋viron（囲む）。自分のまわりを囲んでいるもの → 環境。,A quiet environment helps me study.,静かな環境だと勉強がはかどる。,the environment（自然環境）
+9,society,名詞,社会,ソ[サイ]エティ,R,social（ソーシャル＝社会の）の名詞。SNSの S も social。,We live in a society that depends on smartphones.,私たちはスマホに頼る社会に生きている。,social（社会の）
+9,attention,名詞,注意、注目,ア[テ]ンション,R,空港の「アテンション・プリーズ」＝ご注目ください。,"Pay attention to the teacher, not your phone.",スマホじゃなくて先生に注意を向けて。,pay attention to A（Aに注意を払う）
+9,quality,名詞,質、品質,[クワ]リティ,R,「クオリティ高い」の quality。量は quantity。,The video quality is bad because of the slow Wi-Fi.,Wi-Fiが遅いせいで動画の画質が悪い。,⇔ quantity（量）
+9,knowledge,名詞,知識,[ナ]リッジ,SR,know（知る）の名詞。k は読まない！「ナリッジ」。,My knowledge of anime is better than my knowledge of math.,アニメの知識なら数学の知識より上だ。,a knowledge of A（Aの知識）
+9,ability,名詞,能力,ア[ビ]リティ,R,able（できる）の名詞。できる力 → 能力。,She has the ability to sleep anywhere.,彼女はどこでも寝られる能力がある。,the ability to ～（～する能力）
+9,mistake,名詞,間違い、ミス,ミス[テイ]ク,N,「ミス」の正式な言い方。make a mistake ＝ ミスをする。,Everyone makes mistakes.,誰だって間違いはする。,make a mistake（間違える）
+9,rumor,名詞,うわさ,[ルー]マー,R,SNSであっという間に広がるのが rumor。,Don't believe every rumor on social media.,SNSのうわさを全部信じちゃダメ。,rumour（イギリス式のつづり）
+9,reward,名詞,ほうび、報酬,リ[ウォー]ド,SR,ゲームのクエスト「報酬（reward）」。もらうとうれしいやつ。,I'll give myself a reward after the test.,テストが終わったら自分にごほうびをあげる。,as a reward（ほうびとして）
+9,challenge,名詞,難題、やりがいのある課題,[チャ]レンジ,R,日本語の「チャレンジ（挑戦）」と少し違い、英語では「乗り越えがいのある難題」の意味でよく使う。,Getting up at 6 a.m. is a big challenge for me.,朝6時に起きるのは私にとって大きな難題だ。,challenging（やりがいのある、難しい）
+10,trend,名詞,流行、傾向,[トレ]ンド,N,「トレンド入り」の trend。,This dance is the latest trend.,このダンスは最新の流行だ。,trendy（流行の）
+10,audience,名詞,観客、聴衆,[オー]ディエンス,R,audio（オーディオ＝音）の仲間。聞く人たち → 聴衆・観客。,The audience screamed when the band appeared.,バンドが登場すると観客が叫んだ。,a large audience（大勢の観客 ※many ではなく large）
+10,century,名詞,世紀,[セ]ンチュリー,N,cent＝100（1セントは1ドルの100分の1）。100年 → 世紀。,This temple was built in the 8th century.,この寺は8世紀に建てられた。,the 21st century（21世紀）
+10,decade,名詞,10年間,[デ]ケイド,SR,dec＝10。December も昔の暦では「10番目の月」だった。,This game has been popular for a decade.,このゲームは10年間ずっと人気だ。,for decades（何十年も）
+10,average,名詞,平均,[ア]ヴェリッジ,R,テストの「アベレージ（平均点）」。,My score was above average! Just barely.,平均点より上だった！ギリギリだけど。,on average（平均して）
+10,option,名詞,選択肢,[ア]プション,N,ゲームの「オプション（設定）」＝選べるもの。,Sleeping in class is not an option.,授業中に寝るという選択肢はない。,have no option but to ～（～するしかない）
+10,deadline,名詞,しめきり,[デ]ッドライン,N,dead（死）＋line（線）。越えたらアウトな線 → しめきり。,"The deadline is tomorrow, and I haven't started yet.",しめきりは明日なのに、まだ始めてない。,meet the deadline（しめきりに間に合わせる）
+10,memory,名詞,記憶、思い出,[メ]モリー,N,スマホの「メモリ」＝記憶する場所。思い出も memory。,My phone's memory is full of cat photos.,スマホのメモリが猫の写真でいっぱい。,in memory of A（Aをしのんで）
+10,promise,名詞,約束,[プラ]ミス,R,make a promise ＝ 約束する。守れたらカッコいいやつ。,I made a promise to study every day. Day one: failed.,毎日勉強すると約束した。1日目：失敗。,keep a promise（約束を守る）
+10,feature,名詞,特徴、機能,[フィー]チャー,SR,曲名の「feat.（フィーチャリング）」は「特別に取り上げる」こと。新機能も new feature。,This app has a cool new feature.,このアプリにかっこいい新機能がついた。,feature（動詞：～を特集する）

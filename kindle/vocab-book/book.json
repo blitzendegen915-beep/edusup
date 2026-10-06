@@ -1,0 +1,81 @@
+{
+  "title": "スワイプ英単語100",
+  "subtitle": "1ページ1単語 × タップで即バトル",
+  "badge": "高校基礎 100語",
+  "author": "先生の教材ストア",
+  "publisher": "先生の教材ストア",
+  "publishDate": "2026-10-06",
+  "edition": "初版",
+  "fileName": "swipe-eitango-100",
+  "identifier": "urn:uuid:3d982777-870d-4d5d-ae57-c0bb0bf3705e",
+
+  "stages": [
+    { "number": 1, "title": "動詞① まずは動け" },
+    { "number": 2, "title": "動詞② 人とからむ" },
+    { "number": 3, "title": "動詞③ 言い訳とお金" },
+    { "number": 4, "title": "動詞④ 心と頭" },
+    { "number": 5, "title": "形容詞① ふつうと特別" },
+    { "number": 6, "title": "形容詞② 気持ちの温度" },
+    { "number": 7, "title": "形容詞③ リアルな毎日" },
+    { "number": 8, "title": "名詞① 自分を育てる" },
+    { "number": 9, "title": "名詞② 世の中のしくみ" },
+    { "number": 10, "title": "名詞③ 時間と選択" }
+  ],
+
+  "quiz": {
+    "choices": 4,
+    "xpPerCorrect": 10,
+    "finalBossQuestions": 20,
+    "avoidTogether": [
+      ["avoid", "prevent", "protect"],
+      ["improve", "develop"],
+      ["allow", "admit"],
+      ["deny", "refuse"],
+      ["spend", "waste"],
+      ["expect", "imagine"],
+      ["suggest", "encourage", "persuade"],
+      ["available", "possible"],
+      ["common", "familiar"],
+      ["awkward", "embarrassed"],
+      ["efficient", "convenient"]
+    ]
+  },
+
+  "howToUse": [
+    "1ページ＝1単語。3秒見たら、すぐ次へスワイプ。",
+    "{wordsPerStage}単語ごとに「ボス戦」。選択肢をタップすると、正解か不正解かのページにジャンプします。",
+    "正解するたびに +{xp}XP。ボス戦のあとで合計XPを数えてランク判定！",
+    "全{stages}ステージ＋ラスボス戦。{words}語ぜんぶゲットで完全クリア。"
+  ],
+  "tips": [
+    "覚えようとしなくてOK。1周を速く回して、何周もするほうが記憶に残ります。",
+    "わからなかった単語はハイライト（マーカー）しておこう。Kindleのハイライト一覧から、あとでまとめて見返せます。",
+    "ジャンプ先のページからは「▶ 次の問題へ」をタップすれば、ボス戦の続きに戻れます。"
+  ],
+  "allClearMessage": [
+    "{words}語コンプリート、おめでとう！",
+    "ここまでスワイプしてきた指は、もうただの指じゃない。",
+    "2周目は「覚え方」を見る前に意味を言えるか試してみよう。ボス戦で × だった問題だけをやり直すのもおすすめ。"
+  ],
+
+  "kdp": {
+    "titleKana": "スワイプエイタンゴヒャク",
+    "titleRomaji": "Swipe Eitango 100",
+    "authorKana": "センセイノキョウザイストア",
+    "authorRomaji": "Sensei no Kyozai Store",
+    "description": "集中が続かなくても大丈夫。1ページに1単語だけ、3秒見たら次へスワイプするだけの英単語帳です。10単語ごとに「ボス戦」があり、選択肢をタップすると正解・不正解のページにジャンプ。ゲーム感覚で高校基礎レベルの英単語100語を覚えられます。例文はスマホ・ゲーム・学校生活など身近な場面ばかり。覚え方のヒント、発音のカタカナ表記（強く読む部分は太字）、セットで覚えたい表現つき。",
+    "keywords": [
+      "英単語",
+      "高校英語",
+      "単語帳",
+      "ゲーム感覚",
+      "スキマ時間",
+      "英語 苦手",
+      "基礎英単語"
+    ],
+    "categories": [
+      "語学・辞事典・年鑑 > 英語",
+      "参考書・受験 > 高校学習参考書 > 英語"
+    ]
+  }
+}

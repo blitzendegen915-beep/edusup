@@ -29,3 +29,11 @@ Googleスプレッドシートの「問題」シートに入力した文法問�
 - コード: `web/shop/`
 - 使い方: `docs/material_shop.md`
 - タスク指示書: `tasks/done/002-material-shop-site.md`
+
+### Kindle用 英単語帳ジェネレーター
+
+単語リスト（CSV）から、Kindle（KDP）にそのままアップロードできる英単語帳（EPUB）を作ります。1ページ1単語のカードと、選択肢をタップすると正解・不正解ページにジャンプする「ボス戦」で、集中が続きにくい生徒でもゲーム感覚で進められる構成です。サンプルとして高校基礎100語・表紙を同梱しています。
+
+- コード: `kindle/vocab-book/`（`node kindle/vocab-book/build.js` で生成）
+- 使い方・KDP出版手順: `docs/kindle_vocab_book.md`
+- タスク指示書: `tasks/done/006-kindle-vocab-book.md`
