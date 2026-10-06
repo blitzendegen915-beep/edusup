@@ -230,6 +230,15 @@ function wlGenerate(opt) {
       choices.splice(pos[k], 0, it.word);
       out.questions.push(choiceQ(it, it.meaning, choices, pos[k]));
     } else if (type === 'vocab_context' || type === 'vocab_spelling') {
+      if (!it.ex && type === 'vocab_spelling') {
+        // 例文のない単語リスト（ターゲット1900など）: 意味を見せて、頭文字ヒントつきで綴らせる
+        const mean = wlSenses(it.meaning).slice(0, 2).join('；') || it.meaning;
+        const blank = opt.hint === false ? '（　　　　　）' : `（ ${it.word[0].toLowerCase()}　　　　 ）`;
+        const q = wlQuestion(type, it, listName, { body: `${mean}　${blank}`, answer: it.word, answer_slots: [it.word] });
+        q.alt_answer_risk += ' ／ 例文なし。意味から綴る形式（頭文字ヒントで同義語の別解を防止）';
+        out.noExample = (out.noExample || 0) + 1;
+        return out.questions.push(q);
+      }
       if (!it.ex) return out.skipped.push(`${it.word}（例文がない）`);
       const f = wlFind(it.word, it.ex);
       if (!f) return out.skipped.push(`${it.word}（例文の中に見つからない）`);
@@ -364,6 +373,7 @@ function openWordList(si) {
         r.questions.length > 8 ? h('div', { class: 'muted' }, `…ほか${r.questions.length - 8}問`) : null),
       Object.keys(counts).length > 1 ? h('div', { class: 'hint' }, icon('check', 14), '正解の分布: ' + Object.keys(counts).sort().map(k => `${k}が${counts[k]}問`).join('・')) : null,
       r.skipped.length ? h('div', { class: 'warn-box warn' }, icon('alert', 14), h('div', {}, '作れなかった語: ', r.skipped.slice(0, 12).join('、'), r.skipped.length > 12 ? ` ほか${r.skipped.length - 12}語` : '')) : null,
+      r.noExample ? h('div', { class: 'warn-box info' }, icon('alert', 14), `例文のない単語${r.noExample}語は、意味を見せて頭文字ヒントつきで綴らせる形にしました（例文の空所にしたい場合は、単語リストに「例文」の列を足してください）`) : null,
       h('div', { class: 'warn-box info' }, icon('shield', 14), '誤答は同じ単語リストの同じ品詞の語から選び、意味が重なる語は除いています。品詞の推定は完全ではないので、配布前に必ず確認してください。'),
       h('div', { class: 'row', style: { justifyContent: 'space-between' } },
         h('button', { class: 'btn ghost', onclick: regenerate }, icon('shuffle'), '作り直す'),

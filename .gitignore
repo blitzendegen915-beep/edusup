@@ -8,3 +8,4 @@ exam_workspace/
 build/
 dist/
 *.spec
+word_lists/
