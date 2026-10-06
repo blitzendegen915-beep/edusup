@@ -177,6 +177,28 @@ def test_all():
         st, r = call("POST", "/api/restore", {"data": base64.b64encode(buf.getvalue()).decode()})
         assert st == 200 and r["added"] == 0 and not (tmp / "evil.txt").exists()
 
+        # 版の履歴（保存の前の内容が残り、戻せる）・B版（選択肢の並べ替え）
+        server.HISTORY_GAP = 0
+        st, r = call("POST", "/api/projects", {"title": "版", "written_points": 2, "sections": [
+            {"type": "choice_4", "count": 1, "points_each": 2, "choice_style": "ア", "questions": [
+                {"body": "He ( ) it.", "choices": ["did", "do", "does", "doing"], "correct": 0, "answer": "ア", "source_ref": "s"}]}]})
+        hp = r["project"]
+        secs = hp["sections"]
+        secs[0]["questions"][0]["body"] = "変更後"
+        call("PUT", f"/api/projects/{hp['id']}", {"sections": secs})
+        st, r = call("GET", f"/api/projects/{hp['id']}/history")
+        assert st == 200 and len(r["history"]) == 1, r
+        st, r = call("POST", f"/api/projects/{hp['id']}/history/{r['history'][0]['name']}/restore")
+        assert st == 200 and r["project"]["sections"][0]["questions"][0]["body"] == "He ( ) it."
+        st, r = call("POST", f"/api/projects/{hp['id']}/history/../restore")
+        assert st in (400, 404)
+        st, r = call("POST", f"/api/projects/{hp['id']}/export", {"variant": True})
+        assert st == 200 and any("B版" in n for n in r["files"]), r
+        from exam_app.ui.server import _variant
+        v = _variant({"exam": {"title": "t"}, "sections": [hp["sections"][0]]}, "seed")
+        vq = v["sections"][0]["questions"][0]
+        assert vq["choices"][vq["correct"]] == "did" and vq["answer"] == "アイウエ"[vq["correct"]] and vq["correct"] != 0
+
         # AIに注文（自然言語）・仮想の生徒・使用量（AIは偽物に差し替えて確認）
         from exam_app import generate
         from types import SimpleNamespace

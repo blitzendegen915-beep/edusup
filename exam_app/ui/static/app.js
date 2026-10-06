@@ -62,6 +62,8 @@ const ICONS = {
   globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
   list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
   logo: '<path d="M7 7h10M7 12h10M7 17h6"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  chart: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
   eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
   search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
 };
@@ -725,6 +727,7 @@ function renderWorkspace() {
       h('header', { class: 'topbar' },
         h('input', { id: 'title-input', class: 'title-input', value: S.project.exam.title, placeholder: '試験名', 'aria-label': '試験名',
           oninput: e => { S.project.exam.title = e.target.value; markDirty(); } }),
+        h('button', { class: 'btn ghost sm preview-btn', onclick: historyDialog, title: '前の版に戻す（2分おきに自動で残っています）' }, icon('clock', 15), '履歴'),
         h('button', { class: 'btn ghost sm preview-btn', onclick: previewDialog, title: '問題用紙・解答用紙・模範解答の仕上がりを見る（P）' }, icon('eye', 15), 'プレビュー'),
         renderMeter(),
         h('span', { id: 'save-state', class: 'save-state' })),
@@ -1471,6 +1474,67 @@ function passageDialog(big, mats, init) {
       } },
     ],
   });
+}
+
+/** 版の履歴: 自動で残っている前の版に戻す */
+async function historyDialog() {
+  const p = S.project;
+  await flushSave();
+  let list = [];
+  try { list = (await api('GET', `projects/${p.id}/history`)).history; } catch (e) { return toast(e.message, 'error'); }
+  openModal({
+    title: '版の履歴', size: 'md',
+    body: h('div', { class: 'stack' },
+      h('p', { class: 'muted', style: { margin: 0 } }, '編集中は2分おきに、その時点の内容が自動で残ります（最大40版）。戻しても今の内容は版として残るので、何度でもやり直せます。'),
+      list.length ? h('div', { class: 'hist-list' }, list.map(x => h('div', { class: 'hist-row' },
+        icon('clock', 15), h('b', {}, x.at), h('span', { class: 'muted' }, `設問${x.sections}・作問${x.questions}問`),
+        h('button', { class: 'btn ghost sm', onclick: async () => {
+          if (!await confirmBox(`${x.at} の版に戻しますか？\n（今の内容も版として残ります）`, { ok: '戻す' })) return;
+          try {
+            await api('POST', `projects/${p.id}/history/${x.name}/restore`);
+            closeTop(); await openProject(p.id, S.step); toast(`${x.at} の版に戻しました`, 'ok');
+          } catch (e) { toast(e.message, 'error'); }
+        } }, 'この版に戻す'))))
+        : h('div', { class: 'empty small' }, icon('clock', 24), h('b', {}, 'まだ版がありません'), h('p', {}, '編集を続けると、2分おきに自動で残ります'))),
+    actions: [{ label: '閉じる', kind: 'primary', fn: c => c() }],
+  });
+}
+
+/** 試験の分析: 配点の内訳・選択式と記述式・正解記号の分布・問われている要素の重なり */
+function analysisCard() {
+  const p = S.project;
+  const all = p.sections.flatMap(s => s.questions.map(q => ({ s, q })));
+  if (!all.length) return null;
+  const total = all.reduce((a, { s, q }) => a + qPoints(s, q), 0) || 1;
+  const byType = {};
+  all.forEach(({ s, q }) => { const k = SHORT[s.type] || s.type; byType[k] = (byType[k] || 0) + qPoints(s, q); });
+  const choice = all.filter(({ q }) => q.choices?.length).reduce((a, { s, q }) => a + qPoints(s, q), 0);
+  const marks = {};
+  all.forEach(({ q }) => { if (q.choices?.length && Number.isInteger(q.correct)) marks[q.correct] = (marks[q.correct] || 0) + 1; });
+  const focus = {};
+  all.forEach(({ s, q }) => {
+    const f = String(q.focus || '').trim().toLowerCase();
+    if (f) (focus[f] ||= []).push(`${s.label}(${q.number})`);
+  });
+  const dups = Object.entries(focus).filter(([, v]) => v.length > 1);
+  const bar = (label, v, max, sub) => h('div', { class: 'an-row' }, h('span', { class: 'an-label' }, label),
+    h('div', { class: 'an-bar' }, h('i', { style: { width: Math.round(v / max * 100) + '%' } })), h('span', { class: 'an-val' }, sub));
+  const gs = groupsOf(p.sections);
+  return h('div', { class: 'card' },
+    h('div', { class: 'card-title' }, icon('chart'), '試験の分析', h('span', { class: 'muted small right' }, `作成済み ${all.length}問・${total}点`)),
+    h('div', { class: 'an-grid' },
+      h('div', {}, h('div', { class: 'qk-label' }, '形式ごとの配点'),
+        Object.entries(byType).sort((a, b) => b[1] - a[1]).map(([k, v]) => bar(k, v, total, `${v}点・${Math.round(v / total * 100)}%`))),
+      h('div', {}, h('div', { class: 'qk-label' }, '大問ごとの配点'),
+        gs.map((g, k) => { const v = g.reduce((a, i) => a + sectionPoints(p.sections[i]), 0); return bar(`大問${k + 1}`, v, total, `${v}点`); }),
+        h('div', { class: 'qk-label', style: { marginTop: '10px' } }, '選択式と記述式'),
+        bar('選択式', choice, total, `${choice}点`), bar('記述式', total - choice, total, `${total - choice}点`)),
+      h('div', {}, h('div', { class: 'qk-label' }, '正解の位置（選択式の全問）'),
+        Object.keys(marks).length ? [0, 1, 2, 3, 4].filter(k => marks[k] != null || k < 4).map(k => bar(`${k + 1}番目`, marks[k] || 0, Math.max(...Object.values(marks)), `${marks[k] || 0}問`))
+          : h('p', { class: 'muted small' }, '選択式の問題はまだありません'),
+        h('div', { class: 'qk-label', style: { marginTop: '10px' } }, '問われている要素の重なり'),
+        dups.length ? h('ul', { class: 'an-dups' }, dups.map(([f, v]) => h('li', {}, h('b', {}, f), `：${v.join('・')}`)))
+          : h('p', { class: 'muted small' }, Object.keys(focus).length ? '同じ要素を問う問題は見つかりませんでした（「問いたい点」で判定）' : '「問いたい点」が入った問題がないため判定できません。仮想の生徒でも確認できます'))));
 }
 
 /** プレビューモード: どの画面からでも、用紙の仕上がりを大きく確認する */
@@ -2366,6 +2430,7 @@ function renderCheck() {
 
   return h('div', { class: 'step' },
     stepHead('チェック', '機械で確実に見つけられるものは自動で、別解は AI または依頼文で、最後に教員が確認します。'),
+    analysisCard(),
     studentCard(),
     h('div', { class: 'check-grid', style: { marginTop: '16px' } }, auto, h('div', { class: 'stack' }, ai, list)));
 }
@@ -2438,7 +2503,7 @@ function studentCard() {
 async function doExport() {
   try {
     await flushSave();
-    const r = await api('POST', `projects/${S.project.id}/export`);
+    const r = await api('POST', `projects/${S.project.id}/export`, { variant: !!S.exportVariant });
     S.exportFiles = r.files;
     S.exportIssues = r.issues;
     toast('ファイルを作成しました。下のリンクからダウンロードできます', 'ok');
@@ -2569,6 +2634,8 @@ function renderOutput() {
     h('p', { class: 'muted', style: { marginTop: 0 } }, 'Wordの問題用紙・解答用紙・模範解答と、出典一覧・試験データ（取り込み用JSON）を作成します。'),
     h('div', { class: 'row' },
       h('button', { class: 'btn primary', onclick: doExport }, icon('download'), 'Wordファイルを作成'),
+      h('label', { class: 'check small', title: '隣の席と答えが同じにならないよう、選択肢の順番だけを入れ替えた問題用紙と模範解答も作ります（解答用紙は共通）' },
+        h('input', { type: 'checkbox', checked: !!S.exportVariant, onchange: e => { S.exportVariant = e.target.checked; } }), 'B版（選択肢を並べ替えた版）も作る'),
       h('button', { class: 'btn ghost', onclick: () => window.print() }, icon('printer'), '表示中の用紙を印刷')),
     issues?.length ? h('div', { class: 'warn-box warn', style: { marginTop: '12px' } }, icon('alert', 14),
       `自動チェックで${issues.length}件の問題が残っています。`, h('button', { class: 'link', style: { marginLeft: '6px' }, onclick: () => gotoStep('check') }, 'チェック画面で確認 →')) : null,

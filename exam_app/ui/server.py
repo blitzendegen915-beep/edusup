@@ -85,9 +85,70 @@ def _load(pid: str) -> dict:
     return json.loads((_project_dir(pid) / "project.json").read_text(encoding="utf-8"))
 
 
+HISTORY_KEEP = 40          # 残す版の数
+HISTORY_GAP = 120          # 前の版から何秒たったら新しい版を残すか
+HISTORY_NAME = re.compile(r"^\d{8}-\d{6}\.json$")
+
+
+def _snapshot(d: Path, force: bool = False):
+    """保存の直前の内容を history/ に残す（自動保存のたびではなく、2分おき）。"""
+    cur = d / "project.json"
+    if not cur.is_file():
+        return
+    h = d / "history"
+    h.mkdir(exist_ok=True)
+    olds = sorted(x for x in h.iterdir() if HISTORY_NAME.match(x.name))
+    if olds and not force and time.time() - olds[-1].stat().st_mtime < HISTORY_GAP:
+        return
+    name = time.strftime("%Y%m%d-%H%M%S") + ".json"
+    shutil.copyfile(cur, h / name)
+    for x in sorted(x for x in h.iterdir() if HISTORY_NAME.match(x.name))[:-HISTORY_KEEP]:
+        x.unlink(missing_ok=True)
+
+
+def _history(pid: str) -> list:
+    h = _project_dir(pid) / "history"
+    items = []
+    for f in sorted((x for x in h.iterdir() if HISTORY_NAME.match(x.name)), reverse=True) if h.is_dir() else []:
+        try:
+            p = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        secs = p.get("sections", [])
+        items.append({"name": f.name, "at": f"{f.name[:4]}-{f.name[4:6]}-{f.name[6:8]} {f.name[9:11]}:{f.name[11:13]}",
+                      "questions": sum(len(s.get("questions", [])) for s in secs), "sections": len(secs),
+                      "title": p.get("exam", {}).get("title", "")})
+    return items
+
+
+def _variant(draft: dict, seed: str) -> dict:
+    """B版: 選択肢の順番を入れ替えた版（問題・本文はそのまま、正解の記号だけ変わる）。"""
+    import random
+    rnd = random.Random(seed)
+    v = json.loads(json.dumps(draft))
+    v["exam"]["title"] = v["exam"].get("title", "") + "（B）"
+    for s in v["sections"]:
+        style = s.get("choice_style") or "1"
+        for q in s.get("questions", []):
+            ch, c = q.get("choices"), q.get("correct")
+            if not ch or not isinstance(c, int) or not 0 <= c < len(ch) or len(ch) < 2:
+                continue
+            order = list(range(len(ch)))
+            for _ in range(8):
+                rnd.shuffle(order)
+                if order.index(c) != c:
+                    break
+            q["choices"] = [ch[k] for k in order]
+            q["correct"] = order.index(c)
+            q["answer"] = layout.mark(style, q["correct"])
+            q["answer_slots"] = [q["answer"]]
+    return v
+
+
 def _write(p: dict) -> dict:
     d = WORKSPACE / p["id"]
     d.mkdir(parents=True, exist_ok=True)
+    _snapshot(d)
     p["updated_at"] = _now()
     tmp = d / "project.json.tmp"
     tmp.write_text(json.dumps(p, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -332,7 +393,7 @@ def _sources_md(p: dict) -> str:
     return "\n".join(lines)
 
 
-def _export(pid: str) -> dict:
+def _export(pid: str, variant: bool = False) -> dict:
     d = _project_dir(pid)
     p = _load(pid)
     draft = _as_draft(p)
@@ -346,6 +407,15 @@ def _export(pid: str) -> dict:
         target = out / f"{base}_{label}.docx"
         f.rename(target)
         names.append(target.name)
+    if variant:  # 選択肢を並べ替えたB版も作る（解答用紙は共通なので問題用紙と模範解答だけ）
+        tmp = out / "_b"
+        tmp.mkdir()
+        files = build_docx.build_all(_variant(draft, p["id"]), tmp)
+        for f, label in ((files[0], "問題用紙_B版"), (files[2], "模範解答_B版")):
+            target = out / f"{base}_{label}.docx"
+            f.rename(target)
+            names.append(target.name)
+        shutil.rmtree(tmp)
     (out / f"{base}_出典一覧.md").write_text(_sources_md(p), encoding="utf-8")
     (out / f"{base}_データ.json").write_text(
         json.dumps(draft, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -720,7 +790,22 @@ def route(method: str, parts: list, body) -> object:
                 draft = _as_draft(_load(pid))
             return {"issues": checks.run_all(draft)}
         if rest == ["export"] and method == "POST":
-            return _export(pid)
+            return _export(pid, bool(body().get("variant")))
+        if rest == ["history"] and method == "GET":
+            return {"history": _history(pid)}
+        if len(rest) == 3 and rest[0] == "history" and rest[2] == "restore" and method == "POST":
+            if not HISTORY_NAME.match(rest[1]):
+                raise ApiError(400, "版の名前が正しくありません")
+            f = _project_dir(pid) / "history" / rest[1]
+            if not f.is_file():
+                raise ApiError(404, "その版は見つかりません")
+            with _lock:
+                old = json.loads(f.read_text(encoding="utf-8"))
+                p = _load(pid)
+                _snapshot(_project_dir(pid), force=True)  # 戻す前の今の内容も版として残す
+                p["exam"], p["sections"] = _clean_exam(old.get("exam")), _clean_sections(old.get("sections"))
+                _write(p)
+            return {"project": p}
         if len(rest) == 2 and rest[0] == "files" and method == "GET":
             return ("file", _export_file(pid, rest[1]))
 
