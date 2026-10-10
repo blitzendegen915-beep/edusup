@@ -208,7 +208,8 @@ function wlGenerate(opt) {
     out.bank = bank.map(x => x.word);
     usable.forEach(it => {
       const q = wlQuestion(type, it, listName, { body: it.def });
-      q.answer = markOf(opt.bankStyle || style, bank.indexOf(it)); q.answer_slots = [q.answer];
+      q.bank_idx = bank.indexOf(it);  // 語群の何番目が正解か（記号を変えても答えを振り直せる）
+      q.answer = markOf(opt.bankStyle || style, q.bank_idx); q.answer_slots = [q.answer];
       out.questions.push(q);
     });
     return out;

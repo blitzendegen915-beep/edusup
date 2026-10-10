@@ -186,10 +186,24 @@ def _clean_question(q: dict, number: int) -> dict:
     if isinstance(r, dict):
         out["reorder"] = {"line": bool(r.get("line")), "n": _to_int(r.get("n"), 0),
                           "pos": [_to_int(x, 0) for x in (r.get("pos") or [])][:4],
-                          "before": str(r.get("before") or "")[:300], "after": str(r.get("after") or "")[:300]}
+                          "before": str(r.get("before") or "")[:300], "after": str(r.get("after") or "")[:300],
+                          "alt": str(r.get("alt") or "")[:3000]}  # 位置行を切り替えたときの問題文
+    if isinstance(q.get("bank_idx"), int) and 0 <= q["bank_idx"] < 30:
+        out["bank_idx"] = q["bank_idx"]  # 語群のどれが正解か（記号を変えても答えを振り直せるように）
     if isinstance(q.get("verdict"), dict):
         out["verdict"] = q["verdict"]
     return out
+
+
+PASSAGE_MAX = 200_000  # 本文の上限（1課分の教科書本文でも十分に入る）
+
+
+def _limited(val, limit: int, what: str) -> str:
+    """長すぎる文字列は切り捨てずにエラーにする（本文が黙って欠ける事故を防ぐ）。"""
+    text = str(val or "")
+    if len(text) > limit:
+        raise ApiError(400, f"{what}が長すぎます（{len(text):,}字。上限 {limit:,}字）。必要な部分だけにしてください")
+    return text
 
 
 def _clean_sections(sections) -> list:
@@ -221,9 +235,9 @@ def _clean_sections(sections) -> list:
             # 大問のまとまり: new_big=False は直前の大問の続きの設問（同じ本文の問2・問3…）
             "new_big": i == 0 or s.get("new_big") is not False,
             "big_title": str(s.get("big_title") or "")[:500],
-            "passage": str(s.get("passage") or "")[:30000],
+            "passage": _limited(s.get("passage"), PASSAGE_MAX, "本文"),
             "passage_src": str(s.get("passage_src") or "")[:200],
-            "order": str(s.get("order") or "")[:2000],  # 大問の「作りたい問題」（自然言語の注文）
+            "order": _limited(s.get("order"), 5000, "作りたい問題（注文）"),  # 大問の「作りたい問題」（自然言語の注文）
             "questions": qs,
         })
     layout.apply_labels(out)
@@ -400,7 +414,15 @@ def _sources_md(p: dict) -> str:
     return "\n".join(lines)
 
 
+_export_lock = threading.Lock()
+
+
 def _export(pid: str, variant: bool = False) -> dict:
+    with _export_lock:  # 二重クリックで同時に作っても exports/ が壊れないように
+        return _export_unlocked(pid, variant)
+
+
+def _export_unlocked(pid: str, variant: bool = False) -> dict:
     d = _project_dir(pid)
     p = _load(pid)
     draft = _as_draft(p)
@@ -534,13 +556,18 @@ def _student_items(p: dict, scope: int = -1) -> list:
 USAGE_FILE = "usage.json"
 
 
-def _record_usage(start: int):
-    """この呼び出しで増えたAI使用量を保存先の usage.json に追記する（月ごとの合計を出すため）。"""
+_usage_written = 0  # usage.json に書き込み済みの件数（同時に呼ばれても二重に書かない）
+
+
+def _record_usage(start: int = 0):
+    """まだ記録していないAI使用量を保存先の usage.json に追記する（月ごとの合計を出すため）。"""
+    global _usage_written
     from .. import generate
-    new = generate.usage_log[start:]
-    if not new:
-        return
     with _lock:
+        new = generate.usage_log[_usage_written:]
+        _usage_written = len(generate.usage_log)
+        if not new:
+            return
         log = _read_json_file(USAGE_FILE, [])
         for e in new:
             log.append({**e, "at": _now()})
@@ -581,7 +608,8 @@ def _write_json_file(name: str, data):
 def _config() -> dict:
     cfg = _read_json_file("settings.json", {})
     cats = [c for c in cfg.get("categories", []) if isinstance(c, str) and c.strip()]
-    return {"categories": cats or list(DEFAULT_CATEGORIES)}
+    aliases = {str(k): str(v) for k, v in (cfg.get("aliases") or {}).items() if isinstance(v, str)}
+    return {"categories": cats or list(DEFAULT_CATEGORIES), "aliases": aliases}
 
 
 def _rename_categories(rename) -> int:
@@ -699,11 +727,14 @@ def _restore_zip(data_b64: str) -> dict:
                         pass
             _write_json_file("templates.json", list(mine.values()))
         if "settings.json" in names:
+            cfg = _read_json_file("settings.json", {})
             cats = _config()["categories"]
-            for c in json.loads(z.read("settings.json").decode("utf-8")).get("categories", []):
+            incoming = json.loads(z.read("settings.json").decode("utf-8"))
+            for c in incoming.get("categories", []):
                 if isinstance(c, str) and c.strip() and c not in cats:
                     cats.append(c)
-            _write_json_file("settings.json", {"categories": cats})
+            aliases = {**{str(k): str(v) for k, v in (incoming.get("aliases") or {}).items()}, **(cfg.get("aliases") or {})}
+            _write_json_file("settings.json", {**cfg, "categories": cats, "aliases": aliases})  # ほかの設定は消さない
     return {"added": added}
 
 
@@ -833,8 +864,18 @@ def route(method: str, parts: list, body) -> object:
             if not cats:
                 raise ApiError(400, "カテゴリーを1つ以上残してください")
             with _lock:
-                _write_json_file("settings.json", {**_read_json_file("settings.json", {}), "categories": cats})
-                _rename_categories(body().get("rename"))
+                cfg = _read_json_file("settings.json", {})
+                aliases = dict(cfg.get("aliases") or {})
+                ren = body().get("rename") if isinstance(body().get("rename"), dict) else {}
+                for old, new in ren.items():  # 旧名 → 新名（標準テンプレートのカテゴリーにも使う）
+                    new = str(new).strip()[:30]
+                    if new and new != old:
+                        for k, v in list(aliases.items()):
+                            if v == old:
+                                aliases[k] = new
+                        aliases[str(old)] = new
+                _write_json_file("settings.json", {**cfg, "categories": cats, "aliases": aliases})
+                _rename_categories(ren)
             return _config()
 
     if parts == ["templates"]:
@@ -962,10 +1003,11 @@ def _ai_route(gen, action: str, b: dict):
             if not 0 <= idx < len(p["sections"]):
                 raise ApiError(400, "大問が見つかりません")
             sec = p["sections"][idx]
-            items = (_material_items(p, sid=sec.get("sid", "")) or _material_items(p, sec.get("source", ""))
-                     or _material_items(p))
+            sids = {p["sections"][i].get("sid") for i in _group_of(p, idx)}
+            items = [it for m in p.get("materials", []) if not m.get("sid") or m.get("sid") in sids
+                     for it in _material_items(p, only_id=m["id"])]  # 他の大問の素材は使わない
             if not items:
-                raise ApiError(400, "教材がありません。先に「教材」で教材を追加してください")
+                raise ApiError(400, "この大問に素材がありません。先に素材を入れてください")
             res = gen.make_section(sec, items, p["exam"]["title"])
             kept = [q for q in res["questions"] if str(q.get("source_ref", "")).strip()]
             return {"questions": kept, "dropped": len(res["questions"]) - len(kept),

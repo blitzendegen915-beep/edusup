@@ -829,6 +829,9 @@ async function openProject(id, step) {
     S.secIdx = 0;
     S.issues = null;
     S.exportFiles = null;
+    S.exportIssues = null;
+    S.student = null;
+    S.studentOpt = null;
     S.saveState = 'saved';
     S.conflict = false;
     if (location.hash !== '#/p/' + id) history.pushState(null, '', '#/p/' + id);
@@ -1146,11 +1149,18 @@ function bigCard(list, gs, gi, ctx) {
   // 大問の中の設問を並べ替え・削除したあと、先頭の設問に大問の指示文・本文を付け直す
   const withGroup = op => {
     const parts = g.map(i => list[i]);
-    const hf = { big_title: head.big_title || '', passage: head.passage || '', passage_src: head.passage_src || '' };
+    const hf = { big_title: head.big_title || '', passage: head.passage || '', passage_src: head.passage_src || '', order: head.order || '' };
+    const headSid = head.sid;
     op(parts);
+    // 素材は大問の先頭の設問の sid に付いているので、新しい先頭に sid を引き継ぐ
+    if (parts.length && parts[0].sid !== headSid) {
+      const holder = parts.find(x => x.sid === headSid);
+      if (holder) holder.sid = parts[0].sid;
+      parts[0].sid = headSid;
+    }
     parts.forEach((x, k) => {
       x.new_big = k === 0;
-      if (k === 0) Object.assign(x, hf); else { x.big_title = ''; x.passage = ''; x.passage_src = ''; }
+      if (k === 0) Object.assign(x, hf); else { x.big_title = ''; x.passage = ''; x.passage_src = ''; x.order = ''; }
     });
     list.splice(g[0], g.length, ...parts);
     if (!ctx.template && S.secIdx >= list.length) S.secIdx = Math.max(0, list.length - 1);
@@ -1259,7 +1269,7 @@ function sectionDetails(s, ctx) {
         ctx.dirty(); ctx.redraw();
       })),
       field('解答用紙で1行に並べる問題数', select([['0', '自動（形式に合わせる）'], ...[1, 2, 3, 4, 5, 6, 8, 10].map(n => [String(n), `${n}問`])], String(s.per_row || 0), v => { s.per_row = toInt(v, 0); ctx.dirty(); })),
-      field('語群の記号', select([['', '選択肢と同じ'], ...CHOICE_STYLES.map(([v, l]) => [v, l])], s.bank_style || '', v => { s.bank_style = v; ctx.dirty(); }))),
+      field('語群の記号', select([['', '選択肢と同じ'], ...CHOICE_STYLES.map(([v, l]) => [v, l])], s.bank_style || '', v => { s.bank_style = v; if (!ctx.template) syncChoiceAnswers(s); ctx.dirty(); ctx.redraw(); }))),
     h('div', { class: 'grid-2' },
       field('語群（大問の下にまとめて表示。1行に1つ）', textarea({ value: bankText, rows: 3, cls: 'inp en', placeholder: '例: ancestor\nquality\nextend',
         oninput: v => { s.bank = v.split('\n').map(x => x.trim()).filter(Boolean); ctx.dirty(); } })),
@@ -1473,9 +1483,12 @@ async function runOrder(big, headIdx) {
   if (!(big.order || '').trim()) return toast('作りたい問題を入力してください（例: 内容一致を2問、同意語選択を1問）', 'error');
   await flushSave();
   S.ordering = big.sid; render({ keepScroll: true });
+  const pid = S.project.id, sid = big.sid;
   try {
-    const r = await api('POST', 'ai/order', { pid: S.project.id, index: headIdx, order: big.order });
-    const n = placeOrdered(headIdx, r.questions);
+    const r = await api('POST', 'ai/order', { pid, index: headIdx, order: big.order });
+    const head = liveSection(pid, sid);  // 待っている間に大問を動かしても、同じ大問に入れる
+    if (!head) { S.ordering = null; return lostResult(); }
+    const n = placeOrdered(S.project.sections.indexOf(head), r.questions);
     toast(`${n}問を作りました` + (r.dropped ? `（根拠のない${r.dropped}問は破棄）` : '') + `　${r.cost}`, 'ok');
   } catch (e) { toast(e.message, 'error'); }
   S.ordering = null; refreshUsage(); render({ keepScroll: true });
@@ -1612,6 +1625,7 @@ function passageDialog(big, mats, init) {
       big.passage ? { label: '本文を外す', fn: c => { big.passage = ''; markDirty(); c(); render({ keepScroll: true }); } } : null,
       { label: 'キャンセル', fn: c => c() },
       { label: '保存', kind: 'primary', icon: 'check', fn: c => {
+        if (st.text.trim().length > 200000) return toast(`本文が長すぎます（${st.text.trim().length.toLocaleString()}字）。この大問で使う部分だけにしてください（上限20万字）`, 'error');
         big.passage = st.text.trim(); big.passage_src = st.src.trim();
         markDirty(); c(); render({ keepScroll: true });
         toast('本文を保存しました。問題用紙では大問の見出しのすぐ下に枠つきで載ります', 'ok');
@@ -1821,8 +1835,12 @@ function questionCard(s, si, q, qi, num) {
       h('div', { class: 'row' },
         q.choices ? null : h('button', { class: 'btn ghost sm', onclick: () => { q.choices = ['', '', '', '']; delete q.correct; redraw(); } }, icon('list', 13), '選択肢を付ける'),
         wantScript ? null : h('button', { class: 'btn ghost sm', onclick: () => { q.script = ' '; redraw(); } }, icon('type', 13), '放送文を付ける'),
-        q.reorder ? h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: q.reorder.line, onchange: e => { q.reorder.line = e.target.checked; redraw(); } }),
-          '解答位置の行（ ( 34 ) の形）を出す') : null),
+        q.reorder?.alt ? h('label', { class: 'check small', title: '問題文も、選択肢だけの形と（　）内に並べる形で入れ替わります' },
+          h('input', { type: 'checkbox', checked: q.reorder.line, onchange: e => {
+            // 位置行あり（問題文は選択肢だけ）と、なし（文の中の（　）に並べる）で問題文を入れ替える
+            [q.body, q.reorder.alt] = [q.reorder.alt, q.body];
+            q.reorder.line = e.target.checked; redraw();
+          } }), '解答位置の行（ ( 34 ) の形）を出す') : null),
       h('button', { class: 'btn primary sm', onclick: toggle }, icon('check', 14), '編集を閉じる'))) : null;
 
   return h('div', { class: 'qcard' + (open ? ' open' : ''), id: `q-${si}-${qi}` },
@@ -1854,14 +1872,18 @@ function choicesEditor(s, q, refresh, redraw) {
         q.choices = order.map(k => q.choices[k]);
         if (right != null) setCorrect(q.choices.indexOf(right)); else redraw();
       } }, 'シャッフル'),
-      h('button', { class: 'link small danger', onclick: () => { delete q.choices; delete q.correct; redraw(); } }, '選択肢をやめる')),
+      h('button', { class: 'link small danger', onclick: () => {
+        if (Number.isInteger(q.correct)) { q.answer = ''; delete q.answer_slots; }  // 選択肢の記号だった解答は消す
+        delete q.choices; delete q.correct; redraw();
+      } }, '選択肢をやめる')),
     q.choices.map((c, i) => h('div', { class: 'choice-row' + (q.correct === i ? ' right' : '') },
       h('input', { type: 'radio', name, checked: q.correct === i, title: 'これを正解にする', onchange: () => setCorrect(i) }),
       h('span', { class: 'cmark' }, markOf(s.choice_style, i)),
       input({ value: c, cls: 'inp en', oninput: v => { q.choices[i] = v; refresh(); } }),
       iconBtn('x', 'この選択肢を削除', () => {
         q.choices.splice(i, 1);
-        if (q.correct === i) delete q.correct; else if (q.correct > i) q.correct--;
+        if (q.correct === i) { delete q.correct; q.answer = ''; delete q.answer_slots; }  // 正解を消したら解答も空に
+        else if (q.correct > i) q.correct--;
         if (Number.isInteger(q.correct)) syncChoiceAnswers({ ...s, questions: [q] });
         redraw();
       }, { disabled: q.choices.length <= 2 }))));
@@ -1877,12 +1899,37 @@ function addBlankQuestion(si) {
   render({ keepScroll: true });
 }
 
+/** AIを待っている間に試験が切り替わったり、元に戻すで中身が入れ替わったりしても、書き戻す先を sid で探し直す */
+function liveSection(pid, sid) {
+  if (!S.project || S.project.id !== pid) return null;
+  return S.project.sections.find(x => x.sid === sid) || null;
+}
+function liveQuestion(pid, sid, q) {
+  const s = liveSection(pid, sid);
+  if (!s) return null;
+  return s.questions.includes(q) ? q : s.questions.find(x => x.body === q.body && x.answer === q.answer) || null;
+}
+function lostResult() {
+  toast('AIの結果を入れる先が見つかりませんでした（待っている間に別の試験を開いたか、その大問を削除したため）', 'error');
+}
+/** 大問の素材（その大問の設問に付いた素材と、共通の素材） */
+function bigMaterials(si) {
+  const p = S.project;
+  const g = groupsOf(p.sections).find(x => x.includes(si)) || [si];
+  const sids = new Set(g.map(i => p.sections[i].sid));
+  return p.materials.filter(m => !m.sid || sids.has(m.sid));
+}
+
 async function verifyOne(s, si, q, qi) {
   toast(`${s.label}の(${q.number})をチェック中…`);
+  const pid = S.project.id, sid = s.sid;
   try {
     const r = await api('POST', 'ai/verify_one', { question: q, type: s.type });
-    q.verdict = r.verdict; markDirty();
-    S.highlight = { si, qi }; render({ keepScroll: true });
+    const live = liveQuestion(pid, sid, q);
+    if (!live) return lostResult();
+    live.verdict = r.verdict; markDirty();
+    const ls = liveSection(pid, sid);
+    S.highlight = { si: S.project.sections.indexOf(ls), qi: ls.questions.indexOf(live) }; render({ keepScroll: true });
     toast(r.verdict.has_alternate_answer ? '別解の可能性があります。内容を確認してください' : '別解は見つかりませんでした',
       r.verdict.has_alternate_answer ? 'error' : 'ok');
   } catch (e) { toast(e.message, 'error'); }
@@ -1890,13 +1937,16 @@ async function verifyOne(s, si, q, qi) {
 
 async function aiSection(si) {
   const s = S.project.sections[si];
-  if (!sectionMaterials(s).length) return toast(`${s.label}に素材を入れてから使ってください`, 'error');
+  if (!bigMaterials(si).length) return toast(`大問${s.no}に素材を入れてから使ってください`, 'error');
   if (!await confirmBox(`${s.label}（${SHORT[s.type]}）を、この大問の素材からAI（${aiName()}）で${s.count}問作ります。\n作成された問題は末尾に追加されます（数十秒かかります）。`, { ok: '作問する' })) return;
   await flushSave();
   toast('AIが作問しています…（そのままお待ちください）');
   try {
-    const r = await api('POST', 'ai/section', { pid: S.project.id, index: si });
-    r.questions.forEach(q => s.questions.push({ ...q, focus: '', kind: s.type }));
+    const pid = S.project.id, sid = s.sid;
+    const r = await api('POST', 'ai/section', { pid, index: si });
+    const live = liveSection(pid, sid);
+    if (!live) return lostResult();
+    r.questions.forEach(q => live.questions.push({ ...q, focus: '', kind: live.type }));
     renumber(); markDirty(); render({ keepScroll: true });
     toast(`${r.questions.length}問を追加しました` + (r.dropped ? `（出典のない${r.dropped}問は破棄）` : '') + `　${r.cost}`, 'ok');
   } catch (e) { toast(e.message, 'error'); }
@@ -1991,7 +2041,10 @@ function buildReorder(Q, toks) {
   const items = R.order.map((k, d) => lab(d) ? `${lab(d)}${R.style === 'num' ? '.' : ''} ${all[k]}` : all[k]);
   const before = units.slice(0, pre).join(' '), after = `${units.slice(n - suf).join(' ')}${final}`.trim();
   // 解答位置の行を出すときは、問題文には選択肢だけを置く（行は「I will (　) ( 34 ) … from」の形で別に出る）
-  res.body = R.line ? `［ ${items.join('　')} ］` : `${before}（ ${items.join(' / ')} ）${units.slice(n - suf).join(' ')}${final}`;
+  const lineBody = `［ ${items.join('　')} ］`;
+  const plainBody = `${before}（ ${items.join(' / ')} ）${units.slice(n - suf).join(' ')}${final}`;
+  res.body = R.line ? lineBody : plainBody;
+  res.altBody = R.line ? plainBody : lineBody;  // 問題カードで「解答位置の行」を切り替えたときの問題文
   res.units = units; res.pre = pre; res.suf = suf; res.texts = texts; res.chunks = chunks;
 
   const p1 = R.p1, p2 = R.p2;
@@ -2431,7 +2484,7 @@ function openQuick(init = {}) {
     };
     if (b.choices) { q.choices = b.choices; q.correct = b.correct; }
     if (Q.format === 'content_match' && Q.text.trim() && !Q.altTouched) q.alt_answer_risk = '【内容一致】根拠の本文: ' + Q.text.trim().slice(0, 200);
-    if (b.reorder) q.reorder = b.reorder;
+    if (b.reorder) q.reorder = { ...b.reorder, alt: (Q.ja.trim() ? Q.ja.trim() + '\n' : '') + (b.altBody || '') };
     let si = Q.target;
     if (si === 'new' || !p.sections[si]) {
       const type = kind === 'reorder_4th_8th' ? 'reorder_2nd_5th' : kind;
@@ -2516,15 +2569,19 @@ async function verifyAll() {
   if (!all.length) return toast('チェックできる問題がありません', 'error');
   S.verify = { done: 0, total: all.length };
   render({ keepScroll: true });
+  const pid = p.id;
   for (const [s, , q] of all) {
+    if (!S.project || S.project.id !== pid) { toast('別の試験を開いたので、別解チェックを途中で止めました', 'error'); break; }
     try {
       const r = await api('POST', 'ai/verify_one', { question: q, type: s.type });
-      q.verdict = r.verdict;
+      const live = liveQuestion(pid, s.sid, q);
+      if (live) live.verdict = r.verdict;
     } catch (e) { toast(e.message, 'error'); break; }
     S.verify.done++;
     if (S.step === 'check') render({ keepScroll: true });
   }
   S.verify = null;
+  if (!S.project || S.project.id !== pid) return;
   markDirty();
   render({ keepScroll: true });
   toast('AIによる別解チェックが終わりました', 'ok');
@@ -2725,11 +2782,12 @@ function paperView(kind) {
     const fields = (e.sheet_fields || '組,番,氏名,得点').split(',').map(x => x.trim()).filter(Boolean);
     paper.append(h('table', { class: 'sheet-head' }, h('tr', {}, fields.map(f => [h('td', { class: 'lbl' }, f), h('td', { class: f === '氏名' ? 'wide' : '' })]))));
   }
+  const bigShown = new Set();  // 大問の番号は、その大問で最初に問題がある設問の前に1回だけ（Wordと同じ）
   p.sections.forEach((s, si) => {
     if (!s.questions.length) return;
     const nums = plan[si];
     const pts = pointsLabel(s, nums.map(n => n.cell));
-    if (s.part === 1) paper.append(h('div', { class: 'paper-sec' }, e.heading === 'bracket' ? `【${s.no}】` : `${s.no}`));
+    if (s.part && !bigShown.has(s.no) && bigShown.add(s.no)) paper.append(h('div', { class: 'paper-sec' }, e.heading === 'bracket' ? `【${s.no}】` : `${s.no}`));
     paper.append(h('div', { class: s.part ? 'paper-part' : 'paper-sec' }, s.part ? `問${s.part}　${pts}`
       : e.heading === 'bracket' ? `【${s.no}】（${pts.slice(1, -1)}）` : `${s.no}　${pts}`));
     const slots = s.questions.map(slotsOf);

@@ -3,7 +3,7 @@
 generate直後・verify時・画面のチェックで必ず走らせる。LLMに頼らず確実に検出できるものは
 コードで検出する。
 """
-from .layout import answer_slots, apply_labels, q_points  # noqa: F401  (answer_slots は他モジュールも利用)
+from .layout import answer_slots, apply_labels, mark, q_points  # noqa: F401  (answer_slots は他モジュールも利用)
 
 
 def _lab(s) -> str:
@@ -98,6 +98,14 @@ def check_choices(draft) -> list[str]:
     for s in draft["sections"]:
         for q in s["questions"]:
             ch = q.get("choices")
+            bi = q.get("bank_idx")
+            if not ch and isinstance(bi, int):  # 語群から選ぶ問題: 解答の記号が語群の位置と合っているか
+                want = mark(s.get("bank_style") or s.get("choice_style") or "1", bi)
+                if bi >= len(s.get("bank") or []):
+                    issues.append(f"{_lab(s)}({q['number']}): 正解の語が語群にない")
+                elif str(q.get("answer", "")).strip() != want:
+                    issues.append(f"{_lab(s)}({q['number']}): 解答の記号（{q.get('answer')}）が語群の正解（{want}）と合っていない")
+                continue
             if not ch:
                 continue
             key = f"{_lab(s)}({q['number']})"
@@ -109,6 +117,10 @@ def check_choices(draft) -> list[str]:
             c = q.get("correct")
             if isinstance(c, int) and not 0 <= c < len(ch):
                 issues.append(f"{key}: 正解の番号が選択肢の範囲外")
+            elif not isinstance(c, int):
+                issues.append(f"{key}: 正解の選択肢が選ばれていない（●で正解を選んでください）")
+            elif str(q.get("answer", "")).strip() != mark(s.get("choice_style") or "1", c):
+                issues.append(f"{key}: 解答の記号（{q.get('answer')}）が正解の選択肢（{mark(s.get('choice_style') or '1', c)}）と合っていない")
     return issues
 
 

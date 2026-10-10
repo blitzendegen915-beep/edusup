@@ -135,7 +135,15 @@ async function loadConfig() {
   try { S.userTemplates = (await api('GET', 'templates')).templates; } catch { S.userTemplates = []; }
 }
 
-function allTemplates() { return [...BUILTIN_TEMPLATES, ...(S.userTemplates || [])]; }
+/** カテゴリーの改名（旧名→新名）をたどる。標準テンプレートのカテゴリーも改名に合わせる */
+function catAlias(c) {
+  const al = S.config?.aliases || {};
+  for (let i = 0; i < 10 && al[c]; i++) c = al[c];
+  return c;
+}
+function allTemplates() {
+  return [...BUILTIN_TEMPLATES.map(t => ({ ...t, category: catAlias(t.category) })), ...(S.userTemplates || [])];
+}
 function findTemplate(id) { return allTemplates().find(t => t.id === id); }
 
 /** カテゴリーの一覧（設定の順。試験やテンプレートにだけあるカテゴリーも末尾に足す） */
@@ -154,6 +162,7 @@ function sectionsFromTemplate(t) {
     ...newSection(s.type, +s.count || 0),
     new_big: s.new_big !== false,
     big_title: s.big_title || '',
+    order: s.order || '',
     points_each: +s.points_each || 0,
     instructions: s.instructions ?? DEFAULT_INSTR[s.type] ?? '',
     choice_style: s.choice_style || DEFAULT_STYLE[s.type] || '1',

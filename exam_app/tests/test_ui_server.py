@@ -190,6 +190,18 @@ def test_all():
         st, r = call("PUT", f"/api/projects/{cp['id']}", {"exam": cp["exam"], "rev": rev0}, headers={"X-Client-Id": "tabB"})
         assert st == 200  # 最後に保存したのが自分なら通す（素材の追加などで版番号が進んでも止めない）
 
+        # 長すぎる本文は黙って切らずにエラー（本文の欠落事故を防ぐ）
+        st, r = call("PUT", f"/api/projects/{cp['id']}", {"sections": [{"type": "auto", "passage": "a" * 200_001}], "force": True})
+        assert st == 400 and "長すぎ" in r["error"]
+        # 同時に出力しても壊れない
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(4) as ex:
+            res = list(ex.map(lambda _: call("POST", f"/api/projects/{cp['id']}/export")[0], range(4)))
+        assert res == [200] * 4, res
+        # カテゴリーを改名すると別名の表が残る（標準テンプレートのカテゴリーにも使う）
+        st, r = call("PUT", "/api/config", {"categories": ["定期考査", "単語テスト2"], "rename": {"単語テスト": "単語テスト2"}})
+        assert r["aliases"]["単語テスト"] == "単語テスト2" and r["aliases"]["英単語テスト"] == "単語テスト2", r
+
         # 版の履歴（保存の前の内容が残り、戻せる）・B版（選択肢の並べ替え）
         server.HISTORY_GAP = 0
         st, r = call("POST", "/api/projects", {"title": "版", "written_points": 2, "sections": [
@@ -255,6 +267,28 @@ def test_all():
             assert "内容一致を2問" in r["prompt"] and "Tom likes dogs." in r["prompt"]
             st, u = call("GET", "/api/usage")
             assert u["month"]["calls"] == 2 and u["month"]["cost_usd"] > 0 and u["recent"][0]["task"]
+            # 同時にAIを呼んでも使用量を二重に記録しない
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(3) as ex:
+                list(ex.map(lambda _: call("POST", "/api/ai/student", {"pid": lp}), range(3)))
+            st, u = call("GET", "/api/usage")
+            assert u["month"]["calls"] == 5, u["month"]
+            # 一括作問は、その大問の素材（と共通の素材）だけを使う。他の大問の素材は渡さない
+            seen.clear()
+
+            def fake_section(sec, items, ctx):
+                seen["refs"] = [it["ref"] for it in items]
+                return {"questions": []}
+            generate.make_section, orig_sec = fake_section, generate.make_section
+            st, r = call("POST", "/api/projects", {"title": "2大問", "sections": [
+                {"type": "fill_blank", "count": 1}, {"type": "fill_blank", "count": 1, "new_big": False},
+                {"type": "fill_blank", "count": 1}]})
+            mp = r["project"]
+            call("POST", f"/api/projects/{mp['id']}/materials", {"name": "大問1の本文", "text": "A.", "sid": mp["sections"][0]["sid"]})
+            call("POST", f"/api/projects/{mp['id']}/materials", {"name": "大問2の本文", "text": "B.", "sid": mp["sections"][2]["sid"]})
+            st, r = call("POST", "/api/ai/section", {"pid": mp["id"], "index": 1})   # 大問1 問2
+            generate.make_section = orig_sec
+            assert st == 200 and seen["refs"] == ["大問1の本文"], seen
         finally:
             generate.provider_ready, generate.make_order, generate.virtual_student = orig
 

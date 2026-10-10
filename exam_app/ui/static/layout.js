@@ -44,7 +44,7 @@ function pointsLabel(s, labels) {
   // いちばん多い配点を基準にする（同数なら大問の配点）
   const pts = s.questions.map(q => qPoints(s, q));
   const score = v => pts.filter(x => x === v).length * 2 + (v === (+s.points_each || 0) ? 1 : 0);
-  const base = pts.length ? [...new Set(pts)].sort((a, b) => score(b) - score(a))[0] : 0;
+  const base = pts.length ? [...new Set(pts)].sort((a, b) => score(b) - score(a) || a - b)[0] : 0;  // 同点なら小さい配点（layout.py と同じ）
   const odd = pts.map((p, i) => [i, p]).filter(([, p]) => p !== base);
   if (!odd.length) return `【${base}点×${s.questions.length}】`;
   return `【${base}点×${s.questions.length - odd.length}・${odd.map(([i, p]) => `${labels ? labels[i] : `(${i + 1})`}のみ${p}点`).join('・')}】`;
@@ -104,6 +104,9 @@ function syncChoiceAnswers(s) {
   s.questions.forEach(q => {
     if (Array.isArray(q.choices) && q.choices.length && Number.isInteger(q.correct)) {
       q.answer = markOf(s.choice_style, q.correct);
+      q.answer_slots = [q.answer];
+    } else if (Number.isInteger(q.bank_idx)) {  // 語群から選ぶ問題（英英定義など）
+      q.answer = markOf(s.bank_style || s.choice_style, q.bank_idx);
       q.answer_slots = [q.answer];
     }
   });

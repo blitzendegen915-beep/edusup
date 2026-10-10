@@ -149,6 +149,20 @@ def test_big_question_groups():
         assert "問1　【2点×1】" in sheet
 
 
+def test_choice_answer_checks():
+    """正解の選択肢と解答の記号のずれ・語群の問題の記号のずれを見つける（模範解答の誤り防止）。"""
+    d = _draft(written_points=2)
+    d["sections"] = [{"no": 1, "type": "choice_4", "points_each": 1, "count": 2, "choice_style": "ア", "bank": ["x", "y", "z"],
+                      "questions": [
+                          {"number": 1, "body": "Q", "choices": ["a", "b"], "correct": 1, "answer": "ア", "source_ref": "s", "alt_answer_risk": "x"},
+                          {"number": 2, "body": "def", "bank_idx": 2, "answer": "イ", "source_ref": "s", "alt_answer_risk": "x"}]}]
+    issues = checks.run_all(d)
+    assert any("正解の選択肢（イ）" in i for i in issues), issues
+    assert any("語群の正解（ウ）" in i for i in issues), issues
+    d["sections"][0]["questions"][0].pop("correct")
+    assert any("正解の選択肢が選ばれていない" in i for i in checks.run_all(d))
+
+
 def test_extract_three_layers():
     folder = Path(__file__).resolve().parents[2] / "materials"
     if not folder.is_dir():  # 配布用ZIPには試験の実物（materials/）を入れていない
