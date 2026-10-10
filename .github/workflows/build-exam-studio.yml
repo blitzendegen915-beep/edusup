@@ -17,6 +17,8 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"  # Windows の画面の文字コード（cp1252）で日本語の表示が失敗しないように
     steps:
       - uses: actions/checkout@v4
 
