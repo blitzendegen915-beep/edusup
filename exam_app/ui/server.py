@@ -53,10 +53,11 @@ _lock = threading.RLock()
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str, extra: dict | None = None):
         super().__init__(message)
         self.status = status
         self.message = message
+        self.extra = extra or {}
 
 
 # ---------------------------------------------------------------- 保存領域
@@ -145,11 +146,17 @@ def _variant(draft: dict, seed: str) -> dict:
     return v
 
 
+# リクエストごとの呼び出し元（ブラウザのタブ）。同じ試験を2つの画面で開いたときの上書き事故を防ぐ
+_ctx = threading.local()
+
+
 def _write(p: dict) -> dict:
     d = WORKSPACE / p["id"]
     d.mkdir(parents=True, exist_ok=True)
     _snapshot(d)
     p["updated_at"] = _now()
+    p["rev"] = int(p.get("rev") or 0) + 1          # 保存のたびに増える版番号
+    p["writer"] = getattr(_ctx, "client", "") or ""  # 最後に保存した画面
     tmp = d / "project.json.tmp"
     tmp.write_text(json.dumps(p, ensure_ascii=False, indent=1), encoding="utf-8")
     os.replace(tmp, d / "project.json")  # 書き込み途中で落ちても壊れないように
@@ -737,6 +744,11 @@ def route(method: str, parts: list, body) -> object:
                 b = body()
                 with _lock:
                     p = _load(pid)
+                    base = b.get("rev")
+                    me = getattr(_ctx, "client", "")
+                    if (isinstance(base, int) and not b.get("force") and base != int(p.get("rev") or 0)
+                            and p.get("writer") and p.get("writer") != me):
+                        raise ApiError(409, "別の画面でこの試験が更新されています", {"rev": p.get("rev"), "updated_at": p.get("updated_at")})
                     if "exam" in b:
                         p["exam"] = _clean_exam(b["exam"])
                     if "sections" in b:
@@ -744,7 +756,7 @@ def route(method: str, parts: list, body) -> object:
                     if isinstance(b.get("checklist"), dict):
                         p["checklist"] = {str(k): bool(v) for k, v in b["checklist"].items()}
                     _write(p)
-                return {"project": {"id": p["id"], "updated_at": p["updated_at"]}}
+                return {"project": {"id": p["id"], "updated_at": p["updated_at"], "rev": p["rev"]}}
             if method == "DELETE":
                 d = _project_dir(pid)
                 trash = WORKSPACE / ".trash"
@@ -1023,6 +1035,7 @@ class Handler(BaseHTTPRequestHandler):
             self._guard(method)
             if path.startswith("/api/"):
                 parts = [unquote(x) for x in path[5:].split("/") if x]
+                _ctx.client = str(self.headers.get("X-Client-Id") or "")[:40]
                 cache = {}
 
                 def body():  # 本文は1回しか読めないので、2回目以降は読んだ結果を返す
@@ -1046,7 +1059,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 raise ApiError(404, "見つかりません")
         except ApiError as e:
-            self._json({"error": e.message}, e.status)
+            self._json({**e.extra, "error": e.message}, e.status)
         except SystemExit as e:  # generate.client_or_die() の案内メッセージ
             self._json({"error": str(e)}, 400)
         except Exception as e:  # noqa: BLE001 — 画面にエラーを出して落ちないようにする

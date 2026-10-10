@@ -177,6 +177,19 @@ def test_all():
         st, r = call("POST", "/api/restore", {"data": base64.b64encode(buf.getvalue()).decode()})
         assert st == 200 and r["added"] == 0 and not (tmp / "evil.txt").exists()
 
+        # 別の画面で更新された試験を、古い内容で上書きしない（409）。同じ画面からなら通る
+        st, r = call("POST", "/api/projects", {"title": "競合", "sections": []})
+        cp = r["project"]
+        rev0 = cp["rev"]
+        st, r = call("PUT", f"/api/projects/{cp['id']}", {"exam": cp["exam"], "rev": rev0}, headers={"X-Client-Id": "tabA"})
+        assert st == 200 and r["project"]["rev"] == rev0 + 1
+        st, r = call("PUT", f"/api/projects/{cp['id']}", {"exam": cp["exam"], "rev": rev0}, headers={"X-Client-Id": "tabB"})
+        assert st == 409 and r["rev"] == rev0 + 1, (st, r)
+        st, r = call("PUT", f"/api/projects/{cp['id']}", {"exam": cp["exam"], "rev": rev0, "force": True}, headers={"X-Client-Id": "tabB"})
+        assert st == 200
+        st, r = call("PUT", f"/api/projects/{cp['id']}", {"exam": cp["exam"], "rev": rev0}, headers={"X-Client-Id": "tabB"})
+        assert st == 200  # 最後に保存したのが自分なら通す（素材の追加などで版番号が進んでも止めない）
+
         # 版の履歴（保存の前の内容が残り、戻せる）・B版（選択肢の並べ替え）
         server.HISTORY_GAP = 0
         st, r = call("POST", "/api/projects", {"title": "版", "written_points": 2, "sections": [

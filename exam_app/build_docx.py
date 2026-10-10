@@ -52,6 +52,43 @@ def _new_doc() -> Document:
     return doc
 
 
+def _page_numbers(doc):
+    """フッター中央にページ番号（－ 1 －）を入れる。"""
+    for sec in doc.sections:
+        p = sec.footer.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p, "－ ", 9)
+        fld = OxmlElement("w:fldSimple")
+        fld.set(qn("w:instr"), "PAGE")
+        r = OxmlElement("w:r")
+        t = OxmlElement("w:t")
+        t.text = "1"
+        r.append(t)
+        fld.append(r)
+        p._p.append(fld)
+        _run(p, " －", 9)
+
+
+def _keep(paras):
+    """1つの問題の行を、ページの途中で分けない（最後の行以外を「次の段落と分離しない」に）。"""
+    for p in paras[:-1]:
+        p.paragraph_format.keep_with_next = True
+
+
+def _finish(doc, out: Path) -> Path:
+    """仕上げ: 表の行をページの途中で分割しない（本文の枠は長いので除く）・ページ番号。"""
+    for t in doc.tables:
+        if len(t.rows) == 1 and len(t.columns) == 1:
+            continue  # 本文の枠
+        for row in t.rows:
+            trPr = row._tr.get_or_add_trPr()
+            if trPr.find(qn("w:cantSplit")) is None:
+                trPr.append(OxmlElement("w:cantSplit"))
+    _page_numbers(doc)
+    doc.save(str(out))
+    return out
+
+
 def _run(p, text, size=None, bold=False, underline=False, color=None):
     run = p.add_run(text)
     if size:
@@ -82,8 +119,10 @@ def _rich(p, text, size=None, bold=False):
         _run(p, text[pos:], size, bold)
 
 
-def _para(parent, text="", size=None, bold=False, align=None, indent_mm=0, before=0, after=None):
+def _para(parent, text="", size=None, bold=False, align=None, indent_mm=0, before=0, after=None, keep=False):
     p = parent.add_paragraph()
+    if keep:  # 見出しは次の段落と同じページに
+        p.paragraph_format.keep_with_next = True
     if align is not None:
         p.alignment = align
     pf = p.paragraph_format
@@ -155,9 +194,14 @@ def _choice_table(doc, rows, style, lead=True):
     t = doc.add_table(rows=len(rows), cols=cols)
     _no_borders(t)
     # 列幅: 問題文の列は中身に合わせ（番号だけなら細く）、残りを選択肢で等分
-    head_mm = (12 if all(len(h or "") <= 5 for h, _ in rows) else 52) if lead else 8
+    head_mm = (12 if all(len(h or "") <= 5 for h, _ in rows) else 52) if lead else 10
     choice_mm = (TEXT_MM - head_mm) / max(1, width)
     _widths(t, [head_mm] + [choice_mm] * width if lead else [choice_mm] * width)
+    if not lead:  # 問題文の下に並べる選択肢は、問題文の英文と同じだけ字下げする
+        ind = OxmlElement("w:tblInd")
+        ind.set(qn("w:w"), str(int(head_mm * 56.7)))
+        ind.set(qn("w:type"), "dxa")
+        t._tbl.tblPr.append(ind)
     for r, (head, choices) in enumerate(rows):
         cells = t.rows[r].cells
         if lead:
@@ -236,28 +280,34 @@ def _questions(doc, sec, nums):
     else:
         for q, n in zip(qs, nums):
             lines = (q.get("body") or "").split("\n")
+            block = []
             if not lines[0].strip() and q.get("choices") and not _short_choices(q["choices"]):
                 # 問題文のない内容一致: 番号のすぐ横から選択肢を並べる
                 for k, line in enumerate(layout.choice_line(style, q["choices"])):
                     para = _para(doc, (f"{n['label']}　" if k == 0 else "") + line, indent_mm=10, before=3 if k == 0 else 0)
                     para.paragraph_format.first_line_indent = Mm(-8) if k == 0 else None
+                    block.append(para)
+                _keep(block)
                 continue
-            _para(doc, f"{n['label']}　{lines[0]}", indent_mm=2, before=3)
+            block.append(_para(doc, f"{n['label']}　{lines[0]}", indent_mm=2, before=3))
             for line in lines[1:]:
-                _para(doc, line, indent_mm=10)
+                block.append(_para(doc, line, indent_mm=10))
             labels = n["slots"] or q.get("slot_labels") or []
             line = layout.reorder_line(q, labels)
             if line:
-                _para(doc, line, indent_mm=10, before=2)
+                block.append(_para(doc, line, indent_mm=10, before=2))
             if q.get("choices"):
                 if _short_choices(q["choices"]):
+                    block.append(None)  # 直後の選択肢の表とも離さない
+                    _keep([b for b in block if b is not None] + [None])
                     _choice_table(doc, [(None, q["choices"])], style, lead=False)
-                else:  # 文の選択肢（内容一致など）は1行に1つ
-                    for line in layout.choice_line(style, q["choices"]):
-                        _para(doc, line, indent_mm=10)
+                    continue
+                for line in layout.choice_line(style, q["choices"]):  # 文の選択肢（内容一致など）は1行に1つ
+                    block.append(_para(doc, line, indent_mm=10))
+            _keep(block)
     bank = [b for b in (sec.get("bank") or []) if str(b).strip()]
     if bank:
-        _para(doc, "【語群】", 10.5, True, before=4)
+        _para(doc, "【語群】", 10.5, True, before=4, keep=True)
         items = layout.choice_line(sec.get("bank_style") or style, bank)
         t = doc.add_table(rows=math.ceil(len(items) / 5), cols=5)
         _no_borders(t)
@@ -281,20 +331,18 @@ def build_exam(draft: dict, outdir: Path) -> Path:
             continue  # 未作成の大問は用紙に出さない（チェックで警告される）
         multi = len(g) > 1
         if multi:
-            _para(doc, layout.big_heading(exam, [secs[i] for i in g]), 10.5, True, before=10, after=4)
+            _para(doc, layout.big_heading(exam, [secs[i] for i in g]), 10.5, True, before=10, after=4, keep=True)
         else:
-            _para(doc, layout.heading(exam, head), 10.5, True, before=10, after=4)
+            _para(doc, layout.heading(exam, head), 10.5, True, before=10, after=4, keep=True)
         if str(head.get("passage") or "").strip():
             _passage(doc, head["passage"])
         for i in made:
             sec, nums = secs[i], plan[i]
             if multi:
-                _para(doc, layout.part_heading(exam, sec), 10.5, True, before=6, after=2)
+                _para(doc, layout.part_heading(exam, sec), 10.5, True, before=6, after=2, keep=True)
             _questions(doc, sec, nums)
     _para(doc, exam.get("end_note") or "問題は以上です。", align=RIGHT, before=12)
-    out = outdir / "exam_draft.docx"
-    doc.save(str(out))
-    return out
+    return _finish(doc, outdir / "exam_draft.docx")
 
 
 def _sheet_header(doc, exam):
@@ -329,7 +377,7 @@ def build_answersheet(draft: dict, outdir: Path, model: bool) -> Path:
         order += [(i, None) for i in made]
     for i, big in order:
         if big is not None:
-            _para(doc, big, 11, True, before=8, after=0)
+            _para(doc, big, 11, True, before=8, after=0, keep=True)
             continue
         sec, nums = secs[i], plan[i]
         qs = sec.get("questions", [])
@@ -338,7 +386,7 @@ def build_answersheet(draft: dict, outdir: Path, model: bool) -> Path:
             head = f"問{sec['part']}　{pts}"
         else:
             head = f"【{sec['no']}】（{pts.strip('【】')}）" if exam.get("heading") == "bracket" else f"{sec['no']}　{pts}"
-        _para(doc, head, 10.5, True, before=8, after=2)
+        _para(doc, head, 10.5, True, before=8, after=2, keep=True)
         slots = [answer_slots(q) for q in qs]
         width = max(len(s) for s in slots)
         per = min(layout.per_row(sec), len(qs))  # 問題が少ない設問は、余りのグレーの枠を作らない
@@ -383,9 +431,7 @@ def build_answersheet(draft: dict, outdir: Path, model: bool) -> Path:
     want = exam.get("written_points") or total
     _para(doc, f"合計　　　　／{want}", 11, True, RIGHT, before=12)
     name = "modelanswer_draft.docx" if model else "answersheet_draft.docx"
-    out = outdir / name
-    doc.save(str(out))
-    return out
+    return _finish(doc, outdir / name)
 
 
 def build_all(draft: dict, outdir: Path) -> list:

@@ -64,6 +64,9 @@ const ICONS = {
   logo: '<path d="M7 7h10M7 12h10M7 17h6"/>',
   clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   chart: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+  undo: '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>',
+  redo: '<polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/>',
+  command: '<path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/>',
   eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
   search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
 };
@@ -75,21 +78,36 @@ function icon(name, size = 16) {
   return span;
 }
 
+// この画面（タブ）の識別子。同じ試験を2つの画面で開いたときの上書き事故を防ぐ
+const CLIENT_ID = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
 async function api(method, path, body) {
+  const isAI = path.startsWith('ai/');
+  const ctl = isAI ? new AbortController() : null;
+  if (isAI && typeof aiBusyStart === 'function') aiBusyStart(path, ctl);
   let res;
   try {
     res = await fetch('/api/' + path, {
-      method,
-      headers: { 'Content-Type': 'application/json', 'X-Exam-Studio': '1' },
+      method, signal: ctl?.signal,
+      headers: { 'Content-Type': 'application/json', 'X-Exam-Studio': '1', 'X-Client-Id': CLIENT_ID },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-  } catch {
-    throw new Error('ツールのサーバーに接続できません。黒い画面（起動ウィンドウ）が開いたままか確認してください');
+  } catch (e) {
+    if (isAI && typeof aiBusyEnd === 'function') aiBusyEnd();
+    if (e.name === 'AbortError') { const err = new Error('中止しました'); err.aborted = true; throw err; }
+    const err = new Error('ツールのサーバーに接続できません。黒い画面（起動ウィンドウ）が開いたままか確認してください');
+    err.offline = true;
+    throw err;
   }
   let data = {};
   try { data = await res.json(); } catch { /* 本文なし */ }
-  if (!res.ok) throw new Error(data.error || `エラーが発生しました（${res.status}）`);
-  if (path.startsWith('ai/') && typeof refreshUsage === 'function') setTimeout(refreshUsage, 0);  // 使用量の表示を更新
+  if (isAI && typeof aiBusyEnd === 'function') aiBusyEnd();
+  if (!res.ok) {
+    const err = new Error(data.error || `エラーが発生しました（${res.status}）`);
+    err.status = res.status; err.data = data;
+    throw err;
+  }
+  if (isAI && typeof refreshUsage === 'function') setTimeout(refreshUsage, 0);  // 使用量の表示を更新
   return data;
 }
 
@@ -386,27 +404,143 @@ function markDirty() {
   renderSaveState();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveNow, 600);
+  clearTimeout(UNDO.timer);
+  UNDO.timer = setTimeout(checkpoint, 700);  // 入力が止まったら「元に戻す」の区切りを作る
   refreshLive();
 }
 
-async function saveNow() {
+let retryTimer = null, retryCount = 0;
+
+async function saveNow(force = false) {
   clearTimeout(saveTimer);
   const p = S.project;
   if (!p) return;
+  if (S.conflict) return;  // 競合の解決待ち
   if (saving) { pendingSave = true; return; }
   saving = true;
   S.saveState = 'saving';
   renderSaveState();
   try {
-    await api('PUT', `projects/${p.id}`, { exam: p.exam, sections: p.sections, checklist: p.checklist || {} });
+    const r = await api('PUT', `projects/${p.id}`, { exam: p.exam, sections: p.sections, checklist: p.checklist || {}, rev: p.rev, force });
+    p.rev = r.project.rev;
     if (S.saveState === 'saving') S.saveState = 'saved';
+    retryCount = 0; clearTimeout(retryTimer);
+    draftClear(p.id);
   } catch (e) {
     S.saveState = 'error';
-    toast('保存に失敗しました: ' + e.message, 'error');
+    draftKeep(p);  // 保存できなかった内容はブラウザ内に退避（次に開いたとき復元できる）
+    if (e.status === 409) { saving = false; renderSaveState(); return conflictDialog(e.data); }
+    if (e.offline || !e.status || e.status >= 500) {
+      // 一時的なエラーは自動で再試行（3秒・6秒・12秒…最大1分おき）
+      const wait = Math.min(60, 3 * 2 ** retryCount++);
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(() => saveNow(), wait * 1000);
+      if (retryCount === 1) toast(`保存できませんでした。${wait}秒後に自動でやり直します（内容はこの画面に残っています）`, 'error');
+    } else toast('保存に失敗しました: ' + e.message, 'error');
   }
   saving = false;
   renderSaveState();
   if (pendingSave) { pendingSave = false; await saveNow(); }
+}
+
+// ---- 緊急下書き（保存できなかったときだけ、ブラウザ内に残す）
+const DRAFT_KEY = id => `examstudio:draft:${id}`;
+function draftKeep(p) {
+  try { localStorage.setItem(DRAFT_KEY(p.id), JSON.stringify({ at: new Date().toLocaleString('ja-JP'), exam: p.exam, sections: p.sections })); } catch { /* 容量不足など */ }
+}
+function draftClear(id) { try { localStorage.removeItem(DRAFT_KEY(id)); } catch { /* 無視 */ } }
+function draftOffer(p) {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(DRAFT_KEY(p.id)) || 'null'); } catch { d = null; }
+  if (!d || !Array.isArray(d.sections)) return;
+  // 閉じる直前に退避した内容が、実は保存できていた場合は聞かずに消す
+  const digest = x => JSON.stringify([x.exam?.title, x.exam?.written_points, (x.sections || []).map(s => [s.type, s.count, s.points_each, s.instructions, s.passage || '',
+    s.questions.map(q => [q.body, q.answer, q.choices || null, q.source_ref])])]);
+  if (digest(d) === digest(p)) return draftClear(p.id);
+  openModal({
+    title: '保存できなかった変更があります', size: 'md',
+    body: h('div', { class: 'stack' },
+      h('p', { style: { margin: 0 } }, `${d.at} の時点で、サーバーに保存できなかった変更がこのブラウザに残っています。`),
+      h('p', { class: 'muted', style: { margin: 0 } }, '「復元する」で、その変更をこの試験に戻します（今の内容は版の履歴に残ります）。')),
+    actions: [
+      { label: '破棄する', fn: c => { draftClear(p.id); c(); } },
+      { label: '復元する', kind: 'primary', fn: c => {
+        p.exam = d.exam; p.sections = d.sections; applyLabels(p.sections);
+        c(); renumber(); markDirty(); resetUndo(); render(); toast('保存できなかった変更を復元しました', 'ok');
+      } },
+    ],
+  });
+}
+
+/** 別の画面（タブ・PC）で同じ試験が更新されていたとき */
+function conflictDialog(info) {
+  S.conflict = true;
+  const p = S.project;
+  openModal({
+    title: '別の画面でこの試験が更新されています', size: 'md',
+    body: h('div', { class: 'stack' },
+      h('p', { style: { margin: 0 } }, `この試験は、ほかのタブまたは別の画面で更新されました（${info?.updated_at || ''}）。どちらの内容を残すか選んでください。`),
+      h('div', { class: 'warn-box info' }, icon('clock', 14), 'どちらを選んでも、消える側の内容は「版の履歴」に残るので、あとから戻せます。')),
+    actions: [
+      { label: '向こうの内容を読み込む', fn: async c => {
+        S.conflict = false; c(); S.saveState = 'saved'; draftClear(p.id);
+        await openProject(p.id, S.step); toast('最新の内容を読み込みました', 'ok');
+      } },
+      { label: 'この画面の内容で上書き', kind: 'primary', fn: async c => {
+        S.conflict = false; c(); await saveNow(true); toast('この画面の内容で保存しました', 'ok');
+      } },
+    ],
+    onClose: () => { S.conflict = false; },
+  });
+}
+
+// ---- 元に戻す・やり直す（入力が止まるごとに区切りを作り、最大100回分）
+const UNDO = { stack: [], redo: [], snap: null, timer: null };
+function projectState() { return JSON.stringify({ exam: S.project.exam, sections: S.project.sections }); }
+function resetUndo() { UNDO.stack = []; UNDO.redo = []; UNDO.snap = S.project ? projectState() : null; refreshUndoButtons(); }
+function checkpoint() {
+  clearTimeout(UNDO.timer);
+  if (!S.project) return;
+  const cur = projectState();
+  if (UNDO.snap != null && cur !== UNDO.snap) {
+    UNDO.stack.push(UNDO.snap);
+    if (UNDO.stack.length > 100) UNDO.stack.shift();
+    UNDO.redo = [];
+  }
+  UNDO.snap = cur;
+  refreshUndoButtons();
+}
+function applyState(json) {
+  const st = JSON.parse(json);
+  S.project.exam = st.exam; S.project.sections = st.sections;
+  applyLabels(S.project.sections);
+  UNDO.snap = json;
+  S.openQ = new Set(); S.issues = null;
+  if (S.secIdx >= S.project.sections.length) S.secIdx = Math.max(0, S.project.sections.length - 1);
+  S.saveState = 'dirty'; clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 400);
+  render({ keepScroll: true });
+  refreshUndoButtons();
+}
+function undo() {
+  if (!S.project) return;
+  checkpoint();
+  if (!UNDO.stack.length) return toast('これ以上は元に戻せません（前の版は「履歴」から戻せます）');
+  UNDO.redo.push(UNDO.snap);
+  applyState(UNDO.stack.pop());
+  toast('元に戻しました', 'info', { label: 'やり直す', fn: redo });
+}
+function redo() {
+  if (!S.project) return;
+  checkpoint();
+  if (!UNDO.redo.length) return toast('やり直す操作はありません');
+  UNDO.stack.push(UNDO.snap);
+  applyState(UNDO.redo.pop());
+  toast('やり直しました');
+}
+function refreshUndoButtons() {
+  const u = $('#undo-btn'), r = $('#redo-btn');
+  if (u) u.disabled = !UNDO.stack.length && UNDO.snap === (S.project ? projectState() : null);
+  if (r) r.disabled = !UNDO.redo.length;
 }
 
 async function flushSave() {
@@ -429,7 +563,10 @@ function renderSaveState() {
 }
 
 window.addEventListener('beforeunload', e => {
-  if (S.saveState === 'dirty' || S.saveState === 'saving') { saveNow(); e.preventDefault(); e.returnValue = ''; }
+  if (S.saveState === 'dirty' || S.saveState === 'saving' || S.saveState === 'error') {
+    if (S.project) draftKeep(S.project);  // 閉じる直前の内容をブラウザ内に退避（保存が間に合わなくても消えない）
+    saveNow(); e.preventDefault(); e.returnValue = '';
+  }
 });
 
 // ================================================================ 画面の骨組み
@@ -502,7 +639,7 @@ function renderHome() {
           oninput: e => { S.search = e.target.value; const g = $('#proj-grid'); if (g) g.replaceWith(projectGrid()); } })) : null),
     S.homeTab === 'templates' ? renderTemplatesView() :
       list == null ? h('div', { class: 'loading' }, '読み込み中…') :
-        [categoryChips(), projectGrid()]);
+        !list.length ? welcomeCard() : [categoryChips(), projectGrid()]);
 }
 
 /** カテゴリーで絞り込むチップ */
@@ -693,8 +830,11 @@ async function openProject(id, step) {
     S.issues = null;
     S.exportFiles = null;
     S.saveState = 'saved';
+    S.conflict = false;
     if (location.hash !== '#/p/' + id) history.pushState(null, '', '#/p/' + id);
+    resetUndo();
     render();
+    draftOffer(p);
   } catch (e) {
     toast(e.message, 'error');
     throw e;
@@ -727,6 +867,10 @@ function renderWorkspace() {
       h('header', { class: 'topbar' },
         h('input', { id: 'title-input', class: 'title-input', value: S.project.exam.title, placeholder: '試験名', 'aria-label': '試験名',
           oninput: e => { S.project.exam.title = e.target.value; markDirty(); } }),
+        h('div', { class: 'tb-group' },
+          h('button', { id: 'undo-btn', class: 'icon-btn', title: '元に戻す（Ctrl+Z）', 'aria-label': '元に戻す', onclick: undo }, icon('undo', 16)),
+          h('button', { id: 'redo-btn', class: 'icon-btn', title: 'やり直す（Ctrl+Shift+Z）', 'aria-label': 'やり直す', onclick: redo }, icon('redo', 16))),
+        h('button', { class: 'btn ghost sm cmd-btn', onclick: () => openPalette(), title: 'なんでも検索・実行（Ctrl+K）' }, icon('search', 14), h('span', {}, '検索・操作'), h('kbd', {}, 'Ctrl K')),
         h('button', { class: 'btn ghost sm preview-btn', onclick: historyDialog, title: '前の版に戻す（2分おきに自動で残っています）' }, icon('clock', 15), '履歴'),
         h('button', { class: 'btn ghost sm preview-btn', onclick: previewDialog, title: '問題用紙・解答用紙・模範解答の仕上がりを見る（P）' }, icon('eye', 15), 'プレビュー'),
         renderMeter(),
@@ -1408,7 +1552,7 @@ async function refreshUsage() {
   const c = $('#usage-chip'); if (c) c.replaceWith(usageChip());
 }
 
-const yen = usd => usd > 0 && usd * 150 < 1 ? '1円未満' : `約${Math.round(usd * 150).toLocaleString()}円`;  // 1ドル150円で換算（目安）
+const yen = usd => !usd ? '0円' : usd * 150 < 1 ? '1円未満' : `約${Math.round(usd * 150).toLocaleString()}円`;  // 1ドル150円で換算（目安）
 
 function usageChip() {
   const u = S.usage;
@@ -2737,6 +2881,14 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     if (S.project) saveNow().then(() => toast('保存しました', 'ok'));
   }
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '');
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); }
+  if ((e.ctrlKey || e.metaKey) && !typing && S.project && !modalStack.length) {
+    // 入力欄の中では、ブラウザ本来の「元に戻す」（文字単位）を使う
+    if (e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+  }
+  if (e.key === '?' && !typing && !modalStack.length) { e.preventDefault(); shortcutsDialog(); }
 });
 
 window.addEventListener('popstate', async () => {
