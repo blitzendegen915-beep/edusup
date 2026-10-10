@@ -170,7 +170,7 @@ def _str_list(val, limit=40) -> list:
 
 def _clean_question(q: dict, number: int) -> dict:
     out = {k: str(q.get(k) or "") for k in
-           ("body", "answer", "source_ref", "alt_answer_risk", "focus", "kind", "script")}
+           ("body", "answer", "source_ref", "alt_answer_risk", "focus", "kind", "script", "origin")}
     out["number"] = number
     for key in ("answer_slots", "slot_labels"):
         val = q.get(key)
@@ -193,6 +193,9 @@ def _clean_question(q: dict, number: int) -> dict:
         out["bank_idx"] = q["bank_idx"]  # 語群のどれが正解か（記号を変えても答えを振り直せるように）
     if isinstance(q.get("verdict"), dict):
         out["verdict"] = q["verdict"]
+    rate = q.get("rate")  # 実施後の正答率（％）
+    if isinstance(rate, (int, float)) and not isinstance(rate, bool) and 0 <= rate <= 100:
+        out["rate"] = round(float(rate), 1)
     return out
 
 
@@ -313,6 +316,88 @@ def _list_projects() -> list:
     return sorted(items, key=lambda x: x["updated_at"], reverse=True)
 
 
+# ---------------------------------------------------------------- 問題バンク（過去の試験から探す）
+
+def _fold(text) -> str:
+    """比べるための形（全角半角・大文字小文字・カタカナ/ひらがな・空白の違いを無視）。"""
+    import unicodedata
+    t = unicodedata.normalize("NFKC", str(text or "")).lower()
+    t = "".join(chr(ord(c) - 0x60) if "ァ" <= c <= "ヶ" else c for c in t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _all_projects(exclude: str = ""):
+    for d in WORKSPACE.iterdir() if WORKSPACE.exists() else []:
+        f = d / "project.json"
+        if d.is_dir() and PROJECT_ID.match(d.name) and d.name != exclude and f.is_file():
+            try:
+                p = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            layout.apply_labels(p.get("sections", []))
+            yield p
+
+
+def _bank(query: str = "", qtype: str = "", category: str = "", exclude: str = "", limit: int = 120) -> dict:
+    """全試験の問題と、本文つき・設問が複数の大問を検索する。"""
+    toks = [t for t in _fold(query).split(" ") if t]
+    questions, bigs = [], []
+    for p in _all_projects(exclude):
+        exam = p.get("exam", {})
+        cat = exam.get("category") or "定期考査"
+        if category and cat != category:
+            continue
+        meta = {"pid": p["id"], "title": exam.get("title", ""), "category": cat, "date": exam.get("date", ""),
+                "updated_at": p.get("updated_at", "")}
+        secs = p.get("sections", [])
+        for g in layout.groups(secs):
+            head = secs[g[0]]
+            parts = [secs[i] for i in g]
+            if head.get("passage") or len(g) > 1:
+                hay = _fold(" ".join([head.get("big_title", ""), head.get("passage", ""), head.get("passage_src", ""),
+                                      *[x.get("instructions", "") for x in parts]]))
+                if all(t in hay for t in toks) and (not qtype or any(x.get("type") == qtype for x in parts)):
+                    bigs.append({**meta, "label": f"大問{head['no']}", "big_title": head.get("big_title", ""),
+                                 "passage": head.get("passage", "")[:300], "passage_src": head.get("passage_src", ""),
+                                 "parts": [{"type": x.get("type"), "count": len(x.get("questions", [])),
+                                            "instructions": x.get("instructions", "")} for x in parts],
+                                 "sections": [{k: v for k, v in x.items() if k not in ("sid", "no", "part", "label")} for x in parts]})
+            for s in parts:
+                if qtype and s.get("type") != qtype:
+                    continue
+                for q in s.get("questions", []):
+                    hay = _fold(" ".join([q.get("body", ""), q.get("answer", ""), q.get("source_ref", ""), q.get("focus", ""),
+                                          " ".join(q.get("choices") or []), s.get("instructions", ""), exam.get("title", "")]))
+                    if all(t in hay for t in toks):
+                        questions.append({**meta, "label": f"{s['label']}({q['number']})", "type": s.get("type"),
+                                          "instructions": s.get("instructions", ""), "choice_style": s.get("choice_style") or "1",
+                                          "question": q})
+    questions.sort(key=lambda x: x["updated_at"], reverse=True)
+    bigs.sort(key=lambda x: x["updated_at"], reverse=True)
+    return {"questions": questions[:limit], "bigs": bigs[:30], "total": len(questions), "total_bigs": len(bigs)}
+
+
+def _reuse_issues(p: dict, draft: dict) -> list:
+    """同じカテゴリーの過去の試験で出した問題と同じ問題（問題文と解答が同じ）を知らせる。"""
+    cat = p["exam"].get("category") or "定期考査"
+    seen = {}
+    for other in _all_projects(p["id"]):
+        if (other.get("exam", {}).get("category") or "定期考査") != cat:
+            continue
+        for s in other.get("sections", []):
+            for q in s.get("questions", []):
+                key = (_fold(q.get("body")), _fold(q.get("answer")))
+                if len(key[0]) >= 12:
+                    seen.setdefault(key, f"「{other['exam'].get('title', '')}」の{s['label']}({q['number']})")
+    issues = []
+    for s in draft["sections"]:
+        for q in s.get("questions", []):
+            where = seen.get((_fold(q.get("body")), _fold(q.get("answer"))))
+            if where and not q.get("origin"):
+                issues.append(f"{s['label']}({q['number']}): 出題済みの可能性（{where}と同じ問題）")
+    return issues
+
+
 # ---------------------------------------------------------------- 教材
 
 def _decode_text(raw: bytes) -> str:
@@ -407,7 +492,7 @@ def _sources_md(p: dict) -> str:
                   *([f"本文の出典: {s['passage_src']}", ""] if s.get("passage_src") else []),
                   "| 問 | 解答 | 出典 | 別解の検討 |", "|---|---|---|---|"]
         for q in s["questions"]:
-            cells = [f"({q['number']})", q["answer"], q["source_ref"],
+            cells = [f"({q['number']})", q["answer"], q["source_ref"] + (f"（再利用: {q['origin']}）" if q.get("origin") else ""),
                      q.get("alt_answer_risk", "")]
             lines.append("| " + " | ".join(c.replace("|", "／").replace("\n", " ")
                                             for c in cells) + " |")
@@ -834,7 +919,12 @@ def route(method: str, parts: list, body) -> object:
                          "sections": _clean_sections(b["sections"])}
             else:
                 draft = _as_draft(_load(pid))
-            return {"issues": checks.run_all(draft)}
+            issues = checks.run_all(draft)
+            try:
+                issues += _reuse_issues(_load(pid), draft)
+            except ApiError:
+                pass
+            return {"issues": issues}
         if rest == ["export"] and method == "POST":
             return _export(pid, bool(body().get("variant")))
         if rest == ["history"] and method == "GET":
@@ -854,6 +944,11 @@ def route(method: str, parts: list, body) -> object:
             return {"project": p}
         if len(rest) == 2 and rest[0] == "files" and method == "GET":
             return ("file", _export_file(pid, rest[1]))
+
+    if parts == ["bank"] and method == "POST":
+        b = body()
+        return _bank(str(b.get("q") or ""), str(b.get("type") or ""), str(b.get("category") or ""),
+                     str(b.get("exclude") or ""))
 
     if parts == ["config"]:
         if method == "GET":

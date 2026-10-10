@@ -224,6 +224,30 @@ def test_all():
         vq = v["sections"][0]["questions"][0]
         assert vq["choices"][vq["correct"]] == "did" and vq["answer"] == "アイウエ"[vq["correct"]] and vq["correct"] != 0
 
+        # 問題バンク: 他の試験の問題・本文つきの大問を探せる。同じ問題は「出題済み」と知らせる
+        q1 = {"body": "She is the girl who I think will win.", "answer": "who", "source_ref": "例文56", "focus": "連鎖関係代名詞",
+              "rate": 42.5}
+        st, r = call("POST", "/api/projects", {"title": "1学期中間", "exam": {"category": "定期考査"}, "sections": [
+            {"type": "fill_blank", "count": 1, "questions": [q1]},
+            {"type": "content_match", "count": 1, "big_title": "読んで答えよ", "passage": "Tokito had a dream.",
+             "questions": [{"body": "", "choices": ["a", "b"], "correct": 0, "answer": "1", "source_ref": "本文"}]},
+            {"type": "translation", "count": 1, "new_big": False, "questions": [{"body": "下線部", "answer": "訳", "source_ref": "本文"}]}]})
+        bp = r["project"]
+        assert bp["sections"][0]["questions"][0]["rate"] == 42.5
+        st, r = call("POST", "/api/bank", {"q": "かんけいだいめいし"})   # かなでも漢字でもない → 0件
+        st, r = call("POST", "/api/bank", {"q": "連鎖"})
+        assert r["total"] == 1 and r["questions"][0]["question"]["answer"] == "who" and r["questions"][0]["label"] == "大問1(1)"
+        st, r = call("POST", "/api/bank", {"q": "tokito"})
+        assert r["total_bigs"] == 1 and len(r["bigs"][0]["sections"]) == 2 and r["bigs"][0]["sections"][0]["passage"]
+        st, r = call("POST", "/api/bank", {"q": "", "exclude": bp["id"], "type": "fill_blank"})
+        assert all(x["pid"] != bp["id"] for x in r["questions"])
+        st, r = call("POST", "/api/projects", {"title": "2学期中間", "exam": {"category": "定期考査"}, "sections": [
+            {"type": "fill_blank", "count": 2, "questions": [dict(q1), {**q1, "origin": "1学期中間 大問1(1)"}]}]})
+        np_ = r["project"]
+        st, r = call("POST", f"/api/projects/{np_['id']}/check", {})
+        reuse = [i for i in r["issues"] if "出題済み" in i]
+        assert len(reuse) == 1 and reuse[0].startswith("大問1(1)") and "1学期中間" in reuse[0], reuse  # 再利用の印つきは知らせない
+
         # AIに注文（自然言語）・仮想の生徒・使用量（AIは偽物に差し替えて確認）
         from exam_app import generate
         from types import SimpleNamespace

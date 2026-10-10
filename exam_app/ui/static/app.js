@@ -126,12 +126,24 @@ function toast(msg, kind = 'info', action) {
 let modalStack = [];
 function openModal({ title, body, actions = [], size = '', onClose }) {
   const overlay = h('div', { class: 'overlay' });
+  const opener = document.activeElement;  // 閉じたら、開く前に触っていた場所へフォーカスを戻す
   const close = () => {
     if (!overlay.isConnected) return;
     overlay.remove();
     modalStack = modalStack.filter(m => m !== close);
     onClose && onClose();
+    if (opener && opener.isConnected && typeof opener.focus === 'function' && !modalStack.length) opener.focus({ preventScroll: true });
   };
+  // Tab キーでダイアログの外へフォーカスが出ないようにする（キーボードだけでも操作できるように）
+  overlay.addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return;
+    const items = [...overlay.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter(el => !el.disabled && el.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
   const dlg = h('div', { class: `modal ${size}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
     h('div', { class: 'modal-head' }, h('h2', {}, title),
       h('button', { class: 'icon-btn', title: '閉じる（Esc）', onclick: close }, icon('x', 18))),
@@ -143,9 +155,16 @@ function openModal({ title, body, actions = [], size = '', onClose }) {
   overlay.append(dlg);
   document.body.append(overlay);
   modalStack.push(close);
-  setTimeout(() => {  // すでにダイアログ内の欄を触っていればフォーカスを奪わない
-    if (!dlg.contains(document.activeElement)) dlg.querySelector('[data-autofocus], .modal-body input, .modal-body textarea')?.focus();
-  }, 40);
+  // 開いたらすぐダイアログの中にフォーカスを入れる（入力欄がなければ決定ボタン、なければ最初のボタン）。
+  // 中身があとから描かれる場合に備えて、少し後にもう一度だけ試す（すでに中を触っていれば奪わない）
+  const focusIn = () => {
+    const target = dlg.querySelector('[data-autofocus], .modal-body input, .modal-body textarea')
+      || dlg.querySelector('.modal-foot .btn.primary') || dlg.querySelector('.modal-body button, .modal-foot button, button');
+    const cur = document.activeElement;
+    if (!dlg.contains(cur) || (cur && cur.tagName === 'BUTTON' && target && target.tagName !== 'BUTTON')) target?.focus();
+  };
+  focusIn();
+  setTimeout(focusIn, 40);
   return close;
 }
 
@@ -1130,7 +1149,8 @@ function addBigBar(list, ctx) {
     h('span', {}, 'またはひな型から'),
     BIG_PRESETS.map(([name, title, parts]) => h('button', { class: 'chip', title: parts.map(([t, c]) => `${SHORT[t]}${c}問`).join('・'),
       onclick: () => addParts(title, parts) }, icon('plus', 13), name)),
-    h('button', { class: 'chip solid', onclick: () => typePicker(v => addParts('', [[v, 5, DEFAULT_POINTS[v] ?? 1]])) }, icon('list', 13), '形式を1つ選んで追加'));
+    h('button', { class: 'chip solid', onclick: () => typePicker(v => addParts('', [[v, 5, DEFAULT_POINTS[v] ?? 1]])) }, icon('list', 13), '形式を1つ選んで追加'),
+    ctx.template ? null : h('button', { class: 'chip solid', onclick: () => openBank({ tab: 'bigs' }) }, icon('clock', 13), '過去の試験の大問を使う'));
 }
 
 /** 大問カードの一覧（試験の設定・テンプレート編集で共通） */
@@ -1445,6 +1465,7 @@ function renderBuild() {
       vocab ? h('button', { class: 'btn primary sm', onclick: () => openWordList(si) }, icon('list', 14), '単語リストから作成') : null,
       h('button', { class: 'btn sm ' + (vocab ? 'ghost' : 'primary'), onclick: () => openQuick({ format: QUICK_FOR[s.type] || 'ai', target: si, source: viewing?.name || '' }) }, icon('sparkles', 14), '英文を入れて作問'),
       h('button', { class: 'btn ghost sm', onclick: () => addBlankQuestion(si) }, icon('plus', 14), '空の問題'),
+      h('button', { class: 'btn ghost sm', onclick: () => openBank(), title: 'これまでに作った試験の問題を探して、この設問にコピーします' }, icon('clock', 14), '過去の問題から'),
       h('button', { class: 'btn ghost sm', disabled: !S.status.ai, title: S.status.ai ? `この大問の素材から${aiName()}が作問します` : 'APIキーを設定すると使えます', onclick: () => aiSection(si) }, icon('sparkles', 14), 'AIで一括作問'),
       made ? menuButton(h('span', { class: 'row-i' }, icon('list', 14), 'まとめて'), [
         ['shuffle', '正解の位置をならす（選択式）', () => balanceAnswers(s)],
@@ -1737,7 +1758,9 @@ function qBadges(q) {
   if (!q.source_ref.trim()) b.push(['bad', '出典なし']);
   if (!q.alt_answer_risk.trim()) b.push(['warn', '別解未検討']);
   if (q.verdict) b.push(q.verdict.has_alternate_answer ? ['bad', 'AI: 別解の疑い'] : ['good', 'AI: 別解なし']);
-  if (!b.length) b.push(['good', 'OK']);
+  if (q.origin) b.push(['info', '再利用: ' + q.origin]);
+  if (q.rate != null) b.push([q.rate < 40 ? 'warn' : 'info', `正答率 ${q.rate}%`]);
+  if (!b.some(([c]) => c !== 'info')) b.unshift(['good', 'OK']);  // 再利用・正答率の印は問題の有無に関係しない
   return b.map(([c, t]) => h('span', { class: 'badge ' + c }, c === 'good' ? icon('check', 12) : c === 'bad' ? icon('alert', 12) : null, t));
 }
 
@@ -2645,6 +2668,7 @@ function renderCheck() {
     stepHead('チェック', '機械で確実に見つけられるものは自動で、別解は AI または依頼文で、最後に教員が確認します。'),
     analysisCard(),
     studentCard(),
+    ratesCard(),
     h('div', { class: 'check-grid', style: { marginTop: '16px' } }, auto, h('div', { class: 'stack' }, ai, list)));
 }
 
