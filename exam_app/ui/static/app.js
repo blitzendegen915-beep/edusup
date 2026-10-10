@@ -2562,6 +2562,19 @@ function buildVerifyPrompt() {
   return lines.join('\n');
 }
 
+/** 自動チェックの結果。まだ1問も作っていない設問の「問数が足りない」は1行にまとめて、本当に直すべき項目を目立たせる */
+function issueList(issues) {
+  const row = t => h('li', {}, h('button', { class: 'issue', onclick: () => jumpToIssue(t) }, icon('alert', 15), h('span', {}, t), h('span', { class: 'issue-go' }, '直す →')));
+  const notYet = issues.filter(t => /: 作成済み0問 ≠ 予定\d+問$/.test(t));
+  const points = issues.filter(t => notYet.length && /^配点: 作成済みの問題の合計/.test(t));  // 作りかけのうちは配点のずれも当然
+  const rest = issues.filter(t => !notYet.includes(t) && !points.includes(t));
+  return h('div', { class: 'stack', style: { gap: '8px' } },
+    rest.length ? h('ul', { class: 'issue-list' }, rest.map(row)) : null,
+    notYet.length ? h('details', { class: 'issue-group' },
+      h('summary', {}, icon('clock', 15), h('span', {}, `まだ作っていない設問 ${notYet.length}件`), h('span', { class: 'muted small' }, '（作り終えれば消えます。押すと一覧）')),
+      h('ul', { class: 'issue-list' }, [...points, ...notYet].map(row))) : null);
+}
+
 async function verifyAll() {
   const p = S.project;
   const all = [];
@@ -2598,8 +2611,7 @@ function renderCheck() {
     h('p', { class: 'muted', style: { marginTop: 0 } }, '配点合計・問数・番号・出典・空欄・答えの重複・選択肢の偏り・空所と解答枠の数を機械的に確認します。'),
     issues == null ? h('div', { class: 'loading' }, 'チェック中…') :
       !issues.length ? h('div', { class: 'all-ok' }, icon('check', 22), h('div', {}, h('b', {}, '問題は見つかりませんでした'), h('div', {}, h('span', {}, '別解と内容の妥当性は、右のチェックと教員の確認で見てください')))) :
-        h('ul', { class: 'issue-list' }, issues.map(t => h('li', {},
-          h('button', { class: 'issue', onclick: () => jumpToIssue(t) }, icon('alert', 15), h('span', {}, t), h('span', { class: 'issue-go' }, '直す →'))))));
+        issueList(issues));
 
   const flagged = [];
   p.sections.forEach((s, si) => s.questions.forEach((q, qi) => { if (q.verdict?.has_alternate_answer) flagged.push([s, si, q, qi]); }));
@@ -2859,7 +2871,7 @@ function aiName(prov = S.status.provider) { return prov === 'openai' ? 'ChatGPT'
 
 function settingsDialog() {
   const st = S.status;
-  const f = { provider: st.provider || 'anthropic', key: '', model: st.openai_model || 'gpt-4.1' };
+  const f = { provider: st.provider || 'anthropic', key: '', model: st.openai_model || 'gpt-4.1', remember: !!st.remembered };
   const body = h('div', { class: 'stack' });
   const draw = () => {
     const isOA = f.provider === 'openai';
@@ -2874,6 +2886,11 @@ function settingsDialog() {
       field(isOA ? 'OpenAIのAPIキー（sk-…）' : 'AnthropicのAPIキー（sk-ant-…）',
         input({ type: 'password', value: f.key, placeholder: keySet ? '設定済み（変更する場合のみ入力）' : (isOA ? 'sk-...' : 'sk-ant-...'), oninput: v => { f.key = v; } })),
       isOA ? field('モデル名（わからなければそのまま）', input({ value: f.model, oninput: v => { f.model = v; } })) : null,
+      st.can_remember ? h('label', { class: 'check small', title: 'Windows標準の暗号化で、このPCのこのユーザーだけが読める形で保存します。試験データの保存先とは別の場所です' },
+        h('input', { type: 'checkbox', checked: f.remember, onchange: e => { f.remember = e.target.checked; } }),
+        (isOA ? st.provider === 'openai' : st.provider !== 'openai') && st.remembered
+          ? 'このPCに保存済み（次回の起動時も自動で使えます。外すと保存を消します）'
+          : 'このPCに保存する（Windowsの暗号化で保護。次回からキーの入力が不要）') : null,
       isOA ? h('p', { class: 'muted', style: { margin: 0, fontSize: '12px' } }, 'ChatGPTの有料プラン（Plus等）とAPIは別契約です。APIキーは platform.openai.com で発行します。') : null,
     ].filter(Boolean));
   };
@@ -2890,7 +2907,7 @@ function settingsDialog() {
         const keySet = f.provider === 'openai' ? st.openai_key_set : st.anthropic_key_set;
         if (!f.key.trim() && !keySet) return toast('APIキーを入力してください', 'error');
         try {
-          S.status = { ...S.status, ...(await api('POST', 'settings', { provider: f.provider, key: f.key.trim(), model: f.model })).status };
+          S.status = { ...S.status, ...(await api('POST', 'settings', { provider: f.provider, key: f.key.trim(), model: f.model, remember: st.can_remember ? f.remember : undefined })).status };
           c(); render({ keepScroll: true });
           toast(S.status.ai ? `${aiName()} のAI機能が使えるようになりました` : 'キーを保存できませんでした。もう一度入力してください', S.status.ai ? 'ok' : 'error');
         } catch (e) { toast(e.message, 'error'); }

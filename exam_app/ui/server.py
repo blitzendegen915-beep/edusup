@@ -30,6 +30,7 @@ from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
 from .. import build_docx, checks, extract, layout
+from . import keystore
 
 VERSION = "2.0"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -473,6 +474,8 @@ def _ai_status() -> dict:
         "openai_key_set": bool(os.environ.get("OPENAI_API_KEY")),
         "openai_model": os.environ.get("OPENAI_MODEL") or generate.OPENAI_DEFAULT_MODEL,
         "key_set": bool(os.environ.get("OPENAI_API_KEY" if prov == "openai" else "ANTHROPIC_API_KEY")),
+        "can_remember": keystore.available(),          # このPCに保存できるか（Windowsのみ）
+        "remembered": keystore.has(prov),
     }
 
 
@@ -913,7 +916,8 @@ def route(method: str, parts: list, body) -> object:
                                        b.get("source", ""))}
 
     if parts[:1] == ["settings"] and method == "POST":
-        # APIキーはメモリ（環境変数）にだけ保持し、ファイルには保存しない
+        # APIキーはふだんメモリ（環境変数）にだけ保持する。「このPCに保存」を選んだときだけ、
+        # Windows の暗号化（DPAPI）で暗号化して %APPDATA% に保存する（試験データの保存先とは別）
         b = body()
         prov = str(b.get("provider") or "anthropic")
         if prov not in ("anthropic", "openai"):
@@ -923,8 +927,15 @@ def route(method: str, parts: list, body) -> object:
             key = str(b.get("key") or "").strip()
             if key:
                 os.environ[env] = key
+                if b.get("remember"):
+                    keystore.save(prov, key, str(b.get("model") or ""))
             elif b.get("clear"):
                 os.environ.pop(env, None)
+                keystore.clear(prov)
+            if b.get("remember") and not key and os.environ.get(env):
+                keystore.save(prov, os.environ[env], str(b.get("model") or ""))  # 入力済みのキーをあとから保存
+            if b.get("remember") is False:
+                keystore.clear(prov)
         if prov == "openai":
             os.environ["EXAM_AI_PROVIDER"] = "openai"
             model = str(b.get("model") or "").strip()
@@ -932,6 +943,7 @@ def route(method: str, parts: list, body) -> object:
                 os.environ["OPENAI_MODEL"] = model
         else:
             os.environ.pop("EXAM_AI_PROVIDER", None)
+        keystore.set_provider(prov)
         mod = sys.modules.get("exam_app.generate")
         if mod is not None:
             mod._client = None
@@ -1156,6 +1168,10 @@ def main(argv=None):
         sys.exit(f"ポート {args.port}〜{args.port + 9} がすべて使用中です。--port で別の番号を指定してください")
 
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
+    try:
+        keystore.load_into_env()  # 「このPCに保存」したAPIキーを読み込む（Windowsのみ）
+    except Exception:  # noqa: BLE001 — キーが読めなくても起動は続ける
+        pass
     st = _ai_status()
     ai = (("ChatGPT" if st["provider"] == "openai" else "Claude") + " 有効") if st["ai"] else "オフ（API抜きモード）"
     print("=" * 56)

@@ -23,7 +23,7 @@
 ## セットアップ
 
 ```bash
-pip install anthropic python-docx pyyaml
+pip install python-docx pyyaml   # AI機能に追加のパッケージは不要
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 

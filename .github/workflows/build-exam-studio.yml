@@ -27,6 +27,15 @@ jobs:
       - name: Install
         run: pip install pyinstaller python-docx
 
+      - name: Check Windows key encryption (DPAPI)
+        run: python -c "from exam_app.ui import keystore as k; assert k.available() and k.roundtrip_ok(); print('DPAPI ok')"
+
+      - name: Unit tests on Windows
+        run: |
+          python -m exam_app.tests.test_offline
+          python -m exam_app.tests.test_anthropic_mock
+          python -m exam_app.tests.test_openai_mock
+
       - name: Build ExamStudio.exe
         run: >
           pyinstaller --noconfirm --clean --name ExamStudio
