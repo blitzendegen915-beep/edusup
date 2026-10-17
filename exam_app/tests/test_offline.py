@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from exam_app import checks, build_docx, extract  # noqa: E402
+from docx.oxml.ns import qn  # noqa: E402
 
 
 def _draft(**exam):
@@ -161,6 +162,42 @@ def test_choice_answer_checks():
     assert any("語群の正解（ウ）" in i for i in issues), issues
     d["sections"][0]["questions"][0].pop("correct")
     assert any("正解の選択肢が選ばれていない" in i for i in checks.run_all(d))
+
+
+def test_paper_layout_and_drafts():
+    """用紙の設定（B4横・2段組み・ゴシック・文字の大きさ）、下書きの大問、改ページ、選択肢の並べ方。"""
+    from docx import Document
+    from exam_app import layout
+    q = lambda b, a, **k: {"number": 1, "body": b, "answer": a, "source_ref": "s", "alt_answer_risk": "x", **k}
+    d = {"exam": {"title": "T", "written_points": 3, "numbering": "global",
+                  "paper": {"size": "B4", "orient": "landscape", "columns": 2, "font": "gothic", "font_size": 12, "sheet": "A4"}},
+         "sections": [
+             {"type": "choice_4", "points_each": 1, "count": 1, "choice_layout": "grid2", "choice_style": "ア",
+              "questions": [q("He ( ) it.", "イ", choices=["do", "did", "does", "doing"], correct=1)]},
+             {"type": "fill_blank", "points_each": 5, "count": 1, "hide": True, "questions": [q("下書きの問題", "x")]},
+             {"type": "fill_blank", "points_each": 1, "count": 2, "page_break": True,
+              "questions": [q("A ( ) b.", "x", source_ref="s2"), q("C ( ) d.", "y", number=2, source_ref="s3")]}]}
+    assert checks.run_all(d) == [], checks.run_all(d)   # 下書きの大問は配点にも数えない
+    layout.apply_labels(d["sections"])
+    assert [s["label"] for s in d["sections"]] == ["大問1", "下書き1", "大問2"]
+    plan = layout.numbering(d)
+    assert plan[2][1]["cell"] == "3" and plan[1][0]["label"] == "(1)"   # 下書きは通し番号を使わない
+    with tempfile.TemporaryDirectory() as tmp:
+        files = build_docx.build_all(d, Path(tmp))
+        exam = Document(str(files[0]))
+        sec0, sec1 = exam.sections[0], exam.sections[-1]
+        assert abs(sec0.page_width.mm - 364) < 1 and abs(sec0.page_height.mm - 257) < 1   # B4横
+        cols = sec1._sectPr.find(qn("w:cols"))
+        assert len(exam.sections) == 2 and cols is not None and cols.get(qn("w:num")) == "2"  # 試験名の下から2段組み
+        text = "\n".join(p.text for p in exam.paragraphs)
+        assert "下書きの問題" not in text and "２　" in text                                 # 下書きは出ない・番号は詰める
+        xml = exam.element.xml
+        assert 'w:br w:type="page"' in xml                                                     # 改ページ
+        assert exam.styles["Normal"].font.size.pt == 12
+        cells = [c.text for t in exam.tables for r in t.rows for c in r.cells]
+        assert "ア do" in cells and "ウ does" in cells                                         # 2つずつ2段
+        sheet = Document(str(files[1]))
+        assert abs(sheet.sections[0].page_width.mm - 210) < 1                                 # 解答用紙はA4縦
 
 
 def test_extract_three_layers():

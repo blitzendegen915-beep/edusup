@@ -181,6 +181,7 @@ function examFromTemplate(t) {
     sheet_fields: e.sheet_fields || '組,番,氏名,得点',
     cover: { enabled: false, grade: '', subject: '', name: '', cautions: '', ...(e.cover || {}) },
     end_note: e.end_note || '問題は以上です。',
+    paper: { ...PAPER_DEFAULT, ...(e.paper || {}) },
   };
 }
 
@@ -300,7 +301,7 @@ function templateEditor(t) {
         field('カテゴリー', select(categoryList().map(c => [c, c]), d.category, v => { d.category = v; })),
         field('満点', input({ type: 'number', min: 0, value: d.exam.written_points, oninput: v => { d.exam.written_points = toInt(v, 0); updateTotal(); } }))),
       field('説明（任意）', input({ value: d.desc, placeholder: '例: リスニング＋長文2題。2学期から使う形式', oninput: v => { d.desc = v; } })),
-      h('div', { class: 'card flat' }, h('div', { class: 'card-title' }, icon('printer'), '用紙の体裁'), layoutFields(d.exam, () => {})),
+      h('div', { class: 'card flat' }, h('div', { class: 'card-title' }, icon('printer'), '用紙の体裁'), paperFields(d.exam, () => {}), layoutFields(d.exam, () => {})),
       h('div', { class: 'card flat' },
         h('div', { class: 'card-title' }, icon('layers'), '大問の構成', total),
         secBox));

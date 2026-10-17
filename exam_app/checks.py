@@ -3,7 +3,7 @@
 generate直後・verify時・画面のチェックで必ず走らせる。LLMに頼らず確実に検出できるものは
 コードで検出する。
 """
-from .layout import answer_slots, apply_labels, mark, q_points  # noqa: F401  (answer_slots は他モジュールも利用)
+from .layout import answer_slots, apply_labels, mark, q_points, visible  # noqa: F401  (answer_slots は他モジュールも利用)
 
 
 def _lab(s) -> str:
@@ -21,6 +21,7 @@ PASSAGE_TYPES = {"reading_misfit", "content_match", "insertion", "choice_4", "ch
 
 def run_all(draft: dict) -> list[str]:
     """問題点のリストを返す。空なら合格。"""
+    draft = {**draft, "sections": visible(draft["sections"])}  # 用紙に出さない（下書き）の大問は見ない
     apply_labels(draft["sections"])  # 「大問2 問1」の呼び名を振る
     issues = []
     issues += check_points(draft)

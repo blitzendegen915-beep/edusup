@@ -84,13 +84,15 @@ def per_slot(q: dict) -> bool:
 
 def numbering(draft: dict) -> list:
     """問題番号を計算する。戻り値は大問ごとのリストで、各問は
-    {"label": 問題用紙の番号, "cell": 解答用紙の番号, "slots": 箇所ごとの番号 or None}。"""
+    {"label": 問題用紙の番号, "cell": 解答用紙の番号, "slots": 箇所ごとの番号 or None}。
+    「用紙に出さない（下書き）」大問の問題は通し番号を使わない。"""
     mode = draft.get("exam", {}).get("numbering", "section")
+    hidden = hidden_indices(draft.get("sections", []))
     plan, n = [], 1
-    for sec in draft.get("sections", []):
+    for si, sec in enumerate(draft.get("sections", [])):
         rows = []
         for i, q in enumerate(sec.get("questions", [])):
-            if mode != "global":
+            if mode != "global" or si in hidden:
                 rows.append({"label": f"({i + 1})", "cell": f"({i + 1})", "slots": None})
                 continue
             if per_slot(q):
@@ -165,14 +167,69 @@ def groups(sections) -> list:
 
 
 def apply_labels(sections) -> None:
-    """no（大問番号）・part（問番号。設問が1つなら0）・label（「大問2 問1」）を振る。"""
-    for g_no, g in enumerate(groups(sections), 1):
+    """no（大問番号）・part（問番号。設問が1つなら0）・label（「大問2 問1」）を振る。
+    「用紙に出さない」大問は番号を使わず「下書き1」のように呼ぶ（印刷される大問の番号は詰める）。"""
+    n = d = 0
+    for g in groups(sections):
         multi = len(g) > 1
+        hide = bool(sections[g[0]].get("hide"))
+        if hide:
+            d += 1
+        else:
+            n += 1
         for k, i in enumerate(g, 1):
             s = sections[i]
-            s["no"], s["part"] = g_no, (k if multi else 0)
+            s["no"], s["part"] = (0 if hide else n), (k if multi else 0)
             s["new_big"] = k == 1
-            s["label"] = f"大問{g_no} 問{k}" if multi else f"大問{g_no}"
+            base = f"下書き{d}" if hide else f"大問{n}"
+            s["label"] = f"{base} 問{k}" if multi else base
+
+
+def hidden_indices(sections) -> set:
+    """「用紙に出さない（下書き）」大問に属する設問の添字。"""
+    out = set()
+    for g in groups(sections):
+        if sections[g[0]].get("hide"):
+            out.update(g)
+    return out
+
+
+def visible(sections) -> list:
+    """用紙に出す設問だけ（下書きの大問を除く）。"""
+    hid = hidden_indices(sections)
+    return [s for i, s in enumerate(sections) if i not in hid]
+
+
+# ---------------------------------------------------------------- 用紙のレイアウト
+
+PAPER_DEFAULT = {"size": "A4", "orient": "portrait", "columns": 1, "font_size": 10.5, "font": "mincho",
+                 "margin": "normal", "line": "normal", "sheet": "A4", "answer_height": "normal"}
+PAPER_SIZES = {"A4": (210, 297), "B4": (257, 364), "A3": (297, 420)}
+MARGINS = {"narrow": 10, "normal": 16, "wide": 22}       # 左右の余白（mm）。上下はこの0.85倍
+LINE = {"compact": 1.0, "normal": 1.1, "loose": 1.4}       # 行間（倍）
+SHEETS = {"A4": ("A4", "portrait"), "B4": ("B4", "portrait"), "A3L": ("A3", "landscape")}
+
+
+def paper(exam: dict) -> dict:
+    """試験の用紙設定（足りない項目は標準の値）。"""
+    out = dict(PAPER_DEFAULT)
+    out.update({k: v for k, v in (exam.get("paper") or {}).items() if k in PAPER_DEFAULT})
+    return out
+
+
+def page_mm(size: str, orient: str):
+    w, h = PAPER_SIZES.get(size, PAPER_SIZES["A4"])
+    return (h, w) if orient == "landscape" else (w, h)
+
+
+def choice_mode(sec: dict, q: dict) -> str:
+    """選択肢の並べ方: row（横一列）/ column（縦に1つずつ）/ grid2（2つずつ2段）。
+    「自動」は短い選択肢なら横、文の選択肢（内容一致など）なら縦。"""
+    mode = sec.get("choice_layout") or "auto"
+    if mode in ("row", "column", "grid2"):
+        return mode
+    longest = max((len(str(c)) for c in (q.get("choices") or [])), default=0)
+    return "row" if longest <= 18 else "column"
 
 
 def big_heading(exam: dict, secs: list) -> str:

@@ -55,9 +55,10 @@ function perSlot(q) { return String(q.kind || '').startsWith('reorder') && Array
 /** 問題番号。大問ごとに [{label, cell, slots}]。通し番号では並び替えの答える箇所ごとに番号を振る */
 function numberPlan(p) {
   const global = p.exam.numbering === 'global';
+  const hidden = hiddenIndices(p.sections);  // 用紙に出さない（下書き）大問は通し番号を使わない
   let n = 1;
-  return p.sections.map(s => s.questions.map((q, i) => {
-    if (!global) return { label: `(${i + 1})`, cell: `(${i + 1})`, slots: null };
+  return p.sections.map((s, si) => s.questions.map((q, i) => {
+    if (!global || hidden.has(si)) return { label: `(${i + 1})`, cell: `(${i + 1})`, slots: null };
     if (perSlot(q)) {
       const nums = slotsOf(q).map(() => String(n++));
       return { label: `(${i + 1})`, cell: `(${i + 1})`, slots: nums };
@@ -132,16 +133,54 @@ function groupsOf(sections) {
   return out;
 }
 
-/** no（大問番号）・part（問番号。設問が1つなら0）・label（「大問2 問1」）を振る */
+/** no（大問番号）・part（問番号。設問が1つなら0）・label（「大問2 問1」）を振る。
+ *  「用紙に出さない」大問は番号を使わず「下書き1」と呼ぶ（印刷される大問の番号は詰める） */
 function applyLabels(sections) {
-  groupsOf(sections).forEach((g, gi) => {
+  let n = 0, d = 0;
+  groupsOf(sections).forEach(g => {
     const multi = g.length > 1;
+    const hide = !!sections[g[0]].hide;
+    if (hide) d++; else n++;
     g.forEach((i, k) => {
       const s = sections[i];
-      s.no = gi + 1; s.part = multi ? k + 1 : 0; s.new_big = k === 0;
-      s.label = multi ? `大問${gi + 1} 問${k + 1}` : `大問${gi + 1}`;
+      s.no = hide ? 0 : n; s.part = multi ? k + 1 : 0; s.new_big = k === 0;
+      const base = hide ? `下書き${d}` : `大問${n}`;
+      s.label = multi ? `${base} 問${k + 1}` : base;
     });
   });
+}
+
+function hiddenIndices(sections) {
+  const out = new Set();
+  groupsOf(sections).forEach(g => { if (sections[g[0]].hide) g.forEach(i => out.add(i)); });
+  return out;
+}
+
+/** 用紙に出す設問だけ */
+function visibleSections(sections) {
+  const hid = hiddenIndices(sections);
+  return sections.filter((_, i) => !hid.has(i));
+}
+
+// ---------------------------------------------------------------- 用紙のレイアウト（layout.py と同じ）
+
+const PAPER_DEFAULT = { size: 'A4', orient: 'portrait', columns: 1, font_size: 10.5, font: 'mincho', margin: 'normal', line: 'normal', sheet: 'A4', answer_height: 'normal' };
+const PAPER_SIZES = { A4: [210, 297], B4: [257, 364], A3: [297, 420] };
+const MARGINS = { narrow: 10, normal: 16, wide: 22 };
+const LINE = { compact: 1.0, normal: 1.1, loose: 1.4 };
+const SHEETS = { A4: ['A4', 'portrait'], B4: ['B4', 'portrait'], A3L: ['A3', 'landscape'] };
+
+function paperOf(exam) { return { ...PAPER_DEFAULT, ...(exam.paper || {}) }; }
+function pageMm(size, orient) {
+  const [w, hh] = PAPER_SIZES[size] || PAPER_SIZES.A4;
+  return orient === 'landscape' ? [hh, w] : [w, hh];
+}
+
+/** 選択肢の並べ方: row（横一列）/ column（縦）/ grid2（2つずつ2段）。自動は短ければ横、文なら縦 */
+function choiceMode(s, q) {
+  const mode = s.choice_layout || 'auto';
+  if (['row', 'column', 'grid2'].includes(mode)) return mode;
+  return Math.max(0, ...(q.choices || []).map(c => String(c).length)) <= 18 ? 'row' : 'column';
 }
 
 function bigHeadingText(exam, secs) {

@@ -705,8 +705,8 @@ function projectCard(p) {
 }
 
 /** 小さなメニュー（「その他」ボタンなど） */
-function menuButton(label, items) {
-  const btn = h('button', { class: 'btn ghost', 'aria-haspopup': 'true' }, label);
+function menuButton(label, items, cls = 'btn ghost', title = '') {
+  const btn = h('button', { class: cls, 'aria-haspopup': 'true', title: title || null, 'aria-label': title || null }, label);
   btn.addEventListener('click', e => {
     e.stopPropagation();
     $('.menu')?.remove();
@@ -1107,7 +1107,9 @@ function renderStructure() {
     h('div', { class: 'card-title' }, icon('printer'), '用紙の体裁',
       h('span', { class: 'muted small' }, layoutSummary(e)),
       h('button', { class: 'btn ghost sm right', onclick: () => { S.layoutOpen = !S.layoutOpen; render({ keepScroll: true }); } }, S.layoutOpen ? '閉じる' : '変更する')),
-    S.layoutOpen ? layoutFields(e, markDirty) : null);
+    S.layoutOpen ? h('div', { class: 'stack' },
+      h('div', { class: 'sub-title' }, '用紙・文字'), paperFields(e, markDirty),
+      h('div', { class: 'sub-title' }, '番号・見出し・表紙'), layoutFields(e, markDirty)) : null);
 
   const ctx = { dirty: markDirty, redraw: () => render({ keepScroll: true }), list: p.sections };
   const list = p.sections.length
@@ -1217,6 +1219,10 @@ function bigCard(list, gs, gi, ctx) {
         h('div', { class: 'big-meta' },
           h('span', { class: 'pill' }, `設問 ${g.length}つ`), h('span', { class: 'pill' }, `${pts}点`),
           ctx.template ? null : h('span', { class: 'pill' + (head.passage ? ' ok' : '') }, head.passage ? `本文あり（${head.passage.length}字）` : '本文なし'),
+          h('label', { class: 'check small', title: '問題用紙で、この大問を新しいページから始めます' },
+            h('input', { type: 'checkbox', checked: !!head.page_break, onchange: ev => { head.page_break = ev.target.checked; ctx.dirty(); } }), '前で改ページ'),
+          h('label', { class: 'check small', title: '作りかけ・予備の大問を、問題用紙・解答用紙・チェックから外します（番号は詰めます）' },
+            h('input', { type: 'checkbox', checked: !!head.hide, onchange: ev => { head.hide = ev.target.checked; fix(); } }), '用紙に出さない（下書き）'),
           gi > 0 && !multi ? h('button', { class: 'link small', type: 'button', title: '前の大問と同じ本文を使う設問にする',
             onclick: () => { head.new_big = false; head.big_title = head.big_title || ''; fix(); } }, '↑ 前の大問の設問にする') : null)),
       h('div', { class: 'sec-actions' },
@@ -1230,8 +1236,28 @@ function bigCard(list, gs, gi, ctx) {
 }
 
 function layoutSummary(e) {
-  return [e.numbering === 'global' ? '通し番号' : '大問ごとの番号', e.heading === 'bracket' ? '【1】見出し' : '１ 見出し',
+  const pp = paperOf(e);
+  return [`${pp.size}${pp.orient === 'landscape' ? '横' : '縦'}${+pp.columns === 2 ? '・2段組み' : ''}・${pp.font_size}pt`,
+    e.numbering === 'global' ? '通し番号' : '大問ごとの番号', e.heading === 'bracket' ? '【1】見出し' : '１ 見出し',
     e.cover?.enabled ? '表紙あり' : '表紙なし', `解答用紙の欄: ${(e.sheet_fields || '').split(',').filter(Boolean).join('・')}`].join('　／　');
+}
+
+/** 用紙・文字の設定（試験の設定・テンプレート編集・プレビューで共通） */
+function paperFields(e, dirty, compact = false) {
+  e.paper = { ...PAPER_DEFAULT, ...(e.paper || {}) };
+  const pp = e.paper;
+  const set = (k, v) => { pp[k] = v; dirty(); };
+  const row = (label, ctl) => h('div', { class: 'fld' }, h('span', {}, label), ctl);
+  return h('div', { class: 'paper-fields' + (compact ? ' compact' : '') },
+    row('用紙', segmented([['A4', 'A4'], ['B4', 'B4'], ['A3', 'A3']], pp.size, v => set('size', v))),
+    row('向き', segmented([['portrait', '縦'], ['landscape', '横']], pp.orient, v => set('orient', v))),
+    row('段組み', segmented([[1, '1段'], [2, '2段']], +pp.columns, v => set('columns', v))),
+    row('文字の大きさ', segmented([[9, '9'], [10, '10'], [10.5, '10.5'], [11, '11'], [12, '12']], +pp.font_size, v => set('font_size', v))),
+    row('書体', segmented([['mincho', '明朝'], ['gothic', 'ゴシック']], pp.font, v => set('font', v))),
+    row('余白', segmented([['narrow', '狭い'], ['normal', '標準'], ['wide', '広い']], pp.margin, v => set('margin', v))),
+    row('行間', segmented([['compact', '詰める'], ['normal', '標準'], ['loose', '広い']], pp.line, v => set('line', v))),
+    row('解答用紙', segmented([['A4', 'A4縦'], ['B4', 'B4縦'], ['A3L', 'A3横'], ['same', '問題用紙と同じ']], pp.sheet, v => set('sheet', v))),
+    row('解答欄の高さ', segmented([['normal', '標準'], ['tall', '高め']], pp.answer_height, v => set('answer_height', v))));
 }
 
 /** 用紙の体裁（番号・見出し・解答用紙の欄・表紙）。試験の設定とテンプレート編集で共通 */
@@ -1290,6 +1316,8 @@ function sectionDetails(s, ctx) {
       })),
       field('解答用紙で1行に並べる問題数', select([['0', '自動（形式に合わせる）'], ...[1, 2, 3, 4, 5, 6, 8, 10].map(n => [String(n), `${n}問`])], String(s.per_row || 0), v => { s.per_row = toInt(v, 0); ctx.dirty(); })),
       field('語群の記号', select([['', '選択肢と同じ'], ...CHOICE_STYLES.map(([v, l]) => [v, l])], s.bank_style || '', v => { s.bank_style = v; if (!ctx.template) syncChoiceAnswers(s); ctx.dirty(); ctx.redraw(); }))),
+    h('div', { class: 'fld' }, h('span', {}, '選択肢の並べ方'),
+      segmented([['auto', '自動'], ['row', '横一列'], ['grid2', '2つずつ2段'], ['column', '縦に1つずつ']], s.choice_layout || 'auto', v => { s.choice_layout = v; ctx.dirty(); })),
     h('div', { class: 'grid-2' },
       field('語群（大問の下にまとめて表示。1行に1つ）', textarea({ value: bankText, rows: 3, cls: 'inp en', placeholder: '例: ancestor\nquality\nextend',
         oninput: v => { s.bank = v.split('\n').map(x => x.trim()).filter(Boolean); ctx.dirty(); } })),
@@ -1347,13 +1375,230 @@ function addSection(type, go = false) {
 
 // ================================================================ 2. 大問をつくる（素材＋問題）
 
+// ---- ドラッグで並べ替え（大問・設問・問題）。ボタン（↑↓・メニュー）でも同じことができる
+let DRAG = null;  // { kind: 'q' | 'part' | 'big', ... }
+
+function clearDropMarks() {
+  document.querySelectorAll('.drop-before, .drop-after, .drop-into').forEach(x => x.classList.remove('drop-before', 'drop-after', 'drop-into'));
+}
+
+/** ドラッグできるようにする。handle を渡すと、その部分をつかんだときだけ動かせる（入力欄の文字選択を邪魔しない） */
+function dragSource(el, getData, handle) {
+  if (handle) {
+    handle.addEventListener('mousedown', () => { el.draggable = true; });
+    handle.addEventListener('mouseup', () => { el.draggable = false; });
+  } else el.draggable = true;
+  el.addEventListener('dragstart', e => {
+    DRAG = getData();
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', DRAG.kind); } catch { /* 古いブラウザ */ }
+    requestAnimationFrame(() => el.classList.add('dragging'));
+    document.body.classList.add('is-dragging');
+  });
+  el.addEventListener('dragend', () => {
+    el.classList.remove('dragging');
+    if (handle) el.draggable = false;
+    DRAG = null;
+    document.body.classList.remove('is-dragging');
+    clearDropMarks();
+  });
+}
+
+/** 落とせる場所にする。where(d) が 'between' なら上半分／下半分で前後、'into' なら中へ */
+function dropTarget(el, where, onDrop) {
+  el.addEventListener('dragover', e => {
+    const mode = DRAG && where(DRAG);
+    if (!mode) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const r = el.getBoundingClientRect();
+    const pos = mode === 'into' ? 'into' : e.clientY < r.top + r.height / 2 ? 'before' : 'after';
+    if (!el.classList.contains('drop-' + pos)) { clearDropMarks(); el.classList.add('drop-' + pos); }
+    el.dataset.drop = pos;
+  });
+  el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drop-before', 'drop-after', 'drop-into'); });
+  el.addEventListener('drop', e => {
+    const d = DRAG;
+    if (!d || !where(d)) return;
+    e.preventDefault();
+    const pos = el.dataset.drop;
+    clearDropMarks();
+    onDrop(d, pos);
+  });
+}
+
+// ---- 大問のまとまりを保ったまま並べ替える（先頭の設問が大問の指示文・本文・素材の sid を持つ）
+const BIG_FIELDS = { big_title: '', passage: '', passage_src: '', order: '', page_break: false, hide: false };
+
+function toGroups(list) {
+  return groupsOf(list).map(g => {
+    const head = list[g[0]];
+    return { sid: head.sid, fields: Object.fromEntries(Object.keys(BIG_FIELDS).map(k => [k, head[k] ?? BIG_FIELDS[k]])), parts: g.map(i => list[i]) };
+  });
+}
+function fromGroups(groups) {
+  const out = [];
+  groups.filter(G => G.parts.length).forEach(G => {
+    if (G.parts[0].sid !== G.sid) {  // 大問の素材は先頭の設問の sid に付いているので、新しい先頭に引き継ぐ
+      const holder = G.parts.find(x => x.sid === G.sid);
+      if (holder) holder.sid = G.parts[0].sid;
+      G.parts[0].sid = G.sid;
+    }
+    G.parts.forEach((x, k) => {
+      x.new_big = k === 0;
+      for (const [f, empty] of Object.entries(BIG_FIELDS)) x[f] = k === 0 ? G.fields[f] : empty;
+      out.push(x);
+    });
+  });
+  return out;
+}
+function commitGroups(groups, select) {
+  const p = S.project;
+  p.sections.splice(0, p.sections.length, ...fromGroups(groups));
+  renumber(); markDirty();
+  if (select) S.secIdx = Math.max(0, p.sections.indexOf(select));
+  render({ keepScroll: true });
+}
+
+/** 設問を動かす（同じ大問の中の並べ替え・別の大問へ） */
+function movePart(part, targetPart, pos) {
+  if (part === targetPart) return;
+  const groups = toGroups(S.project.sections);
+  const from = groups.find(G => G.parts.includes(part));
+  const to = groups.find(G => G.parts.includes(targetPart));
+  if (from !== to && part.sid === from.sid) part.sid = newSid();  // 元の大問の素材は元の大問に残す
+  from.parts.splice(from.parts.indexOf(part), 1);
+  const at = to.parts.indexOf(targetPart) + (pos === 'after' ? 1 : 0);
+  to.parts.splice(at, 0, part);
+  commitGroups(groups, part);
+  if (from !== to) toast(`${part.label || '設問'}を別の大問へ移しました`, 'ok', { label: '元に戻す', fn: undo });
+}
+/** 設問を大問の最後へ（大問の行に落としたとき） */
+function movePartInto(part, bigHead) {
+  const groups = toGroups(S.project.sections);
+  const to = groups.find(G => G.parts.includes(bigHead));
+  if (to.parts.includes(part)) return;
+  movePart(part, to.parts[to.parts.length - 1], 'after');
+}
+/** 大問を動かす */
+function moveBigTo(head, targetHead, pos) {
+  if (head === targetHead) return;
+  const groups = toGroups(S.project.sections);
+  const g = groups.find(G => G.parts[0] === head);
+  groups.splice(groups.indexOf(g), 1);
+  const at = groups.findIndex(G => G.parts[0] === targetHead) + (pos === 'after' ? 1 : 0);
+  groups.splice(at, 0, g);
+  commitGroups(groups, S.project.sections[S.secIdx]);
+}
+/** 問題を動かす（同じ設問の中・別の設問へ） */
+function moveQuestion(fromSec, q, toSec, beforeQ, pos) {
+  const i = fromSec.questions.indexOf(q);
+  if (i < 0) return;
+  fromSec.questions.splice(i, 1);
+  let at = beforeQ ? toSec.questions.indexOf(beforeQ) + (pos === 'after' ? 1 : 0) : toSec.questions.length;
+  if (at < 0) at = toSec.questions.length;
+  toSec.questions.splice(at, 0, q);
+  if (toSec !== fromSec) {
+    q.kind = toSec.type;
+    if (toSec.questions.length > toSec.count) toSec.count = toSec.questions.length;
+    if (q.choices && Number.isInteger(q.correct)) syncChoiceAnswers({ ...toSec, questions: [q] });
+  }
+  renumber(); markDirty(); S.issues = null;
+  render({ keepScroll: true });
+  if (toSec !== fromSec) toast(`${toSec.label}へ移しました（${toSec.label}の(${q.number})）`, 'ok', { label: '元に戻す', fn: undo });
+}
+
+/** 大問・設問の操作メニュー（キーボードでも使えるように、ドラッグと同じことをメニューでも） */
+function bigMenu(head, gi, gs) {
+  const p = S.project;
+  const groups = () => toGroups(p.sections);
+  const swap = d => { const G = groups(); const k = G.findIndex(x => x.parts[0] === head); if (G[k + d]) { [G[k], G[k + d]] = [G[k + d], G[k]]; commitGroups(G, p.sections[S.secIdx]); } };
+  return menuButton(icon('list', 14), [
+    ['up', '大問を上へ', () => swap(-1)],
+    ['down', '大問を下へ', () => swap(1)],
+    ['layers', head.page_break ? '改ページをやめる' : 'この大問の前で改ページ', () => { head.page_break = !head.page_break; markDirty(); render({ keepScroll: true }); }],
+    ['eye', head.hide ? '用紙に出す' : '用紙に出さない（下書きにする）', () => { head.hide = !head.hide; renumber(); markDirty(); render({ keepScroll: true }); }],
+    ['copy', '大問を複製', () => {
+      const G = groups(); const k = G.findIndex(x => x.parts[0] === head);
+      const copy = JSON.parse(JSON.stringify(G[k]));
+      copy.sid = newSid();
+      copy.parts.forEach((x, j) => { x.sid = j === 0 ? copy.sid : newSid(); });
+      G.splice(k + 1, 0, copy); commitGroups(G, copy.parts[0]);
+      toast('大問を複製しました（問題もコピー）', 'ok');
+    }],
+    ['trash', '大問を削除', async () => {
+      const G = groups(); const k = G.findIndex(x => x.parts[0] === head);
+      const made = G[k].parts.reduce((a, x) => a + x.questions.length, 0);
+      if (!await confirmBox(made ? `${head.label.split(' ')[0]}には作成済みの問題が${made}問あります。設問ごとまとめて削除しますか？（元に戻すで戻せます）` : `${head.label.split(' ')[0]}を削除しますか？`, { ok: '削除する', danger: true })) return;
+      G.splice(k, 1); commitGroups(G, (G[Math.min(k, G.length - 1)] || { parts: [] }).parts[0]);
+    }],
+  ], 'icon-btn ol-menu', '大問の操作');
+}
+
+/** 左のアウトライン（大問 → 設問）。クリックで移動、ドラッグで並べ替え・設問を別の大問へ */
+function renderOutline(gs, gi, si) {
+  const p = S.project;
+  const total = p.sections.reduce((a, x) => a + x.questions.length, 0), count = p.sections.reduce((a, x) => a + x.count, 0);
+  const box = h('nav', { class: 'card outline', 'aria-label': '大問と設問の構成' },
+    h('div', { class: 'outline-head' }, h('b', {}, '構成'), h('span', { class: 'muted small' }, `作問 ${total}/${count}問`)));
+  gs.forEach((g, k) => {
+    const head = p.sections[g[0]], secs = g.map(i => p.sections[i]);
+    const made = secs.reduce((a, x) => a + x.questions.length, 0), cnt = secs.reduce((a, x) => a + x.count, 0);
+    const name = head.label.split(' ')[0];
+    const sub = head.big_title?.trim() || (secs.length > 1 ? `${SHORT[secs[0].type]}ほか ${secs.length}設問` : TYPE_LABEL[secs[0].type] || secs[0].type);
+    const row = h('div', { class: 'sec-tab ol-big' + (k === gi ? ' on' : '') + (head.hide ? ' draft' : ''), role: 'button', tabindex: '0',
+      onclick: e => { if (e.target.closest('.ol-menu, .menu')) return; S.secIdx = g[0]; hideFab(); render(); },
+      onkeydown: e => { if (e.key === 'Enter') { S.secIdx = g[0]; render(); } } },
+      h('span', { class: 'grip', title: 'ドラッグで並べ替え' }, '⋮⋮'),
+      h('div', { class: 'ol-text', title: head.hide ? '用紙に出さない（下書き）。番号を使わず、問題用紙・解答用紙・チェックから外れます' : null },
+        h('b', {}, name, head.page_break ? h('small', { class: 'ol-flag' }, '改ページ') : null),
+        h('span', {}, sub.length > 22 ? sub.slice(0, 22) + '…' : sub)),
+      h('em', { class: cnt && made >= cnt ? 'full' : '' }, `${made}/${cnt}`),
+      bigMenu(head, k, gs));
+    dragSource(row, () => ({ kind: 'big', head }));
+    dropTarget(row, d => d.kind === 'big' ? (d.head !== head && 'between') : d.kind === 'part' ? (!g.includes(p.sections.indexOf(d.part)) && 'into') : d.kind === 'q' ? 'into' : null,
+      (d, pos) => d.kind === 'big' ? moveBigTo(d.head, head, pos)
+        : d.kind === 'part' ? movePartInto(d.part, head)
+          : moveQuestion(d.sec, d.q, head, null));
+    box.append(row);
+    if (k !== gi) return;
+    const parts = h('div', { class: 'ol-parts' });
+    g.forEach((i, j) => {
+      const x = p.sections[i];
+      const prow = h('button', { class: 'part-tab ol-part' + (i === si ? ' on' : ''), onclick: () => { S.secIdx = i; hideFab(); render({ keepScroll: true }); } },
+        h('span', { class: 'grip' }, '⋮⋮'), h('b', {}, g.length > 1 ? `問${j + 1}` : '設問'), h('span', {}, SHORT[x.type] || x.type),
+        h('em', { class: x.count && x.questions.length >= x.count ? 'full' : '' }, `${x.questions.length}/${x.count}`));
+      dragSource(prow, () => ({ kind: 'part', part: x }));
+      dropTarget(prow, d => d.kind === 'part' ? (d.part !== x && 'between') : d.kind === 'q' ? (d.sec !== x && 'into') : null,
+        (d, pos) => d.kind === 'part' ? movePart(d.part, x, pos) : moveQuestion(d.sec, d.q, x, null));
+      parts.append(prow);
+    });
+    parts.append(h('button', { class: 'part-tab add ol-part', onclick: () => typePicker(type => {
+      const ns = { ...newSection(type), new_big: false };
+      p.sections.splice(g[g.length - 1] + 1, 0, ns);
+      renumber(); markDirty(); S.secIdx = p.sections.indexOf(ns); render({ keepScroll: true });
+    }), title: '同じ本文で、別の形式の設問を足します（例: 和訳・指示語・内容一致）' }, icon('plus', 13), '設問を追加'));
+    box.append(parts);
+  });
+  box.append(
+    h('button', { class: 'sec-tab add ol-add', onclick: () => {
+      const ns = { ...newSection('auto', 1), points_each: 2, new_big: true };
+      p.sections.push(ns); renumber(); markDirty(); S.secIdx = p.sections.length - 1; render();
+      toast('大問を追加しました。素材を入れて、作りたい問題を書くか、文をクリックして作ります', 'ok');
+    } }, icon('plus', 14), h('span', {}, '大問を追加')),
+    h('button', { class: 'link small ol-bank', onclick: () => openBank({ tab: 'bigs' }) }, icon('clock', 13), '過去の試験の大問を使う'),
+    h('p', { class: 'outline-tip' }, '⋮⋮ をドラッグで並べ替え。設問は別の大問へ、問題は別の設問へも移せます'));
+  return box;
+}
+
 function renderBuild() {
   const p = S.project;
   if (!p.sections.length) {
     return h('div', { class: 'step' }, stepHead('大問をつくる'),
-      h('div', { class: 'card' }, emptyState('layers', 'まだ大問がありません', 'まず「試験の設定」で大問を組むか、下から大問を1つ追加してください。', [
-        h('button', { class: 'btn primary', onclick: () => gotoStep('setup') }, icon('layers'), '試験の設定へ'),
-        h('button', { class: 'btn ghost', onclick: () => addSection('fill_blank', true) }, icon('plus'), '空所補充の大問を追加')])));
+      h('div', { class: 'card' }, emptyState('layers', 'まだ大問がありません', '大問を追加して、素材（本文・例文・単語リスト）を入れて作り始めましょう。', [
+        h('button', { class: 'btn primary', onclick: () => { p.sections.push({ ...newSection('auto', 1), points_each: 2 }); renumber(); markDirty(); S.secIdx = 0; render(); } }, icon('plus'), '大問を追加'),
+        h('button', { class: 'btn ghost', onclick: applyTemplateDialog }, icon('layers'), 'テンプレートから組む'),
+        h('button', { class: 'btn ghost', onclick: () => openBank({ tab: 'bigs' }) }, icon('clock'), '過去の試験の大問を使う')])));
   }
   if (S.secIdx >= p.sections.length) S.secIdx = 0;
   applyLabels(p.sections);
@@ -1368,71 +1613,31 @@ function renderBuild() {
   if (!mats.some(m => m.id === selId)) selId = S.matSel[big.sid] = mats[0]?.id;
   const others = p.materials.filter(m => m.sid && !sids.has(m.sid));
   const viewing = p.materials.find(m => m.id === selId);
-  const bigLabel = `大問${big.no}`;
-
-  const tabs = h('div', { class: 'sec-tabs', role: 'tablist' },
-    gs.map((gg, k) => {
-      const secs = gg.map(i => p.sections[i]);
-      const made = secs.reduce((a, x) => a + x.questions.length, 0), count = secs.reduce((a, x) => a + x.count, 0);
-      return h('button', { class: 'sec-tab' + (k === gi ? ' on' : ''), role: 'tab', onclick: () => { S.secIdx = gg[0]; hideFab(); render(); } },
-        h('b', {}, `大問${k + 1}`), h('span', {}, secs.length > 1 ? `${SHORT[secs[0].type]}ほか 設問${secs.length}つ` : SHORT[secs[0].type] || secs[0].type),
-        h('em', { class: count && made >= count ? 'full' : '' }, `${made}/${count}問`));
-    }),
-    h('button', { class: 'sec-tab add', onclick: () => gotoStep('setup'), title: '大問の追加・並べ替えは「試験の設定」で' }, icon('plus', 16), h('span', {}, '大問を追加')));
-
-  // 大問の見出し：大問の指示文・本文・設問（問1・問2…）の切り替え
-  const ctx = { dirty: markDirty, redraw: () => render({ keepScroll: true }), onPoints: refreshLive, list: p.sections };
-  const editBox = S.secOpen ? h('div', { class: 'sec-edit' },
-    sectionFields(s, ctx),
-    field('指示文', textarea({ value: s.instructions, rows: 2, oninput: v => { s.instructions = v; markDirty(); const t = $('#sec-instr'); if (t) t.textContent = v; } })),
-    sectionDetails(s, ctx)) : null;
+  const bigLabel = big.label.split(' ')[0];
   const vocab = VOCAB_TYPES.has(s.type);
-  const addPart = () => typePicker(type => {
-    const ns = { ...newSection(type), new_big: false };
-    p.sections.splice(g[g.length - 1] + 1, 0, ns);
-    renumber(); markDirty(); S.secIdx = g[g.length - 1] + 1; render({ keepScroll: true });
-  });
-  const partTabs = h('div', { class: 'part-tabs' },
-    g.map((i, k) => {
-      const x = p.sections[i];
-      return h('button', { class: 'part-tab' + (i === si ? ' on' : ''), onclick: () => { S.secIdx = i; hideFab(); render({ keepScroll: true }); } },
-        h('b', {}, multi ? `問${k + 1}` : '設問'), h('span', {}, SHORT[x.type] || x.type),
-        h('em', { class: x.count && x.questions.length >= x.count ? 'full' : '' }, `${x.questions.length}/${x.count}`));
-    }),
-    h('button', { class: 'part-tab add', onclick: addPart, title: '同じ本文で、別の形式の設問を足します（例: 和訳・指示語・内容一致）' }, icon('plus', 14), '設問を追加'));
+
+  // ---- 大問の見出し（大問の指示文・本文）
   const passage = (big.passage || '').trim();
-  const head = h('div', { class: 'card sec-head' },
-    h('div', { class: 'sec-head-main' },
-      h('div', { class: 'big-title-row' }, h('b', {}, bigLabel),
-        input({ value: big.big_title || '', cls: 'inp big-title', placeholder: multi ? '大問の指示文（例: 次の英文を読んで、後の問いに答えなさい。）' : '大問の指示文（設問を2つ以上にしたとき見出しになります）',
-          oninput: v => { big.big_title = v; markDirty(); } })),
-      h('div', { class: 'passage-row' + (passage ? ' has' : '') },
-        icon('book', 15),
-        h('div', { class: 'passage-text' }, passage
-          ? [h('b', {}, `本文（問題用紙に載せる・${passage.length}字）`), h('span', {}, rich(passage.slice(0, 140).replace(/\n/g, ' ') + (passage.length > 140 ? '…' : '')))]
-          : [h('b', {}, '本文（問題用紙に載せる）: なし'), h('span', {}, '長文・対話文の大問は、本文を入れると問題用紙の大問の最初に枠つきで載ります')]),
-        h('button', { class: 'btn ghost sm', onclick: () => passageDialog(big, mats) }, icon('edit', 13), passage ? '本文を編集' : '本文を入れる')),
-      orderBox(big, g[0]),
-      partTabs,
-      h('div', { class: 'sec-head-title' }, `${s.label}　${TYPE_LABEL[s.type] || s.type}`,
-        h('span', { class: 'pill' }, `${s.points_each}点 × ${s.count}問 ＝ ${plannedPoints(s)}点`),
-        balanceChip(s),
-        h('button', { class: 'link', onclick: () => { S.secOpen = !S.secOpen; render({ keepScroll: true }); } }, S.secOpen ? '設定を閉じる' : '形式・配点・指示文・語群を変更')),
-      h('p', { class: 'sec-instr', id: 'sec-instr' }, s.instructions || '（指示文は「形式・配点・指示文を変更」から入力できます）'),
-      s.bank?.length ? h('p', { class: 'sec-bank' }, h('b', {}, '語群: '), choiceLine(s.bank_style || s.choice_style, s.bank).join('　')) : null,
-      editBox));
+  const head = h('div', { class: 'card sec-head big-bar' },
+    h('div', { class: 'big-title-row' },
+      h('span', { class: 'big-badge' + (big.hide ? ' draft' : '') }, bigLabel),
+      input({ value: big.big_title || '', cls: 'inp big-title', 'aria-label': '大問の指示文',
+        placeholder: multi ? '大問の指示文（例: 次の英文を読んで、後の問いに答えなさい。）' : '大問の指示文（設問を2つ以上にしたとき見出しになります）',
+        oninput: v => { big.big_title = v; markDirty(); } }),
+      big.page_break ? h('span', { class: 'pill' }, '前で改ページ') : null,
+      big.hide ? h('span', { class: 'pill warn' }, '用紙に出さない（下書き）') : null,
+      bigMenu(big, gi, gs)),
+    h('div', { class: 'passage-row' + (passage ? ' has' : '') },
+      icon('book', 15),
+      h('div', { class: 'passage-text' }, passage
+        ? [h('b', {}, `本文（問題用紙に載せる・${passage.length}字）`), h('span', {}, rich(passage.slice(0, 160).replace(/\n/g, ' ') + (passage.length > 160 ? '…' : '')))]
+        : [h('b', {}, '本文（問題用紙に載せる）: なし'), h('span', {}, '長文・対話文の大問は、本文を入れると大問の見出しの下に枠つきで載ります')]),
+      h('button', { class: 'btn ghost sm', onclick: () => passageDialog(big, mats) }, icon('edit', 13), passage ? '本文を編集' : '本文を入れる')));
 
-  // 進み具合の案内
-  const made = s.questions.length;
-  const guide = h('div', { class: 'guide' },
-    guideStep(1, vocab ? '単語リストを入れる（Excelの表をコピーして貼り付け）' : 'この大問の素材を入れる', mats.length > 0),
-    guideStep(2, vocab ? '「単語リストから作成」で自動作成' : '素材の文をクリックして形式を選ぶ', made > 0),
-    guideStep(3, `問題を${s.count}問そろえる（いま${made}問）`, s.count > 0 && made >= s.count));
-
-  // 左：素材（大問で共通）
+  // ---- 左：素材（大問で共通）
   const matPane = h('div', { class: 'card pane' },
-    h('div', { class: 'pane-head' }, h('span', { class: 'pane-num' }, '1'), h('b', {}, `${bigLabel}の素材`),
-      h('span', { class: 'muted' }, vocab ? '単語リスト（単語・意味・例文など）' : '本文・例文など。大問の設問すべてで使えます')),
+    h('div', { class: 'pane-head' }, h('b', {}, `${bigLabel}の素材`),
+      h('span', { class: 'muted' }, vocab ? '単語リスト（単語・意味・例文など）' : '本文・例文など。この大問の設問すべてで使えます')),
     h('div', { class: 'mat-tabs' },
       mats.map(m => h('div', { class: 'mat-chip' + (m.id === selId ? ' on' : ''), role: 'button', tabindex: '0',
         onclick: () => { S.matSel[big.sid] = m.id; hideFab(); render({ keepScroll: true }); } },
@@ -1446,8 +1651,8 @@ function renderBuild() {
         materialViewer(viewing),
         h('div', { class: 'row', style: { marginTop: '10px' } },
           dropZone(big.sid, true),
-          h('button', { class: 'btn ghost', onclick: () => pasteDialog(big.sid) }, icon('clipboard'), '貼り付けて追加'),
-          vocab ? null : h('button', { class: 'btn ghost', title: 'この素材の全文を、問題用紙に載せる本文にします', onclick: () => useAsPassage(big, viewing) }, icon('book'), 'この素材を本文にする')))
+          h('button', { class: 'btn ghost sm', onclick: () => pasteDialog(big.sid) }, icon('clipboard', 14), '貼り付けて追加'),
+          vocab ? null : h('button', { class: 'btn ghost sm', title: 'この素材の全文を、問題用紙に載せる本文にします', onclick: () => useAsPassage(big, viewing) }, icon('book', 14), 'この素材を本文にする')))
       : h('div', { class: 'stack' },
         h('p', { class: 'muted', style: { margin: 0 } }, vocab
           ? '単語帳・単語リストを入れてください。Excelの表（番号・単語・意味・例文…）をそのままコピーして貼り付けられます。'
@@ -1456,12 +1661,30 @@ function renderBuild() {
         dropZone(big.sid),
         h('button', { class: 'btn ghost block', onclick: () => pasteDialog(big.sid) }, icon('clipboard'), 'テキストを貼り付けて追加')));
 
-  // 右：問題
+  // ---- 右：設問と問題
+  const ctx = { dirty: markDirty, redraw: () => render({ keepScroll: true }), onPoints: refreshLive, list: p.sections };
+  const made = s.questions.length;
   const plan = numberPlan(p)[si];
+  const bigMade = g.reduce((a, i) => a + p.sections[i].questions.length, 0);
+  const orderOpen = !!(big.order || '').trim() || !bigMade || S.orderOpen?.[big.sid];
+  const instr = textarea({ value: s.instructions, rows: 1, cls: 'inp instr-inline', 'aria-label': '指示文',
+    placeholder: '指示文（問題用紙に載る文。ここで直接書けます）', oninput: v => { s.instructions = v; markDirty(); } });
+  const grow = () => { instr.style.height = 'auto'; instr.style.height = instr.scrollHeight + 2 + 'px'; };
+  instr.addEventListener('input', grow); requestAnimationFrame(grow);
   const qPane = h('div', { class: 'card pane' },
-    h('div', { class: 'pane-head' }, h('span', { class: 'pane-num' }, '2'), h('b', {}, `${s.label}の問題`),
-      h('span', { class: 'pill ' + (s.count && made >= s.count ? 'ok' : '') }, `${made} / ${s.count}問`)),
-    h('div', { class: 'row', style: { marginBottom: '12px' } },
+    h('div', { class: 'part-head' },
+      h('div', { class: 'sec-head-title' }, h('span', {}, `${s.label}`), h('span', { class: 'part-type' }, TYPE_LABEL[s.type] || s.type),
+        h('span', { class: 'pill' + (s.count && made >= s.count ? ' ok' : '') }, `${made} / ${s.count}問`),
+        h('span', { class: 'pill' }, `${s.points_each}点 × ${s.count} ＝ ${plannedPoints(s)}点`),
+        balanceChip(s),
+        h('button', { class: 'link', onclick: () => { S.secOpen = !S.secOpen; render({ keepScroll: true }); } }, S.secOpen ? '設定を閉じる' : '形式・配点・指示文・語群を変更')),
+      instr,
+      s.bank?.length ? h('p', { class: 'sec-bank' }, h('b', {}, '語群: '), choiceLine(s.bank_style || s.choice_style, s.bank).join('　')) : null,
+      S.secOpen ? h('div', { class: 'sec-edit' }, sectionFields(s, ctx), sectionDetails(s, ctx)) : null),
+    orderOpen ? orderBox(big, g[0])
+      : h('button', { class: 'order-collapsed', onclick: () => { S.orderOpen = { ...(S.orderOpen || {}), [big.sid]: true }; render({ keepScroll: true }); } },
+        icon('sparkles', 14), h('b', {}, 'AIに注文して作る'), h('span', { class: 'muted small' }, '例: 内容一致を2問、同意語選択を1問')),
+    h('div', { class: 'row q-tools' },
       vocab ? h('button', { class: 'btn primary sm', onclick: () => openWordList(si) }, icon('list', 14), '単語リストから作成') : null,
       h('button', { class: 'btn sm ' + (vocab ? 'ghost' : 'primary'), onclick: () => openQuick({ format: QUICK_FOR[s.type] || 'ai', target: si, source: viewing?.name || '' }) }, icon('sparkles', 14), '英文を入れて作問'),
       h('button', { class: 'btn ghost sm', onclick: () => addBlankQuestion(si) }, icon('plus', 14), '空の問題'),
@@ -1469,16 +1692,18 @@ function renderBuild() {
       h('button', { class: 'btn ghost sm', disabled: !S.status.ai, title: S.status.ai ? `この大問の素材から${aiName()}が作問します` : 'APIキーを設定すると使えます', onclick: () => aiSection(si) }, icon('sparkles', 14), 'AIで一括作問'),
       made ? menuButton(h('span', { class: 'row-i' }, icon('list', 14), 'まとめて'), [
         ['shuffle', '正解の位置をならす（選択式）', () => balanceAnswers(s)],
-        ['copy', 'この大問の問題をコピー（テキスト）', () => copyText(s.questions.map((q, i) => `${plan[i].label} ${q.body.replace(/\n/g, ' ')}${q.choices ? '  ' + choiceLine(s.choice_style, q.choices).join('  ') : ''}　→ ${q.answer}`).join('\n'))],
-        ['trash', 'この大問の問題をすべて削除', () => clearSection(s)],
+        ['copy', 'この設問の問題をコピー（テキスト）', () => copyText(s.questions.map((q, i) => `${plan[i].label} ${q.body.replace(/\n/g, ' ')}${q.choices ? '  ' + choiceLine(s.choice_style, q.choices).join('  ') : ''}　→ ${q.answer}`).join('\n'))],
+        ['trash', 'この設問の問題をすべて削除', () => clearSection(s)],
       ]) : null),
     made ? h('div', { class: 'q-list' }, s.questions.map((q, qi) => questionCard(s, si, q, qi, plan[qi])))
       : h('div', { class: 'empty small' }, icon('edit', 26), h('b', {}, 'まだ問題がありません'),
-        h('p', {}, vocab ? '「単語リストから作成」で、単語リストから選択肢つきの問題を自動で作れます' : '左の素材の文をクリックすると作れます')));
+        h('p', {}, vocab ? '「単語リストから作成」で、単語リストから選択肢つきの問題を自動で作れます'
+          : '左の素材の文をクリックするか、上の「AIに注文して作る」に作りたい問題を書きます')));
 
-  return h('div', { class: 'step wide' },
-    stepHead('大問をつくる', '上のタブで大問、その下の「問1・問2…」で設問を選びます。素材（本文）は大問で共通です。文をクリックすると、選んでいる設問に問題が入ります。'),
-    tabs, head, h('div', { class: 'build' }, matPane, qPane));
+  return h('div', { class: 'step wide studio-step' },
+    h('div', { class: 'studio' },
+      renderOutline(gs, gi, si),
+      h('div', { class: 'studio-main' }, head, h('div', { class: 'build' }, matPane, qPane))));
 }
 
 // ================================================================ AIに注文して作る（自然言語）
@@ -1717,28 +1942,50 @@ function analysisCard() {
 }
 
 /** プレビューモード: どの画面からでも、用紙の仕上がりを大きく確認する */
+/** 用紙を、置き場所の幅に収まる大きさに縮める（B4横・A3でも全体が見えるように） */
+function fitPaper(box, paper, zoom = null) {
+  requestAnimationFrame(() => {
+    const avail = box.clientWidth - 24;
+    const fit = paper.offsetWidth ? Math.min(1, avail / paper.offsetWidth) : 1;
+    paper.style.zoom = zoom ?? fit;
+  });
+}
+
 function previewDialog() {
   const p = S.project;
-  let tab = S.previewTab || 'exam', zoom = 1;
+  let tab = S.previewTab || 'exam', zoom = null;  // null は「幅に合わせる」
   const box = h('div', { class: 'pv-stage' });
   const tabs = h('div', { class: 'seg' });
   const draw = () => {
     tabs.replaceChildren(...[['exam', '問題用紙'], ['sheet', '解答用紙'], ['model', '模範解答']].map(([k, l]) =>
       h('button', { class: 'seg-btn' + (tab === k ? ' on' : ''), onclick: () => { tab = S.previewTab = k; draw(); } }, l)));
     const paper = paperView(tab);
-    paper.style.zoom = zoom;
     box.replaceChildren(paper);
+    fitPaper(box, paper, zoom);
   };
   const st = stats();
   const bar = h('div', { class: 'pv-bar' }, tabs,
     h('span', { class: 'muted small' }, `大問${groupsOf(p.sections).length}・作問 ${st.made}/${st.count}問・配点 ${p.sections.reduce((a, x) => a + sectionPoints(x), 0)}/${p.exam.written_points}点`),
     h('div', { class: 'row', style: { marginLeft: 'auto' } },
-      iconBtn('down', '縮小', () => { zoom = Math.max(.6, zoom - .1); draw(); }),
-      iconBtn('up', '拡大', () => { zoom = Math.min(1.6, zoom + .1); draw(); }),
+      iconBtn('down', '縮小', () => { zoom = Math.max(.4, (zoom ?? (+box.firstChild?.style.zoom || 1)) - .1); draw(); }),
+      h('button', { class: 'btn ghost sm', onclick: () => { zoom = null; draw(); }, title: '用紙全体が見える大きさにします' }, '幅に合わせる'),
+      iconBtn('up', '拡大', () => { zoom = Math.min(1.6, (zoom ?? (+box.firstChild?.style.zoom || 1)) + .1); draw(); }),
       h('button', { class: 'btn ghost sm', onclick: () => window.print() }, icon('printer', 14), '印刷'),
       h('button', { class: 'btn primary sm', onclick: () => { closeTop(); gotoStep('output'); doExport(); } }, icon('download', 14), 'Wordで出力')));
+  // 右に用紙の設定。変えるとすぐプレビューに反映（Wordにも同じ設定で出る）
+  let side = S.pvSide !== false;
+  const panel = h('div', { class: 'pv-side' });
+  const drawSide = () => setChildren(panel, side ? [
+    h('div', { class: 'pv-side-head' }, h('b', {}, '用紙のレイアウト'), iconBtn('x', '閉じる', () => { side = S.pvSide = false; drawSide(); wrap.classList.remove('with-side'); })),
+    paperFields(p.exam, () => { markDirty(); draw(); }, true),
+    h('div', { class: 'fld' }, h('span', {}, '問題番号'), segmented([['section', '大問ごと'], ['global', '通し番号']], p.exam.numbering || 'section', v => { p.exam.numbering = v; markDirty(); draw(); })),
+    h('div', { class: 'fld' }, h('span', {}, '見出し'), segmented([['number', '１ 指示文'], ['bracket', '【1】指示文']], p.exam.heading || 'number', v => { p.exam.heading = v; markDirty(); draw(); })),
+    h('p', { class: 'muted small', style: { margin: 0 } }, '設問ごとの選択肢の並べ方は、各設問の「詳細設定」で変えられます'),
+  ] : h('button', { class: 'btn ghost sm pv-open', onclick: () => { side = S.pvSide = true; drawSide(); wrap.classList.add('with-side'); } }, icon('layers', 14), 'レイアウト'));
+  const wrap = h('div', { class: 'pv-main' + (side ? ' with-side' : '') }, box, panel);
+  drawSide();
   draw();
-  openModal({ title: `プレビュー — ${p.exam.title}`, size: 'xl preview', body: h('div', { class: 'pv' }, bar, box) });
+  openModal({ title: `プレビュー — ${p.exam.title}`, size: 'xl preview', body: h('div', { class: 'pv' }, bar, wrap), onClose: () => { if (S.project === p) render({ keepScroll: true }); } });
 }
 
 function guideStep(n, text, done) {
@@ -1866,9 +2113,12 @@ function questionCard(s, si, q, qi, num) {
           } }), '解答位置の行（ ( 34 ) の形）を出す') : null),
       h('button', { class: 'btn primary sm', onclick: toggle }, icon('check', 14), '編集を閉じる'))) : null;
 
-  return h('div', { class: 'qcard' + (open ? ' open' : ''), id: `q-${si}-${qi}` },
+  // 番号の部分をつかんでドラッグ → 並べ替え・左の設問へ落とすと移動
+  const handle = h('span', { class: 'qnum q-grip', title: 'ドラッグで並べ替え（左の構成の設問に落とすと、その設問へ移動）' },
+    h('span', { class: 'grip' }, '⋮⋮'), num?.slots ? `${num.label} → ${num.slots.join('・')}` : (num?.label || `(${q.number})`));
+  const card = h('div', { class: 'qcard' + (open ? ' open' : ''), id: `q-${si}-${qi}` },
     h('div', { class: 'qhead' },
-      h('span', { class: 'qnum' }, num?.slots ? `${num.label} → ${num.slots.join('・')}` : (num?.label || `(${q.number})`)), badges,
+      handle, badges,
       h('div', { class: 'qactions' },
         h('button', { class: 'btn ghost sm', onclick: toggle }, icon('edit', 13), open ? '閉じる' : '編集'),
         S.status.ai ? iconBtn('sparkles', 'AIで別解チェック', () => verifyOne(s, si, q, qi)) : null,
@@ -1880,6 +2130,9 @@ function questionCard(s, si, q, qi, num) {
           s.questions.splice(qi, 1); renumber(); markDirty(); render({ keepScroll: true });
         }, { danger: true }))),
     open ? null : look, editor, verdict);
+  dragSource(card, () => ({ kind: 'q', sec: s, q }), handle);
+  dropTarget(card, d => d.kind === 'q' && d.q !== q ? 'between' : null, (d, pos) => moveQuestion(d.sec, d.q, s, q, pos));
+  return card;
 }
 
 /** 選択肢の編集欄（●で正解を選ぶ） */
@@ -2751,8 +3004,19 @@ async function doExport() {
 /** 用紙のプレビュー。Word出力（build_docx.py）と同じ規則で並べる */
 function paperView(kind) {
   const p = S.project, e = p.exam;
-  const plan = numberPlan(p);
-  const paper = h('div', { class: 'paper' });
+  applyLabels(p.sections);
+  // 用紙に出さない（下書き）大問を除いた内容で、Wordと同じ規則で並べる
+  const view = { exam: e, sections: visibleSections(p.sections) };
+  const plan = numberPlan(view);
+  const pp = paperOf(e);
+  const sheet = kind !== 'exam';
+  const [size, orient] = sheet && SHEETS[pp.sheet] ? SHEETS[pp.sheet] : [pp.size, pp.orient];
+  const [wmm] = pageMm(size, orient);
+  const fs = +pp.font_size || 10.5;
+  const paper = h('div', { class: 'paper' + (pp.font === 'gothic' ? ' gothic' : '') + (sheet && pp.answer_height === 'tall' ? ' tall' : ''),
+    style: { width: Math.round(wmm * 3.9) + 'px', maxWidth: 'none', fontSize: (fs * 14.5 / 10.5).toFixed(1) + 'px',
+      lineHeight: (1.85 * (LINE[pp.line] || 1.1) / 1.1).toFixed(2), padding: `${Math.round((MARGINS[pp.margin] || 16) * 2.75)}px` } },
+    h('div', { class: 'paper-size' }, `${size}${orient === 'landscape' ? '横' : '縦'}${!sheet && +pp.columns === 2 ? '・2段組み' : ''}・${fs}pt・${pp.font === 'gothic' ? 'ゴシック' : '明朝'}`));
   const titleLine = suffix => (e.date && !suffix)
     ? h('div', { class: 'paper-title left' }, h('b', {}, e.title), h('span', {}, '　　　' + e.date))
     : h('div', { class: 'paper-title' }, e.title + suffix);
@@ -2773,42 +3037,48 @@ function paperView(kind) {
         h('div', { class: 'cv-break' }, '— ここで改ページ —')));
     }
     paper.append(titleLine(''));
-    applyLabels(p.sections);
-    const bigHead = new Map(groupsOf(p.sections).map(g => [g[0], g]));
-    p.sections.forEach((s, si) => {
+    const body = h('div', { class: 'paper-body' + (+pp.columns === 2 ? ' two' : '') });  // 2段組みは試験名の下から
+    paper.append(body);
+    const bigHead = new Map(groupsOf(view.sections).map(g => [g[0], g]));
+    let printed = 0;
+    view.sections.forEach((s, si) => {
       const g = bigHead.get(si);
       if (g) {  // 大問の見出しと本文（設問が1つも作られていない大問は出さない）
-        const secs = g.map(i => p.sections[i]);
+        const secs = g.map(i => view.sections[i]);
         if (secs.some(x => x.questions.length)) {
-          paper.append(h('div', { class: 'paper-sec' }, secs.length > 1 ? bigHeadingText(e, secs) : headingText(e, s)));
-          if ((s.passage || '').trim()) paper.append(h('div', { class: 'paper-passage' }, s.passage.split('\n').map(l => h('p', {}, rich(l)))));
+          if (s.page_break && printed) body.append(h('div', { class: 'paper-break' }, '— 改ページ —'));
+          printed++;
+          body.append(h('div', { class: 'paper-sec' }, secs.length > 1 ? bigHeadingText(e, secs) : headingText(e, s)));
+          if ((s.passage || '').trim()) body.append(h('div', { class: 'paper-passage' }, s.passage.split('\n').map(l => h('p', {}, rich(l)))));
         }
       }
       if (!s.questions.length) return;  // 未作成の設問は用紙に出さない
       const nums = plan[si];
-      if (s.part) paper.append(h('div', { class: 'paper-part' }, partHeadingText(e, s)));
+      if (s.part) body.append(h('div', { class: 'paper-part' }, partHeadingText(e, s)));
       const short = ch => Math.max(0, ...ch.map(c => String(c).length)) <= 18;  // 横に並べても読める選択肢
-      const compact = s.questions.every(q => q.choices?.length && !q.body.includes('\n') && q.body.length <= 40 && short(q.choices));
+      const compact = ['auto', 'row'].includes(s.choice_layout || 'auto')
+        && s.questions.every(q => q.choices?.length && !q.body.includes('\n') && q.body.length <= 40 && short(q.choices));
       if (compact) {
         const narrow = s.questions.every(q => !q.body.trim());  // 単語リスニングは番号だけ
-        paper.append(h('table', { class: 'ch-table' }, s.questions.map((q, i) => h('tr', {},
+        body.append(h('table', { class: 'ch-table' }, s.questions.map((q, i) => h('tr', {},
           h('td', { class: 'ch-q' + (narrow ? ' narrow' : '') }, `${nums[i].label} ${q.body}`.trim()),
           choiceLine(s.choice_style, q.choices).map(c => h('td', {}, c))))));
       } else {
         s.questions.forEach((q, i) => {
           const lines = q.body.split('\n');
           const rl = reorderLine(q, nums[i].slots || q.slot_labels || []);
-          paper.append(h('div', { class: 'paper-q' }, h('span', { class: 'paper-qn' }, nums[i].label),
+          const mode = q.choices?.length ? choiceMode(s, q) : '';
+          body.append(h('div', { class: 'paper-q' }, h('span', { class: 'paper-qn' }, nums[i].label),
             h('div', {}, lines.map(l => h('div', {}, rich(l))), rl ? h('div', {}, rl) : null,
-              q.choices?.length ? h('div', { class: 'paper-ch' + (short(q.choices) ? '' : ' long') }, choiceLine(s.choice_style, q.choices).map(c => h('span', {}, c))) : null)));
+              mode ? h('div', { class: 'paper-ch ' + (mode === 'row' ? '' : mode === 'column' ? 'long' : 'grid2') }, choiceLine(s.choice_style, q.choices).map(c => h('span', {}, c))) : null)));
         });
       }
       if (s.bank?.length) {
-        paper.append(h('div', { class: 'paper-bank' }, h('b', {}, '【語群】'),
+        body.append(h('div', { class: 'paper-bank' }, h('b', {}, '【語群】'),
           h('div', {}, choiceLine(s.bank_style || s.choice_style, s.bank).map(c => h('span', {}, c)))));
       }
     });
-    paper.append(h('div', { class: 'paper-score' }, e.end_note || '問題は以上です。'));
+    body.append(h('div', { class: 'paper-score' }, e.end_note || '問題は以上です。'));
     return paper;
   }
 
@@ -2819,7 +3089,7 @@ function paperView(kind) {
     paper.append(h('table', { class: 'sheet-head' }, h('tr', {}, fields.map(f => [h('td', { class: 'lbl' }, f), h('td', { class: f === '氏名' ? 'wide' : '' })]))));
   }
   const bigShown = new Set();  // 大問の番号は、その大問で最初に問題がある設問の前に1回だけ（Wordと同じ）
-  p.sections.forEach((s, si) => {
+  view.sections.forEach((s, si) => {
     if (!s.questions.length) return;
     const nums = plan[si];
     const pts = pointsLabel(s, nums.map(n => n.cell));
@@ -2853,7 +3123,7 @@ function paperView(kind) {
       if (scripts.length) paper.append(h('div', { class: 'paper-note' }, h('b', {}, '放送文'), scripts.map(([l, t]) => h('div', {}, `${l}　${t}`))));
     }
   });
-  const total = p.sections.reduce((a, s) => a + sectionPoints(s), 0);
+  const total = view.sections.reduce((a, s) => a + sectionPoints(s), 0);
   paper.append(h('div', { class: 'paper-score' }, `合計　　　　／${e.written_points || total}`));
   return paper;
 }
@@ -2886,7 +3156,7 @@ function renderOutput() {
     h('button', { class: 'seg-btn' + (S.previewTab === k ? ' on' : ''), onclick: () => { S.previewTab = k; render({ keepScroll: true }); } }, l)));
   return h('div', { class: 'step' },
     stepHead('出力', 'プレビューで仕上がりを確認し、Wordファイルとして保存します。体裁は叩き台なので、最終調整はWordで行ってください。'),
-    dl, h('div', { class: 'preview-wrap' }, tabs, paperView(S.previewTab)));
+    dl, (() => { const wrap = h('div', { class: 'preview-wrap' }, tabs); const paper = paperView(S.previewTab); wrap.append(paper); fitPaper(wrap, paper); return wrap; })());
 }
 
 // ================================================================ ダイアログ（設定・使い方）

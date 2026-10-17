@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 
 from docx import Document
+from docx.enum.section import WD_ORIENT, WD_SECTION_START
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
@@ -25,6 +26,8 @@ from .layout import answer_slots
 
 FONT_EN = "Times New Roman"
 FONT_JA = "MS Mincho"
+FONTS = {"mincho": ("Times New Roman", "MS Mincho"), "gothic": ("Arial", "MS Gothic")}
+_font = {"en": FONT_EN, "ja": FONT_JA}  # いま作っている文書の書体（_new_doc で設定）
 _UNDERLINE = re.compile(r"__(.+?)__")
 CENTER = WD_ALIGN_PARAGRAPH.CENTER
 RIGHT = WD_ALIGN_PARAGRAPH.RIGHT
@@ -38,23 +41,55 @@ DEFAULT_CAUTIONS = [
 ]
 
 
-def _new_doc() -> Document:
+def _new_doc(exam: dict | None = None, sheet: bool = False) -> Document:
+    """用紙の設定（サイズ・向き・余白・書体・文字の大きさ・行間）どおりの白紙の文書を作る。"""
+    pp = layout.paper(exam or {})
+    if sheet and pp["sheet"] in layout.SHEETS:  # 解答用紙・模範解答は解答用紙のサイズ
+        size, orient = layout.SHEETS[pp["sheet"]]
+    else:
+        size, orient = pp["size"], pp["orient"]
+    w, h = layout.page_mm(size, orient)
+    margin = layout.MARGINS.get(pp["margin"], 16)
     doc = Document()
     sec = doc.sections[0]
-    sec.page_width, sec.page_height = Mm(210), Mm(297)
-    sec.left_margin = sec.right_margin = Mm(16)
-    sec.top_margin = sec.bottom_margin = Mm(14)
+    sec.orientation = WD_ORIENT.LANDSCAPE if orient == "landscape" else WD_ORIENT.PORTRAIT
+    sec.page_width, sec.page_height = Mm(w), Mm(h)
+    sec.left_margin = sec.right_margin = Mm(margin)
+    sec.top_margin = sec.bottom_margin = Mm(round(margin * 0.85))
+    _font["en"], _font["ja"] = FONTS.get(pp["font"], FONTS["mincho"])
+    fs = float(pp["font_size"])
     normal = doc.styles["Normal"]
-    normal.font.name = FONT_EN
-    normal.font.size = Pt(10.5)
-    normal.element.rPr.rFonts.set(qn("w:eastAsia"), FONT_JA)
+    normal.font.name = _font["en"]
+    normal.font.size = Pt(fs)
+    normal.element.rPr.rFonts.set(qn("w:eastAsia"), _font["ja"])
     normal.paragraph_format.space_after = Pt(2)
+    normal.paragraph_format.line_spacing = layout.LINE.get(pp["line"], 1.1)
+    doc._tw = w - margin * 2   # 本文の幅（mm）。2段組みでは1段の幅に変える
+    doc._fs = fs               # 文字の大きさ（pt）
+    doc._tall = pp["answer_height"] == "tall"
+    doc._columns = int(pp["columns"]) if not sheet else 1
     return doc
 
 
+def _start_columns(doc):
+    """ここから下を2段組みにする（試験名・表紙は1段のまま）。"""
+    if doc._columns != 2:
+        return
+    sec = doc.add_section(WD_SECTION_START.CONTINUOUS)
+    cols = sec._sectPr.find(qn("w:cols"))
+    if cols is None:
+        cols = OxmlElement("w:cols")
+        sec._sectPr.append(cols)
+    gap = 8
+    cols.set(qn("w:num"), "2")
+    cols.set(qn("w:space"), str(int(gap * 56.7)))
+    cols.set(qn("w:sep"), "1")  # 段の間に区切り線
+    doc._tw = (doc._tw - gap) / 2
+
+
 def _page_numbers(doc):
-    """フッター中央にページ番号（－ 1 －）を入れる。"""
-    for sec in doc.sections:
+    """フッター中央にページ番号（－ 1 －）を入れる（2段組みで区切った後の部分は同じフッターを使う）。"""
+    for sec in doc.sections[:1]:
         p = sec.footer.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         _run(p, "－ ", 9)
@@ -97,13 +132,13 @@ def _run(p, text, size=None, bold=False, underline=False, color=None):
     run.font.underline = underline
     if color is not None:
         run.font.color.rgb = color
-    run.font.name = FONT_EN
+    run.font.name = _font["en"]
     rpr = run._r.get_or_add_rPr()
     fonts = rpr.find(qn("w:rFonts"))
     if fonts is None:
         fonts = OxmlElement("w:rFonts")
         rpr.insert(0, fonts)
-    fonts.set(qn("w:eastAsia"), FONT_JA)
+    fonts.set(qn("w:eastAsia"), _font["ja"])
     return run
 
 
@@ -136,7 +171,7 @@ def _para(parent, text="", size=None, bold=False, align=None, indent_mm=0, befor
     return p
 
 
-def _cell(cell, text="", bold=False, size=10, align=CENTER, small=None):
+def _cell(cell, text="", bold=False, size=None, align=CENTER, small=None):
     """セルに書く。small は左上に小さく出す見出し（解答番号・「2番目」など）。"""
     cell.text = ""
     p = cell.paragraphs[0]
@@ -168,9 +203,6 @@ def _no_borders(table):
     tblPr.append(borders)
 
 
-TEXT_MM = 178  # 本文の幅（A4 210mm − 左右余白 16mm×2）
-
-
 def _widths(table, mm):
     """表の列幅を固定する（Word・LibreOffice の両方で効くよう、列とセルの両方に入れる）。"""
     table.autofit = False
@@ -195,7 +227,7 @@ def _choice_table(doc, rows, style, lead=True):
     _no_borders(t)
     # 列幅: 問題文の列は中身に合わせ（番号だけなら細く）、残りを選択肢で等分
     head_mm = (12 if all(len(h or "") <= 5 for h, _ in rows) else 52) if lead else 10
-    choice_mm = (TEXT_MM - head_mm) / max(1, width)
+    choice_mm = (doc._tw - head_mm) / max(1, width)
     _widths(t, [head_mm] + [choice_mm] * width if lead else [choice_mm] * width)
     if not lead:  # 問題文の下に並べる選択肢は、問題文の英文と同じだけ字下げする
         ind = OxmlElement("w:tblInd")
@@ -231,20 +263,21 @@ def _title_line(doc, exam, suffix=""):
     if exam.get("date") and not suffix:
         t = doc.add_table(rows=1, cols=2)
         t.style = "Table Grid"
-        _widths(t, [TEXT_MM - 52, 52])
-        _cell(t.rows[0].cells[0], title, bold=True, size=12, align=WD_ALIGN_PARAGRAPH.LEFT)
+        _widths(t, [doc._tw - 52, 52])
+        _cell(t.rows[0].cells[0], title, bold=True, size=doc._fs + 1.5, align=WD_ALIGN_PARAGRAPH.LEFT)
         _cell(t.rows[0].cells[1], exam["date"], size=10, align=RIGHT)
         t.rows[0].height = Mm(10)
         _para(doc, "", after=2)
     else:
-        _para(doc, title, 12.5, True, CENTER, after=6)
+        _para(doc, title, doc._fs + 2, True, CENTER, after=6)
 
 
 def _compact_choices(sec) -> bool:
-    """英単語テストのように、問題文が短く全問に選択肢がある大問は1つの表にまとめる。"""
+    """英単語テストのように、問題文が短く全問に選択肢がある大問は1つの表にまとめる（並べ方が「自動」「横一列」のとき）。"""
     qs = sec.get("questions", [])
-    return bool(qs) and all(q.get("choices") and "\n" not in (q.get("body") or "")
-                            and len(q.get("body") or "") <= 40 and _short_choices(q["choices"]) for q in qs)
+    return (sec.get("choice_layout") or "auto") in ("auto", "row") and bool(qs) and all(
+        q.get("choices") and "\n" not in (q.get("body") or "") and len(q.get("body") or "") <= 40
+        and _short_choices(q["choices"]) for q in qs)
 
 
 def _short_choices(choices) -> bool:
@@ -257,7 +290,7 @@ def _passage(doc, text):
     t = doc.add_table(rows=1, cols=1)
     t.style = "Table Grid"
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
-    _widths(t, [TEXT_MM - 2])
+    _widths(t, [doc._tw - 2])
     cell = t.rows[0].cells[0]
     cell.text = ""
     first = True
@@ -266,7 +299,7 @@ def _passage(doc, text):
         first = False
         p.paragraph_format.space_after = Pt(1)
         p.paragraph_format.first_line_indent = Mm(4) if line.strip() else None
-        _rich(p, line.strip(), 10.5)
+        _rich(p, line.strip())
     _para(doc, "", after=2)
 
 
@@ -281,7 +314,8 @@ def _questions(doc, sec, nums):
         for q, n in zip(qs, nums):
             lines = (q.get("body") or "").split("\n")
             block = []
-            if not lines[0].strip() and q.get("choices") and not _short_choices(q["choices"]):
+            mode = layout.choice_mode(sec, q) if q.get("choices") else ""
+            if not lines[0].strip() and mode == "column":
                 # 問題文のない内容一致: 番号のすぐ横から選択肢を並べる
                 for k, line in enumerate(layout.choice_line(style, q["choices"])):
                     para = _para(doc, (f"{n['label']}　" if k == 0 else "") + line, indent_mm=10, before=3 if k == 0 else 0)
@@ -296,18 +330,30 @@ def _questions(doc, sec, nums):
             line = layout.reorder_line(q, labels)
             if line:
                 block.append(_para(doc, line, indent_mm=10, before=2))
-            if q.get("choices"):
-                if _short_choices(q["choices"]):
-                    block.append(None)  # 直後の選択肢の表とも離さない
-                    _keep([b for b in block if b is not None] + [None])
-                    _choice_table(doc, [(None, q["choices"])], style, lead=False)
-                    continue
-                for line in layout.choice_line(style, q["choices"]):  # 文の選択肢（内容一致など）は1行に1つ
+            if mode in ("row", "grid2"):
+                _keep(block + [None])  # 直後の選択肢の表とも離さない
+                ch = q["choices"]
+                if mode == "row":
+                    _choice_table(doc, [(None, ch)], style, lead=False)
+                else:  # 2つずつ2段（ア イ / ウ エ）。記号は通しで振る
+                    marks = layout.choice_line(style, ch)
+                    t = doc.add_table(rows=math.ceil(len(ch) / 2), cols=2)
+                    _no_borders(t)
+                    _widths(t, [(doc._tw - 10) / 2] * 2)
+                    ind = OxmlElement("w:tblInd")
+                    ind.set(qn("w:w"), str(int(10 * 56.7)))
+                    ind.set(qn("w:type"), "dxa")
+                    t._tbl.tblPr.append(ind)
+                    for k, text in enumerate(marks):
+                        _cell(t.rows[k // 2].cells[k % 2], text, align=WD_ALIGN_PARAGRAPH.LEFT)
+                continue
+            if mode == "column":  # 文の選択肢（内容一致など）は1行に1つ
+                for line in layout.choice_line(style, q["choices"]):
                     block.append(_para(doc, line, indent_mm=10))
             _keep(block)
     bank = [b for b in (sec.get("bank") or []) if str(b).strip()]
     if bank:
-        _para(doc, "【語群】", 10.5, True, before=4, keep=True)
+        _para(doc, "【語群】", None, True, before=4, keep=True)
         items = layout.choice_line(sec.get("bank_style") or style, bank)
         t = doc.add_table(rows=math.ceil(len(items) / 5), cols=5)
         _no_borders(t)
@@ -316,30 +362,35 @@ def _questions(doc, sec, nums):
 
 
 def build_exam(draft: dict, outdir: Path) -> Path:
-    doc = _new_doc()
     exam = draft["exam"]
+    doc = _new_doc(exam)
     if (exam.get("cover") or {}).get("enabled"):
         _cover(doc, exam)
     _title_line(doc, exam)
+    _start_columns(doc)
     plan = layout.numbering(draft)
     secs = draft["sections"]
     layout.apply_labels(secs)
+    printed = 0
     for g in layout.groups(secs):
         made = [i for i in g if secs[i].get("questions")]
         head = secs[g[0]]
         if not made:
             continue  # 未作成の大問は用紙に出さない（チェックで警告される）
+        if head.get("page_break") and printed:  # この大問の前で改ページ
+            doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
+        printed += 1
         multi = len(g) > 1
         if multi:
-            _para(doc, layout.big_heading(exam, [secs[i] for i in g]), 10.5, True, before=10, after=4, keep=True)
+            _para(doc, layout.big_heading(exam, [secs[i] for i in g]), None, True, before=10, after=4, keep=True)
         else:
-            _para(doc, layout.heading(exam, head), 10.5, True, before=10, after=4, keep=True)
+            _para(doc, layout.heading(exam, head), None, True, before=10, after=4, keep=True)
         if str(head.get("passage") or "").strip():
             _passage(doc, head["passage"])
         for i in made:
             sec, nums = secs[i], plan[i]
             if multi:
-                _para(doc, layout.part_heading(exam, sec), 10.5, True, before=6, after=2, keep=True)
+                _para(doc, layout.part_heading(exam, sec), None, True, before=6, after=2, keep=True)
             _questions(doc, sec, nums)
     _para(doc, exam.get("end_note") or "問題は以上です。", align=RIGHT, before=12)
     return _finish(doc, outdir / "exam_draft.docx")
@@ -360,8 +411,8 @@ def _sheet_header(doc, exam):
 
 def build_answersheet(draft: dict, outdir: Path, model: bool) -> Path:
     """model=False: 解答用紙（空欄） / True: 模範解答（太字で記入）"""
-    doc = _new_doc()
     exam = draft["exam"]
+    doc = _new_doc(exam, sheet=True)
     _title_line(doc, exam, "　模範解答" if model else "　解答用紙")
     if not model:
         _sheet_header(doc, exam)
@@ -386,7 +437,7 @@ def build_answersheet(draft: dict, outdir: Path, model: bool) -> Path:
             head = f"問{sec['part']}　{pts}"
         else:
             head = f"【{sec['no']}】（{pts.strip('【】')}）" if exam.get("heading") == "bracket" else f"{sec['no']}　{pts}"
-        _para(doc, head, 10.5, True, before=8, after=2, keep=True)
+        _para(doc, head, None, True, before=8, after=2, keep=True)
         slots = [answer_slots(q) for q in qs]
         width = max(len(s) for s in slots)
         per = min(layout.per_row(sec), len(qs))  # 問題が少ない設問は、余りのグレーの枠を作らない
@@ -397,11 +448,11 @@ def build_answersheet(draft: dict, outdir: Path, model: bool) -> Path:
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
         # 番号の列は細く、解答欄を広く（例: 1行5問なら 番号10mm＋解答25.6mm ×5）
         num_mm = 10
-        ans_mm = (TEXT_MM - per * num_mm) / (per * width)
+        ans_mm = (doc._tw - per * num_mm) / (per * width)
         _widths(table, ([num_mm] + [ans_mm] * width) * per)
         for i, (q, sl, n) in enumerate(zip(qs, slots, nums)):
             row = table.rows[i // per]
-            row.height = Mm(16 if long and not model else 9 if not model else 7)
+            row.height = Mm((16 if long else 9) * (1.5 if doc._tall else 1) if not model else 7)  # 「高め」は書きやすく1.5倍
             base = (i % per) * (1 + width)
             _cell(row.cells[base], n["cell"], size=9)
             labels = n["slots"] or q.get("slot_labels") or []
@@ -435,6 +486,8 @@ def build_answersheet(draft: dict, outdir: Path, model: bool) -> Path:
 
 
 def build_all(draft: dict, outdir: Path) -> list:
+    # 「用紙に出さない（下書き）」大問を除いた内容で作る（番号は詰める）
+    draft = {**draft, "sections": layout.visible(draft.get("sections", []))}
     return [
         build_exam(draft, outdir),
         build_answersheet(draft, outdir, model=False),

@@ -241,7 +241,10 @@ def _clean_sections(sections) -> list:
             "big_title": str(s.get("big_title") or "")[:500],
             "passage": _limited(s.get("passage"), PASSAGE_MAX, "本文"),
             "passage_src": str(s.get("passage_src") or "")[:200],
-            "order": _limited(s.get("order"), 5000, "作りたい問題（注文）"),  # 大問の「作りたい問題」（自然言語の注文）
+            "order": _limited(s.get("order"), 5000, "作りたい問題（注文）"),
+            "page_break": bool(s.get("page_break")),   # この大問の前で改ページ
+            "hide": bool(s.get("hide")),               # 用紙に出さない（下書き）
+            "choice_layout": s.get("choice_layout") if s.get("choice_layout") in ("auto", "row", "column", "grid2") else "auto",  # 大問の「作りたい問題」（自然言語の注文）
             "questions": qs,
         })
     layout.apply_labels(out)
@@ -268,7 +271,24 @@ def _clean_exam(exam) -> dict:
         "sheet_fields": str(exam.get("sheet_fields") or "組,番,氏名,得点")[:100],
         "cover": _clean_cover(exam.get("cover")),
         "end_note": str(exam.get("end_note") or "問題は以上です。")[:200],
+        "paper": _clean_paper(exam.get("paper")),
     }
+
+
+def _clean_paper(pp) -> dict:
+    """用紙の設定（サイズ・向き・段組み・文字・余白・行間・解答用紙）。おかしな値は標準に戻す。"""
+    pp = pp if isinstance(pp, dict) else {}
+    d = layout.PAPER_DEFAULT
+    pick = lambda k, ok: pp.get(k) if pp.get(k) in ok else d[k]
+    try:
+        fs = float(pp.get("font_size", d["font_size"]))
+    except (TypeError, ValueError):
+        fs = d["font_size"]
+    return {"size": pick("size", layout.PAPER_SIZES), "orient": pick("orient", ("portrait", "landscape")),
+            "columns": pp.get("columns") if pp.get("columns") in (1, 2) else 1,
+            "font_size": min(14.0, max(8.0, round(fs * 2) / 2)), "font": pick("font", ("mincho", "gothic")),
+            "margin": pick("margin", layout.MARGINS), "line": pick("line", layout.LINE),
+            "sheet": pick("sheet", ("A4", "B4", "A3L", "same")), "answer_height": pick("answer_height", ("normal", "tall"))}
 
 
 def _new_project(title="", written_points=80, sections=None, exam=None) -> dict:
@@ -487,7 +507,7 @@ def _safe_filename(s: str) -> str:
 
 def _sources_md(p: dict) -> str:
     lines = [f"# {p['exam']['title']}　出典一覧", "", f"作成: {_now()}", ""]
-    for s in p["sections"]:
+    for s in layout.visible(p["sections"]):  # 用紙に出さない（下書き）の大問は載せない
         lines += [f"## {s.get('label') or '大問' + str(s['no'])}（{s['points_each']}点×{len(s['questions'])}）", "",
                   *([f"本文の出典: {s['passage_src']}", ""] if s.get("passage_src") else []),
                   "| 問 | 解答 | 出典 | 別解の検討 |", "|---|---|---|---|"]
@@ -621,6 +641,8 @@ def _student_items(p: dict, scope: int = -1) -> list:
         if scope >= 0 and scope not in g:
             continue
         head = p["sections"][g[0]]
+        if head.get("hide"):
+            continue  # 用紙に出さない（下書き）の大問は解かせない
         first = True
         for i in g:
             s = p["sections"][i]
@@ -749,7 +771,7 @@ def _clean_template(t: dict, tid: str = "") -> dict:
     return {"id": tid if MATERIAL_ID.match(tid or "") else uuid.uuid4().hex[:8], "name": name,
             "category": str(t.get("category") or exam["category"])[:30], "desc": str(t.get("desc") or "")[:200],
             "exam": {k: exam[k] for k in ("written_points", "numbering", "heading", "sheet_fields", "cover",
-                                          "category", "end_note")},
+                                          "category", "end_note", "paper")},
             "sections": secs, "updated_at": _now()}
 
 
