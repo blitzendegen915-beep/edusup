@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+
+# 定期考査スタジオのデータ（試験の実物を含む）
+exam_workspace/
+
+# PyInstaller の作業ファイル
+build/
+dist/
+*.spec
+word_lists/

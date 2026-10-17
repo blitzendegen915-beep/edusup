@@ -1,0 +1,29 @@
+# 定期考査スタジオのテスト（push のたびに自動で実行）
+name: Tests
+
+on:
+  push:
+    paths:
+      - "exam_app/**"
+      - ".github/workflows/tests.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -r exam_app/requirements.txt
+      - name: Run tests
+        run: |
+          python -m exam_app.tests.test_offline
+          python -m exam_app.tests.test_ui_server
+          python -m exam_app.tests.test_anthropic_mock
+          python -m exam_app.tests.test_openai_mock
+      - name: Check JavaScript syntax
+        run: |
+          for f in exam_app/ui/static/*.js; do node -e "new Function(require('fs').readFileSync('$f','utf8'))" || exit 1; done
