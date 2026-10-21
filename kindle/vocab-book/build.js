@@ -33,8 +33,10 @@ const CHOICE_MARKS = ["①", "②", "③", "④", "⑤", "⑥"];
 const MAX_EXAMPLE_WORDS = 15;
 
 // 正解・不正解ページのひとこと（順番に使い回す）
-const OK_MESSAGES = ["天才では？", "ナイス！その調子", "脳が喜んでる", "完璧！次もいける", "記憶に刻まれた"];
-const NG_MESSAGES = ["ここで覚えればOK", "間違えた単語ほど伸びしろ", "次で取り返そう", "ドンマイ！もう覚えた"];
+const OK_MESSAGES = ["天才では？", "ナイス！その調子", "脳が喜んでる", "完璧！次もいける", "記憶に刻まれた", "ズバッと命中！", "今のはうまい！", "止まらない止まらない", "いいぞ、その勢い！", "ひらめき冴えてる", "これは強い", "まだまだいける！"];
+const NG_MESSAGES = ["ここで覚えればOK", "間違えた単語ほど伸びしろ", "次で取り返そう", "ドンマイ！もう覚えた", "ボスの反撃！でも平気", "くやしい…が、これで定着", "惜しい！次は当てる", "今ので記憶に火がついた"];
+const FINISH_OK = ["FINISH！ラスト正解！", "決まった！最後まで完璧！"];
+const FINISH_NG = ["最後は惜しかった！", "ラストは外した…でも勝負はここから"];
 
 // ランク判定（正解率の下限）。上から順に判定する
 const RANKS = [
@@ -87,6 +89,8 @@ function loadBook() {
   book.tips = book.tips || [];
   book.allClearMessage = book.allClearMessage || [];
   book.kdp = book.kdp || {};
+  // engage: ゲーム性（レベル・パック開封・レベルアップ演出など）の設定。なければ従来どおり
+  book.engage = book.engage || null;
   if (!book.identifier) {
     // 本の固有ID。KDPで同じ本を更新し続けるため、一度決めたら変えない
     book.identifier = `urn:uuid:${uuidFromText(`${book.title}|${book.author}`)}`;
@@ -454,6 +458,25 @@ function exampleHtml(word) {
   return escaped.replace(pattern, "<b>$1</b>");
 }
 
+/** 取得語数に対応するレベル（book.json の engage.levels）。設定がなければ null */
+function levelFor(book, gotWords) {
+  const levels = book.engage && book.engage.levels;
+  if (!levels || levels.length === 0) return null;
+  let current = null;
+  levels.forEach((lv, i) => {
+    if (gotWords >= lv.minWords) current = { number: i + 1, title: lv.title, minWords: lv.minWords };
+  });
+  return current;
+}
+
+/** 1ステージの「パックの中身」（レア度ごとの枚数） */
+function packContents(stage) {
+  const order = ["SSR", "SR", "R", "N"];
+  const counts = { SSR: 0, SR: 0, R: 0, N: 0 };
+  for (const w of stage.words) counts[w.rarity || "N"] += 1;
+  return order.filter((r) => counts[r] > 0).map((r) => `${r} ×${counts[r]}`).join("　");
+}
+
 function posLabel(pos) {
   return pos.slice(0, 1); // 動詞→動、形容詞→形、名詞→名
 }
@@ -554,6 +577,7 @@ ${book.badge ? `<p class="tp-badge">${esc(book.badge)}</p>` : ""}
 <h1 class="tp-title">${esc(book.title)}</h1>
 ${book.subtitle ? `<p class="tp-subtitle">${esc(book.subtitle)}</p>` : ""}
 <p class="tp-author">${esc(book.author)}</p>
+${book.engage && book.engage.secret ? `<p class="secret-link"><a href="secret.xhtml">？</a></p>` : ""}
 </div>`,
   };
 }
@@ -576,7 +600,7 @@ ${goLink(stages[0].key, `▶ STAGE ${stages[0].number} をはじめる`)}
   };
 }
 
-function stageIntroPage(stage) {
+function stageIntroPage(stage, book) {
   const minutes = Math.max(1, Math.ceil((stage.words.length * 10 + stage.questions.length * 10) / 60));
   return {
     id: stage.key,
@@ -586,22 +610,41 @@ function stageIntroPage(stage) {
 <p class="stage-number">${stage.number}</p>
 ${stage.title ? `<h1 class="stage-title">${esc(stage.title)}</h1>` : `<h1 class="stage-title">STAGE ${stage.number}</h1>`}
 <p class="stage-meta">${stage.words.length} WORDS ／ 目安 約${minutes}分</p>
-<div class="box"><p class="label">このステージでゲットする単語</p>
-<p class="stage-words">${stage.words.map((w) => esc(w.word)).join(" / ")}</p></div>
+${
+  book.engage
+    ? `<div class="box pack"><p class="label">パック開封！ このステージの中身</p>
+<p class="pack-rarity">${esc(packContents(stage))}</p>
+<p class="small">${stage.words.some((w) => w.rarity === "SSR") ? "◆ 超レア（SSR）が入っている！ どれかな？" : stage.words.some((w) => w.rarity === "SR") ? "◆ レア（SR）入り。めくって確かめよう" : "安定パック。サクサク行こう"}</p></div>`
+    : `<div class="box"><p class="label">このステージでゲットする単語</p>
+<p class="stage-words">${stage.words.map((w) => esc(w.word)).join(" / ")}</p></div>`
+}
 ${goLink(stage.words[0].pageId, "▶ START")}
 </div>`,
   };
 }
 
-function wordPage(word, totalWords) {
+function wordPage(word, totalWords, book) {
   const stage = word.stage;
   const isLast = word.indexInStage === stage.words.length;
+  // レベルアップ演出（ステージ終了後）より先にカードの表示が変わらないよう、1語手前の数で判定する
+  const level = levelFor(book, word.no - 1);
+  const levelHtml = level
+    ? `<p class="level">Lv.${level.number}　${esc(level.title)}　｜　図鑑 ${Math.round((word.no / totalWords) * 100)}%</p>`
+    : "";
+  const rareAlert =
+    book.engage && word.rarity === "SSR"
+      ? `<p class="rare-alert">◆◆　超レア出現！　◆◆</p>`
+      : book.engage && word.rarity === "SR"
+        ? `<p class="rare-alert">◆　レアカード！　◆</p>`
+        : "";
   return {
     id: word.pageId,
     title: word.word,
     html: `<div class="page word">
 <p class="card-meta">No.${pad(word.no, 3)}　｜　STAGE ${stage.number}　｜　${word.indexInStage} / ${stage.words.length}</p>
 <p class="progress">${progressBar(word.indexInStage, stage.words.length)}</p>
+${levelHtml}
+${rareAlert}
 ${word.rarity ? `<p class="rarity">${word.rarity}　${RARITY_STARS[word.rarity]}</p>` : ""}
 <h1 class="headword">${esc(word.word)}</h1>
 ${word.reading ? `<p class="reading">${bracketToBold(word.reading)}</p>` : ""}
@@ -668,14 +711,20 @@ function answerLine(q) {
 }
 
 function judgePages(q, nextId, nextLabel, book) {
+  const isFinish = q.number === q.total;
+  const okMsg = isFinish ? FINISH_OK[q.number % FINISH_OK.length] : OK_MESSAGES[(q.number + q.target.no) % OK_MESSAGES.length];
+  const ngMsg = isFinish ? FINISH_NG[q.number % FINISH_NG.length] : NG_MESSAGES[(q.number + q.target.no) % NG_MESSAGES.length];
+  const remain = q.total - q.number;
+  const okLine = book.engage ? `ヒット！ ボスに ${book.quiz.xpPerCorrect} ダメージ${remain > 0 ? `　あと ${remain} 問` : "　ボス撃破まであと一歩"}` : "";
   const ok = {
     id: q.okPageId,
     title: `${q.id} 正解`,
     html: `<div class="page judge">
 <p class="judge-mark">◎</p>
 <h1 class="judge-title">正解！</h1>
-<p class="judge-msg">${esc(OK_MESSAGES[q.number % OK_MESSAGES.length])}</p>
+<p class="judge-msg">${esc(okMsg)}</p>
 <p class="xp">+${book.quiz.xpPerCorrect} XP</p>
+${okLine ? `<p class="center small">${esc(okLine)}</p>` : ""}
 <div class="box"><p class="answer-line">${answerLine(q)}</p></div>
 ${goLink(nextId, nextLabel)}
 </div>`,
@@ -686,7 +735,7 @@ ${goLink(nextId, nextLabel)}
     html: `<div class="page judge">
 <p class="judge-mark">×</p>
 <h1 class="judge-title">ざんねん！</h1>
-<p class="judge-msg">${esc(NG_MESSAGES[q.number % NG_MESSAGES.length])}</p>
+<p class="judge-msg">${esc(ngMsg)}</p>
 <div class="box"><p class="label">正解は ${CHOICE_MARKS[q.correctIndex]}</p>
 <p class="answer-line">${answerLine(q)}</p>
 ${q.target.hook ? `<p class="small">覚え方：${esc(q.target.hook)}</p>` : ""}</div>
@@ -697,7 +746,7 @@ ${goLink(nextId, nextLabel)}
   return [ok, ng];
 }
 
-function resultPage({ id, heading, questions, gotWords, totalWords, nextId, nextLabel, retryId, book }) {
+function resultPage({ id, heading, questions, gotWords, totalWords, nextId, nextLabel, retryId, book, teaser }) {
   const xp = book.quiz.xpPerCorrect;
   const answers = questions
     .map((q) => `<p class="answer-row">Q${q.number}　${CHOICE_MARKS[q.correctIndex]}　${answerLine(q)}</p>`)
@@ -712,14 +761,15 @@ function resultPage({ id, heading, questions, gotWords, totalWords, nextId, next
     id,
     title: `${heading} 答え合わせ`,
     html: `<div class="page result">
-<p class="clear-label">${esc(heading)}</p>
+<p class="clear-label">${esc(heading)}${book.engage ? "　BOSS DEFEATED" : ""}</p>
 <h1 class="clear-title">CLEAR!!</h1>
-<p class="center">ゲットした単語　<b>${gotWords} / ${totalWords}</b></p>
+<p class="center">ゲットした単語　<b>${gotWords} / ${totalWords}</b>${book.engage ? `　（図鑑 ${Math.round((gotWords / totalWords) * 100)}%）` : ""}</p>
 <h2 class="section-title">答え合わせ</h2>
 ${answers}
 <h2 class="section-title">ランク判定</h2>
 <p>正解の数 × ${xp}XP を数えよう！</p>
 ${ranks}
+${teaser ? `<div class="box pack"><p class="label">NEXT PACK</p><p>${esc(teaser)}</p></div>` : ""}
 ${goLink(nextId, nextLabel)}
 <p class="sub-link"><a href="${retryId}.xhtml">▷ もう一度ボス戦</a></p>
 </div>`,
@@ -737,7 +787,44 @@ function allClearPage(book, values) {
 <div class="box">
 ${lines}
 </div>
+${(() => {
+  const lv = levelFor(book, values.words);
+  return lv ? `<p class="center"><b>Lv.${lv.number}　${esc(lv.title)}</b>　到達！</p>` : "";
+})()}
+${book.engage && book.engage.secret ? goLink("secret", "▶ シークレットページを開く") : ""}
 ${goLink("word-index", "▶ さくいん（全単語リスト）")}
+</div>`,
+  };
+}
+
+function secretPage(book, values) {
+  const lines = (book.engage.secret || []).map((line) => `<p>${esc(fillTemplate(line, values))}</p>`).join("\n");
+  return {
+    id: "secret",
+    title: "SECRET",
+    html: `<div class="page result">
+<p class="clear-label">SECRET PAGE</p>
+<h1 class="clear-title">SECRET</h1>
+<div class="box">
+${lines}
+</div>
+${goLink("intro", "▶ 最初から もう一周")}
+</div>`,
+  };
+}
+
+function levelUpPage({ id, level, nextLevel, gotWords, totalWords, nextId, nextLabel }) {
+  const remain = nextLevel ? nextLevel.minWords - gotWords : 0;
+  return {
+    id,
+    title: `LEVEL UP Lv.${level.number}`,
+    html: `<div class="page result">
+<p class="clear-label">LEVEL UP</p>
+<h1 class="clear-title">Lv.${level.number}</h1>
+<p class="lvup-title">${esc(level.title)}</p>
+<p class="center">図鑑　<b>${gotWords} / ${totalWords}</b>　（${Math.round((gotWords / totalWords) * 100)}%）</p>
+<div class="box"><p class="center">${nextLevel ? `次のレベルまで あと <b>${remain}</b> 語。<br/>「${esc(nextLevel.title)}」が待っている。` : "最高レベルに到達！"}</p></div>
+${goLink(nextId, nextLabel)}
 </div>`,
   };
 }
@@ -857,8 +944,8 @@ function buildPages(book, stages, words, finalQuestions) {
   let gotWords = 0;
 
   stages.forEach((stage, stageIndex) => {
-    pages.push(stageIntroPage(stage));
-    for (const w of stage.words) pages.push(wordPage(w, totalWords));
+    pages.push(stageIntroPage(stage, book));
+    for (const w of stage.words) pages.push(wordPage(w, totalWords, book));
     gotWords += stage.words.length;
 
     const bossId = `${stage.key}-boss`;
@@ -884,7 +971,25 @@ function buildPages(book, stages, words, finalQuestions) {
       nextId = "all-clear";
       nextLabel = "▶ ゴールへ";
     }
-    pages.push(resultPage({ id: resultId, heading: `STAGE ${stage.number}`, questions: stage.questions, gotWords, totalWords, nextId, nextLabel, retryId: bossId, book }));
+    // 次のパックの予告（わくわくの先読み）と、レベルアップ演出
+    const teaser =
+      book.engage && nextStage
+        ? `STAGE ${nextStage.number}${nextStage.title ? `「${nextStage.title}」` : ""}　${packContents(nextStage)}${nextStage.words.some((w) => w.rarity === "SSR") ? "　◆ 超レア入り！" : ""}`
+        : "";
+    const prevLevel = levelFor(book, gotWords - stage.words.length);
+    const curLevel = levelFor(book, gotWords);
+    const levelUp = book.engage && curLevel && (!prevLevel || curLevel.number > prevLevel.number);
+    const levelUpId = `lv-${stage.key}`;
+    pages.push(
+      resultPage({
+        id: resultId, heading: `STAGE ${stage.number}`, questions: stage.questions, gotWords, totalWords,
+        nextId: levelUp ? levelUpId : nextId, nextLabel: levelUp ? "▶ LEVEL UP！" : nextLabel, retryId: bossId, book, teaser,
+      })
+    );
+    if (levelUp) {
+      const nextLevel = book.engage.levels[curLevel.number] ? { ...book.engage.levels[curLevel.number] } : null;
+      pages.push(levelUpPage({ id: levelUpId, level: curLevel, nextLevel, gotWords, totalWords, nextId, nextLabel }));
+    }
   });
 
   if (finalQuestions.length > 0) {
@@ -897,7 +1002,9 @@ function buildPages(book, stages, words, finalQuestions) {
     pages.push(resultPage({ id: "final-result", heading: "LAST BOSS", questions: finalQuestions, gotWords, totalWords, nextId: "all-clear", nextLabel: "▶ ゴールへ", retryId: "final-boss", book }));
   }
 
-  pages.push(allClearPage(book, values), wordIndexPage(words), colophonPage(book), jumpZonePage(), ...jumpPages);
+  pages.push(allClearPage(book, values), wordIndexPage(words), colophonPage(book));
+  if (book.engage && book.engage.secret) pages.push(secretPage(book, values));
+  pages.push(jumpZonePage(), ...jumpPages);
   return { pages, tocEntries };
 }
 
